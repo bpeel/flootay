@@ -12,7 +12,7 @@
 
 struct key_frame {
         int num;
-        int x, y, w, h;
+        int x1, y1, x2, y2;
 };
 
 struct rectangle {
@@ -22,20 +22,20 @@ struct rectangle {
 
 static const struct key_frame
 plate_rectangle[] = {
-        { 269, 881, 379, 44, 25, },
-        { 329, 824, 444, 72, 30, },
-        { 389, 617, 494, 151, 60, },
-        { 449, 273, 581, 273, 101, },
-        { 509, 306, 782, 429, 153, },
-        { 569, 254, 1034, 438, 12, },
+        { 269, 881, 379, 925, 404, },
+        { 329, 824, 444, 896, 474, },
+        { 389, 617, 494, 768, 554, },
+        { 449, 273, 581, 546, 682, },
+        { 509, 306, 782, 735, 935, },
+        { 569, 254, 1034, 692, 1046, },
 };
 
 static const struct key_frame
 face_rectangle[] = {
-        { 689, 524, 365, 278, 277, },
-        { 749, 3, 529, 627, 516, },
-        { 809, 0, 398, 596, 647, },
-        { 869, 0, 398, 0, 647, },
+        { 689, 524, 365, 802, 642, },
+        { 749, 3, 529, 630, 1045, },
+        { 809, 0, 398, 596, 1045, },
+        { 869, 0, 398, 0, 1045, },
 };
 
 static const struct rectangle
@@ -117,14 +117,10 @@ interpolate_and_add_rectangle(uint8_t *buf,
         const struct key_frame *e = rect->key_frames + end_num;
         float i = (frame_num - s->num) / (float) (e->num - s->num);
 
-        int x1 = clamp(interpolate(i, s->x, e->x), 0, IMAGE_WIDTH);
-        int y1 = clamp(interpolate(i, s->y, e->y), 0, IMAGE_HEIGHT);
-        int x2 = clamp(interpolate(i, s->x + s->w, e->x + e->w),
-                       x1,
-                       IMAGE_WIDTH);
-        int y2 = clamp(interpolate(i, s->y + s->h, e->y + e->h),
-                       y1,
-                       IMAGE_HEIGHT);
+        int x1 = clamp(interpolate(i, s->x1, e->x1), 0, IMAGE_WIDTH);
+        int y1 = clamp(interpolate(i, s->y1, e->y1), 0, IMAGE_HEIGHT);
+        int x2 = clamp(interpolate(i, s->x2, e->x2), x1, IMAGE_WIDTH);
+        int y2 = clamp(interpolate(i, s->y2, e->y2), y1, IMAGE_HEIGHT);
 
         fill_rectangle(buf, x1, y1, x2, y2);
 }

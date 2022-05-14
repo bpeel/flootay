@@ -22,20 +22,20 @@ struct rectangle {
 
 static const struct key_frame
 plate_rectangle[] = {
-        { 5, 881, 379, 44, 25, },
-        { 6, 824, 444, 72, 30, },
-        { 7, 617, 494, 151, 60, },
-        { 8, 273, 581, 273, 101, },
-        { 9, 306, 782, 429, 153, },
-        { 10, 254, 1034, 438, 12, },
+        { 300, 881, 379, 44, 25, },
+        { 360, 824, 444, 72, 30, },
+        { 420, 617, 494, 151, 60, },
+        { 480, 273, 581, 273, 101, },
+        { 540, 306, 782, 429, 153, },
+        { 600, 254, 1034, 438, 12, },
 };
 
 static const struct key_frame
 face_rectangle[] = {
-        { 10, 524, 365, 278, 277, },
-        { 11, 3, 529, 627, 516, },
-        { 12, 0, 398, 596, 647, },
-        { 13, 0, 398, 0, 647, },
+        { 600, 524, 365, 278, 277, },
+        { 660, 3, 529, 627, 516, },
+        { 720, 0, 398, 596, 647, },
+        { 780, 0, 398, 0, 647, },
 };
 
 static const struct rectangle
@@ -44,24 +44,21 @@ rectangles[] = {
         { N_ELEMENTS(face_rectangle), face_rectangle },
 };
 
-/* One image every 2 seconds at 30fps = 60 frames per image */
-#define FRAMES_PER_UNIT 60
-
 static int
 get_n_frames(void)
 {
-        int max_unit = 0;
+        int max_frame = 0;
 
         for (int i = 0; i < N_ELEMENTS(rectangles); i++) {
                 const struct rectangle *rect = rectangles + i;
                 const struct key_frame *last_frame =
                         rect->key_frames + rect->n_key_frames - 1;
 
-                if (last_frame->num > max_unit)
-                        max_unit = last_frame->num;
+                if (last_frame->num > max_frame)
+                        max_frame = last_frame->num;
         }
 
-        return max_unit * FRAMES_PER_UNIT;
+        return max_frame;
 }
 
 static int
@@ -107,7 +104,7 @@ interpolate_and_add_rectangle(uint8_t *buf,
                 if (end_num >= rect->n_key_frames)
                         return;
 
-                if (rect->key_frames[end_num].num * FRAMES_PER_UNIT > frame_num)
+                if (rect->key_frames[end_num].num > frame_num)
                         break;
 
                 end_num++;
@@ -118,8 +115,7 @@ interpolate_and_add_rectangle(uint8_t *buf,
 
         const struct key_frame *s = rect->key_frames + end_num - 1;
         const struct key_frame *e = rect->key_frames + end_num;
-        float i = ((frame_num / (float) FRAMES_PER_UNIT - s->num) /
-                   (e->num - s->num));
+        float i = (frame_num - s->num) / (float) (e->num - s->num);
 
         int x1 = clamp(interpolate(i, s->x, e->x), 0, IMAGE_WIDTH);
         int y1 = clamp(interpolate(i, s->y, e->y), 0, IMAGE_HEIGHT);

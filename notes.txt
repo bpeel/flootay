@@ -1,0 +1,15 @@
+# Generate the thumbnails
+
+ffmpeg -i pauvre-poteau.mp4 \
+ -vf "drawtext=fontfile=Arial.ttf:text='%{frame_num}':fontsize=200:bordercolor=white:borderw=8:y=8,fps=1/2" \
+ out/poteauu-%03d.png
+
+# Make the video
+
+flootay | \
+ ffmpeg -i pauvre-poteau.mp4 \
+ -f rawvideo -pixel_format rgba -video_size 1900x1046 -framerate 30 -i - \
+ -filter_complex "[0:v][1:v]overlay[ov]" \
+ -map '[ov]' -map 0:a \
+ -y \
+ flootay.mp4

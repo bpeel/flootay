@@ -11,7 +11,13 @@ foreach a : ['-Wall', '-Wuninitialized', '-Wempty-body', '-Wformat',
 endforeach
 
 m_dep = cc.find_library('m', required : false)
+sdl_dep = dependency('sdl2')
+sdl_image_dep = dependency('SDL2_image')
 
 executable('flootay',
            ['flootay.c'],
            dependencies: [m_dep])
+
+executable('make-key-frames',
+           ['make-key-frames.c'],
+           dependencies: [sdl_dep, sdl_image_dep])

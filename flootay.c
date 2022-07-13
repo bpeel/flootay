@@ -81,7 +81,7 @@ get_n_frames(void)
                         max_frame = last_frame->num;
         }
 
-        return max_frame;
+        return max_frame + 1;
 }
 
 static int

@@ -18,6 +18,8 @@
 
 #include "flt-parser.h"
 
+#include <limits.h>
+
 #include "flt-lexer.h"
 #include "flt-utf8.h"
 #include "flt-list.h"
@@ -287,6 +289,34 @@ parse_items(struct flt_parser *parser,
         return FLT_PARSER_RETURN_NOT_MATCHED;
 }
 
+static const struct flt_parser_property
+key_frame_props[] = {
+        {
+                offsetof(struct flt_scene_rectangle_key_frame, x1),
+                FLT_PARSER_VALUE_TYPE_INT,
+                FLT_LEXER_KEYWORD_X1,
+                .min_value = INT_MIN, .max_value = INT_MAX,
+        },
+        {
+                offsetof(struct flt_scene_rectangle_key_frame, y1),
+                FLT_PARSER_VALUE_TYPE_INT,
+                FLT_LEXER_KEYWORD_Y1,
+                .min_value = INT_MIN, .max_value = INT_MAX,
+        },
+        {
+                offsetof(struct flt_scene_rectangle_key_frame, x2),
+                FLT_PARSER_VALUE_TYPE_INT,
+                FLT_LEXER_KEYWORD_X2,
+                .min_value = INT_MIN, .max_value = INT_MAX,
+        },
+        {
+                offsetof(struct flt_scene_rectangle_key_frame, y2),
+                FLT_PARSER_VALUE_TYPE_INT,
+                FLT_LEXER_KEYWORD_Y2,
+                .min_value = INT_MIN, .max_value = INT_MAX,
+        },
+};
+
 static enum flt_parser_return
 parse_key_frame(struct flt_parser *parser,
                 struct flt_error **error)
@@ -295,33 +325,18 @@ parse_key_frame(struct flt_parser *parser,
 
         check_item_keyword(parser, FLT_LEXER_KEYWORD_KEY_FRAME, error);
 
-        int key_frame_line_num = flt_lexer_get_line_num(parser->lexer);
-
-        int parts[5];
-
-        for (int i = 0; i < FLT_N_ELEMENTS(parts); i++) {
-                require_token(parser,
-                              FLT_LEXER_TOKEN_TYPE_NUMBER,
-                              "expected key_frame "
-                              "<frame_num> <x1> <y1> <x2> <y2>",
-                              error);
-
-                parts[i] = token->number_value;
-        }
-
-        struct flt_scene_rectangle_key_frame *key_frame =
-                flt_alloc(sizeof *key_frame);
-
-        key_frame->num = parts[0];
-        key_frame->x1 = parts[1];
-        key_frame->y1 = parts[2];
-        key_frame->x2 = parts[3];
-        key_frame->y2 = parts[4];
+        require_token(parser,
+                      FLT_LEXER_TOKEN_TYPE_NUMBER,
+                      "Frame number expected",
+                      error);
 
         struct flt_scene_rectangle *rectangle =
                 flt_container_of(parser->scene->rectangles.prev,
                                  struct flt_scene_rectangle,
                                  link);
+
+        struct flt_scene_rectangle_key_frame *key_frame =
+                flt_calloc(sizeof *key_frame);
 
         int last_frame_num = -1;
 
@@ -330,16 +345,56 @@ parse_key_frame(struct flt_parser *parser,
                         flt_container_of(rectangle->key_frames.prev,
                                          struct flt_scene_rectangle_key_frame,
                                          link);
+
+                *key_frame = *last_key_frame;
+
                 last_frame_num = last_key_frame->num;
         }
 
         flt_list_insert(rectangle->key_frames.prev, &key_frame->link);
 
-        if (key_frame->num <= last_frame_num) {
-                set_error_with_line(parser,
-                                    error,
-                                    key_frame_line_num,
-                                    "frame numbers out of order");
+        if (token->number_value <= last_frame_num) {
+                set_error(parser,
+                          error,
+                          "frame numbers out of order");
+                return FLT_PARSER_RETURN_ERROR;
+        }
+
+        key_frame->num = token->number_value;
+
+        require_token(parser,
+                      FLT_LEXER_TOKEN_TYPE_OPEN_BRACKET,
+                      "expected ‘{’",
+                      error);
+
+        while (true) {
+                token = flt_lexer_get_token(parser->lexer, error);
+
+                if (token == NULL)
+                        return FLT_PARSER_RETURN_ERROR;
+
+                if (token->type == FLT_LEXER_TOKEN_TYPE_CLOSE_BRACKET)
+                        break;
+
+                flt_lexer_put_token(parser->lexer);
+
+                switch (parse_properties(parser,
+                                         key_frame_props,
+                                         FLT_N_ELEMENTS(key_frame_props),
+                                         key_frame,
+                                         error)) {
+                case FLT_PARSER_RETURN_OK:
+                        continue;
+                case FLT_PARSER_RETURN_NOT_MATCHED:
+                        break;
+                case FLT_PARSER_RETURN_ERROR:
+                        return FLT_PARSER_RETURN_ERROR;
+                }
+
+                set_error(parser,
+                          error,
+                          "Expected key_frame item (like x1, y1, x2, y2 etc)");
+
                 return FLT_PARSER_RETURN_ERROR;
         }
 

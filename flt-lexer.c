@@ -86,6 +86,7 @@ struct flt_lexer {
 static const char * const
 keywords[] = {
         [FLT_LEXER_KEYWORD_RECTANGLE] = "rectangle",
+        [FLT_LEXER_KEYWORD_KEY_FRAME] = "key_frame",
 };
 
 _Static_assert(FLT_N_ELEMENTS(keywords) == FLT_LEXER_N_KEYWORDS,

@@ -35,6 +35,7 @@ enum flt_lexer_error {
 
 enum flt_lexer_keyword {
         FLT_LEXER_KEYWORD_RECTANGLE = 1,
+        FLT_LEXER_KEYWORD_KEY_FRAME,
 
         FLT_LEXER_N_KEYWORDS,
 };

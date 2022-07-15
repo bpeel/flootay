@@ -6,10 +6,10 @@
 #include <stdbool.h>
 #include <cairo.h>
 
+#include "flt-util.h"
+
 #define IMAGE_WIDTH 1000
 #define IMAGE_HEIGHT 550
-
-#define N_ELEMENTS(x) (sizeof (x) / sizeof ((x)[0]))
 
 struct key_frame {
         int num;
@@ -86,8 +86,8 @@ portiere_rectangle[] = {
 
 static const struct rectangle
 rectangles[] = {
-        { N_ELEMENTS(gcum_rectangle), gcum_rectangle },
-        { N_ELEMENTS(portiere_rectangle), portiere_rectangle },
+        { FLT_N_ELEMENTS(gcum_rectangle), gcum_rectangle },
+        { FLT_N_ELEMENTS(portiere_rectangle), portiere_rectangle },
 };
 
 static int
@@ -95,7 +95,7 @@ get_n_frames(void)
 {
         int max_frame = 0;
 
-        for (int i = 0; i < N_ELEMENTS(rectangles); i++) {
+        for (int i = 0; i < FLT_N_ELEMENTS(rectangles); i++) {
                 const struct rectangle *rect = rectangles + i;
                 const struct key_frame *last_frame =
                         rect->key_frames + rect->n_key_frames - 1;
@@ -218,7 +218,7 @@ main(int argc, char **argv)
                 cairo_paint(cr);
                 cairo_restore(cr);
 
-                for (int i = 0; i < N_ELEMENTS(rectangles); i++) {
+                for (int i = 0; i < FLT_N_ELEMENTS(rectangles); i++) {
                         interpolate_and_add_rectangle(cr,
                                                       frame_num,
                                                       rectangles + i);

@@ -42,6 +42,36 @@ typedef enum flt_parser_return
 (* item_parse_func)(struct flt_parser *parser,
                     struct flt_error **error);
 
+#define check_item_keyword(parser, keyword, error)                      \
+        do {                                                            \
+                token = flt_lexer_get_token((parser)->lexer, (error));  \
+                                                                        \
+                if (token == NULL)                                      \
+                        return FLT_PARSER_RETURN_ERROR;                 \
+                                                                        \
+                if (token->type != FLT_LEXER_TOKEN_TYPE_SYMBOL ||       \
+                    token->symbol_value != (keyword)) {                 \
+                        flt_lexer_put_token(parser->lexer);             \
+                        return FLT_PARSER_RETURN_NOT_MATCHED;           \
+                }                                                       \
+        } while (0)
+
+#define require_token(parser, token_type, msg, error)                   \
+        do {                                                            \
+                token = flt_lexer_get_token((parser)->lexer, (error));  \
+                                                                        \
+                if (token == NULL)                                      \
+                        return FLT_PARSER_RETURN_ERROR;                 \
+                                                                        \
+                if (token->type != (token_type)) {                      \
+                        set_error(parser,                               \
+                                  error,                                \
+                                  "%s",                                 \
+                                  (msg));                               \
+                        return FLT_PARSER_RETURN_ERROR;                 \
+                }                                                       \
+        } while (0)
+
 static void
 set_verror(struct flt_parser *parser,
            struct flt_error **error,
@@ -121,34 +151,18 @@ parse_key_frame(struct flt_parser *parser,
 {
         const struct flt_lexer_token *token;
 
-        token = flt_lexer_get_token(parser->lexer, error);
-
-        if (token == NULL)
-                return FLT_PARSER_RETURN_ERROR;
-
-        if (token->type != FLT_LEXER_TOKEN_TYPE_SYMBOL ||
-            token->symbol_value != FLT_LEXER_KEYWORD_KEY_FRAME) {
-                flt_lexer_put_token(parser->lexer);
-                return FLT_PARSER_RETURN_NOT_MATCHED;
-        }
+        check_item_keyword(parser, FLT_LEXER_KEYWORD_KEY_FRAME, error);
 
         int key_frame_line_num = flt_lexer_get_line_num(parser->lexer);
 
         int parts[5];
 
         for (int i = 0; i < FLT_N_ELEMENTS(parts); i++) {
-                token = flt_lexer_get_token(parser->lexer, error);
-
-                if (token == NULL)
-                        return FLT_PARSER_RETURN_ERROR;
-
-                if (token->type != FLT_LEXER_TOKEN_TYPE_NUMBER) {
-                        set_error(parser,
-                                  error,
-                                  "expected key_frame "
-                                  "<frame_num> <x1> <y1> <x2> <y2>");
-                        return FLT_PARSER_RETURN_ERROR;
-                }
+                require_token(parser,
+                              FLT_LEXER_TOKEN_TYPE_NUMBER,
+                              "expected key_frame "
+                              "<frame_num> <x1> <y1> <x2> <y2>",
+                              error);
 
                 parts[i] = token->number_value;
         }
@@ -196,30 +210,14 @@ parse_rectangle(struct flt_parser *parser,
 {
         const struct flt_lexer_token *token;
 
-        token = flt_lexer_get_token(parser->lexer, error);
-
-        if (token == NULL)
-                return FLT_PARSER_RETURN_ERROR;
-
-        if (token->type != FLT_LEXER_TOKEN_TYPE_SYMBOL ||
-            token->symbol_value != FLT_LEXER_KEYWORD_RECTANGLE) {
-                flt_lexer_put_token(parser->lexer);
-                return FLT_PARSER_RETURN_NOT_MATCHED;
-        }
+        check_item_keyword(parser, FLT_LEXER_KEYWORD_RECTANGLE, error);
 
         int rectangle_line_num = flt_lexer_get_line_num(parser->lexer);
 
-        token = flt_lexer_get_token(parser->lexer, error);
-
-        if (token == NULL)
-                return FLT_PARSER_RETURN_ERROR;
-
-        if (token->type != FLT_LEXER_TOKEN_TYPE_OPEN_BRACKET) {
-                set_error(parser,
-                          error,
-                          "expected ‘{’");
-                return FLT_PARSER_RETURN_ERROR;
-        }
+        require_token(parser,
+                      FLT_LEXER_TOKEN_TYPE_OPEN_BRACKET,
+                      "expected ‘{’",
+                      error);
 
         struct flt_scene_rectangle *rectangle = flt_alloc(sizeof *rectangle);
 

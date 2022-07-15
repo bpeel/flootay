@@ -1,0 +1,64 @@
+# gcum
+
+rectangle {
+        key_frame 536 636 141 662 154
+        key_frame 543 610 155 637 163
+        key_frame 551 586 168 615 178
+        key_frame 558 588 183 618 192
+        key_frame 566 607 192 637 202
+        key_frame 573 586 207 612 218
+        key_frame 581 527 225 562 237
+        key_frame 588 503 229 545 243
+        key_frame 596 508 225 548 241
+        key_frame 603 509 227 545 240
+        key_frame 611 495 237 546 254
+        key_frame 618 503 239 553 259
+        key_frame 626 549 231 600 251
+        key_frame 633 574 219 635 239
+        key_frame 641 594 214 661 243
+        key_frame 648 625 221 703 250
+        key_frame 656 656 235 745 263
+        key_frame 663 656 234 784 272
+        key_frame 671 708 235 869 289
+        key_frame 678 850 240 999 312
+}
+
+# portière
+
+rectangle {
+        key_frame 851 0 302 27 337
+        key_frame 858 0 292 51 333
+        key_frame 866 12 275 87 320
+        key_frame 873 45 257 107 294
+        key_frame 881 63 262 129 300
+        key_frame 888 91 267 156 309
+        key_frame 896 119 270 178 304
+        key_frame 903 137 265 193 295
+        key_frame 911 152 258 210 285
+        key_frame 918 183 243 244 275
+        key_frame 926 220 225 290 255
+        key_frame 933 245 225 308 250
+        key_frame 941 279 222 343 250
+        key_frame 948 312 224 372 246
+        key_frame 956 335 225 401 254
+        key_frame 963 349 232 402 258
+        key_frame 971 342 232 407 260
+        key_frame 978 341 233 394 261
+        key_frame 986 330 232 380 265
+        key_frame 993 342 236 408 264
+        key_frame 1001 375 234 439 262
+        key_frame 1008 423 228 492 256
+        key_frame 1016 550 208 614 232
+        key_frame 1023 624 202 694 225
+        key_frame 1031 624 219 693 246
+        key_frame 1038 584 239 657 266
+        key_frame 1046 558 259 646 294
+        key_frame 1053 555 267 647 306
+        key_frame 1061 564 274 665 313
+        key_frame 1068 600 275 723 331
+        key_frame 1076 665 300 804 348
+        key_frame 1083 686 292 875 362
+        key_frame 1091 703 306 970 397
+        key_frame 1098 799 321 999 439
+        key_frame 1106 854 318 999 450
+}

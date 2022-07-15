@@ -474,7 +474,7 @@ parse_file(struct flt_parser *parser,
 
                 set_error(parser,
                           error,
-                          "Expected file-level item (like an waypoint etc)");
+                          "Expected file-level item (like a rectangle etc)");
 
                 return false;
         }

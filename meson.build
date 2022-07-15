@@ -20,6 +20,7 @@ executable('flootay',
             'flt-buffer.c',
             'flt-error.c',
             'flt-lexer.c',
+            'flt-list.c',
             'flt-utf8.c',
             'flt-util.c'],
            dependencies: [m_dep, cairo_dep])

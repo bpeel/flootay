@@ -18,6 +18,7 @@ cairo_dep = dependency('cairo')
 executable('flootay',
            ['flootay.c',
             'flt-error.c',
+            'flt-utf8.c',
             'flt-util.c'],
            dependencies: [m_dep, cairo_dep])
 

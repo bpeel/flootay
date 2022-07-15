@@ -411,6 +411,22 @@ parse_rectangle(struct flt_parser *parser,
         return FLT_PARSER_RETURN_OK;
 }
 
+static const struct flt_parser_property
+file_props[] = {
+        {
+                offsetof(struct flt_scene, video_width),
+                FLT_PARSER_VALUE_TYPE_INT,
+                FLT_LEXER_KEYWORD_VIDEO_WIDTH,
+                .min_value = 1, .max_value = UINT16_MAX,
+        },
+        {
+                offsetof(struct flt_scene, video_height),
+                FLT_PARSER_VALUE_TYPE_INT,
+                FLT_LEXER_KEYWORD_VIDEO_HEIGHT,
+                .min_value = 1, .max_value = UINT16_MAX,
+        },
+};
+
 static bool
 parse_file(struct flt_parser *parser,
            struct flt_error **error)
@@ -435,6 +451,19 @@ parse_file(struct flt_parser *parser,
                                     funcs,
                                     FLT_N_ELEMENTS(funcs),
                                     error)) {
+                case FLT_PARSER_RETURN_OK:
+                        continue;
+                case FLT_PARSER_RETURN_NOT_MATCHED:
+                        break;
+                case FLT_PARSER_RETURN_ERROR:
+                        return false;
+                }
+
+                switch (parse_properties(parser,
+                                         file_props,
+                                         FLT_N_ELEMENTS(file_props),
+                                         parser->scene,
+                                         error)) {
                 case FLT_PARSER_RETURN_OK:
                         continue;
                 case FLT_PARSER_RETURN_NOT_MATCHED:

@@ -87,6 +87,8 @@ static const char * const
 keywords[] = {
         [FLT_LEXER_KEYWORD_RECTANGLE] = "rectangle",
         [FLT_LEXER_KEYWORD_KEY_FRAME] = "key_frame",
+        [FLT_LEXER_KEYWORD_VIDEO_WIDTH] = "video_width",
+        [FLT_LEXER_KEYWORD_VIDEO_HEIGHT] = "video_height",
 };
 
 _Static_assert(FLT_N_ELEMENTS(keywords) == FLT_LEXER_N_KEYWORDS,

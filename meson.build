@@ -16,7 +16,8 @@ sdl_image_dep = dependency('SDL2_image')
 cairo_dep = dependency('cairo')
 
 executable('flootay',
-           ['flootay.c'],
+           ['flootay.c',
+            'flt-util.c'],
            dependencies: [m_dep, cairo_dep])
 
 executable('make-key-frames',

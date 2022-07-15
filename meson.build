@@ -13,10 +13,11 @@ endforeach
 m_dep = cc.find_library('m', required : false)
 sdl_dep = dependency('sdl2')
 sdl_image_dep = dependency('SDL2_image')
+cairo_dep = dependency('cairo')
 
 executable('flootay',
            ['flootay.c'],
-           dependencies: [m_dep])
+           dependencies: [m_dep, cairo_dep])
 
 executable('make-key-frames',
            ['make-key-frames.c'],

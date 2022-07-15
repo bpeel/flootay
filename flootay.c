@@ -4,6 +4,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <stdbool.h>
+#include <cairo.h>
 
 #define IMAGE_WIDTH 1000
 #define IMAGE_HEIGHT 550
@@ -123,23 +124,17 @@ clamp(int value, int min, int max)
 }
 
 static void
-fill_rectangle(uint8_t *buf,
+fill_rectangle(cairo_t *cr,
                int x1, int y1,
                int x2, int y2)
 {
-        for (int y = y1; y < y2; y++) {
-                uint8_t *p = buf + y * IMAGE_WIDTH * 4 + x1 * 4;
-
-                for (int x = x1; x < x2; x++) {
-                        memset(p, 0, 3);
-                        p[3] = 255;
-                        p += 4;
-                }
-        }
+        cairo_set_source_rgb(cr, 0.0, 0.0, 0.0);
+        cairo_rectangle(cr, x1, y1, x2 - x1, y2 - y1);
+        cairo_fill(cr);
 }
 
 static void
-interpolate_and_add_rectangle(uint8_t *buf,
+interpolate_and_add_rectangle(cairo_t *cr,
                               int frame_num,
                               const struct rectangle *rect)
 {
@@ -167,30 +162,75 @@ interpolate_and_add_rectangle(uint8_t *buf,
         int x2 = clamp(interpolate(i, s->x2, e->x2), x1, IMAGE_WIDTH);
         int y2 = clamp(interpolate(i, s->y2, e->y2), y1, IMAGE_HEIGHT);
 
-        fill_rectangle(buf, x1, y1, x2, y2);
+        fill_rectangle(cr, x1, y1, x2, y2);
+}
+
+static void
+write_surface(cairo_surface_t *surface)
+{
+        int stride = cairo_image_surface_get_stride(surface);
+        uint8_t *data = cairo_image_surface_get_data(surface);
+
+        for (int y = 0; y < IMAGE_HEIGHT; y++) {
+                uint32_t *row = (uint32_t *) (data + y * stride);
+                uint8_t *out_pix = data;
+
+                for (int x = 0; x < IMAGE_WIDTH; x++) {
+                        uint32_t value = row[x];
+
+                        uint8_t a = value >> 24;
+                        uint8_t r = (value >> 16) & 0xff;
+                        uint8_t g = (value >> 8) & 0xff;
+                        uint8_t b = value & 0xff;
+
+                        if (a > 0) {
+                                /* unpremultiply */
+                                r = r * 255 / a;
+                                g = g * 255 / a;
+                                b = b * 255 / a;
+                        }
+
+                        *(out_pix++) = r;
+                        *(out_pix++) = g;
+                        *(out_pix++) = b;
+                        *(out_pix++) = a;
+                }
+
+                fwrite(data, 1, IMAGE_WIDTH * 4, stdout);
+        }
 }
 
 int
 main(int argc, char **argv)
 {
-        size_t buf_size = IMAGE_WIDTH * IMAGE_HEIGHT * 4;
-        uint8_t *buf = malloc(buf_size);
+        cairo_surface_t *surface =
+                cairo_image_surface_create(CAIRO_FORMAT_ARGB32,
+                                           IMAGE_WIDTH,
+                                           IMAGE_HEIGHT);
+        cairo_t *cr = cairo_create(surface);
 
         int n_frames = get_n_frames();
 
         for (int frame_num = 0; frame_num < n_frames; frame_num++) {
-                memset(buf, 0, buf_size);
+                cairo_save(cr);
+                cairo_set_source_rgba(cr, 0.0, 0.0, 0.0, 0.0);
+                cairo_set_operator(cr, CAIRO_OPERATOR_SOURCE);
+                cairo_paint(cr);
+                cairo_restore(cr);
 
                 for (int i = 0; i < N_ELEMENTS(rectangles); i++) {
-                        interpolate_and_add_rectangle(buf,
+                        interpolate_and_add_rectangle(cr,
                                                       frame_num,
                                                       rectangles + i);
                 }
 
-                fwrite(buf, 1, buf_size, stdout);
+                cairo_surface_flush(surface);
+
+                write_surface(surface);
         }
 
-        free(buf);
+        cairo_surface_destroy(surface);
+        cairo_destroy(cr);
 
         return EXIT_SUCCESS;
 }

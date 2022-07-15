@@ -38,9 +38,26 @@ struct flt_parser {
         struct flt_scene *scene;
 };
 
+enum flt_parser_value_type {
+        FLT_PARSER_VALUE_TYPE_STRING,
+        FLT_PARSER_VALUE_TYPE_INT,
+        FLT_PARSER_VALUE_TYPE_BOOL,
+};
+
 typedef enum flt_parser_return
 (* item_parse_func)(struct flt_parser *parser,
                     struct flt_error **error);
+
+struct flt_parser_property {
+        size_t offset;
+        enum flt_parser_value_type value_type;
+        enum flt_lexer_keyword prop_keyword;
+        union {
+                struct {
+                        long min_value, max_value;
+                };
+        };
+};
 
 #define check_item_keyword(parser, keyword, error)                      \
         do {                                                            \
@@ -127,6 +144,131 @@ set_error_with_line(struct flt_parser *parser,
         va_start(ap, format);
         set_verror(parser, error, line_num, format, ap);
         va_end(ap);
+}
+
+static void
+set_multiple_property_values_error(struct flt_parser *parser,
+                                   const struct flt_parser_property *prop,
+                                   struct flt_error **error)
+{
+        const char *prop_name =
+                flt_lexer_get_symbol_name(parser->lexer,
+                                          prop->prop_keyword);
+
+        set_error(parser,
+                  error,
+                  "The property “%s” is set more than once",
+                  prop_name);
+}
+
+static enum flt_parser_return
+parse_string_property(struct flt_parser *parser,
+                      const struct flt_parser_property *prop,
+                      void *object,
+                      struct flt_error **error)
+{
+        const struct flt_lexer_token *token;
+
+        check_item_keyword(parser, prop->prop_keyword, error);
+        require_token(parser,
+                      FLT_LEXER_TOKEN_TYPE_STRING,
+                      "String expected",
+                      error);
+
+        char **field = (char **) (((uint8_t *) object) + prop->offset);
+
+        if (*field) {
+                set_multiple_property_values_error(parser, prop, error);
+                return FLT_PARSER_RETURN_ERROR;
+        }
+
+        *field = flt_strdup(token->string_value);
+
+        return FLT_PARSER_RETURN_OK;
+}
+
+static enum flt_parser_return
+parse_int_property(struct flt_parser *parser,
+                   const struct flt_parser_property *prop,
+                   void *object,
+                   struct flt_error **error)
+{
+        const struct flt_lexer_token *token;
+
+        check_item_keyword(parser, prop->prop_keyword, error);
+        require_token(parser,
+                      FLT_LEXER_TOKEN_TYPE_NUMBER,
+                      "Expected number",
+                      error);
+
+        unsigned *field = (unsigned *) (((uint8_t *) object) + prop->offset);
+
+        if (token->number_value < prop->min_value ||
+            token->number_value > prop->max_value) {
+                set_error(parser,
+                          error,
+                          "Number is out of range");
+                return FLT_PARSER_RETURN_ERROR;
+        }
+
+        *field = token->number_value;
+
+        return FLT_PARSER_RETURN_OK;
+}
+
+static enum flt_parser_return
+parse_bool_property(struct flt_parser *parser,
+                    const struct flt_parser_property *prop,
+                    void *object,
+                    struct flt_error **error)
+{
+        const struct flt_lexer_token *token;
+
+        check_item_keyword(parser, prop->prop_keyword, error);
+
+        bool *field = (bool *) (((uint8_t *) object) + prop->offset);
+
+        *field = true;
+
+        return FLT_PARSER_RETURN_OK;
+}
+
+static enum flt_parser_return
+parse_properties(struct flt_parser *parser,
+                 const struct flt_parser_property *props,
+                 size_t n_props,
+                 void *object,
+                 struct flt_error **error)
+{
+        for (unsigned i = 0; i < n_props; i++) {
+                enum flt_parser_return ret = FLT_PARSER_RETURN_NOT_MATCHED;
+
+                switch (props[i].value_type) {
+                case FLT_PARSER_VALUE_TYPE_STRING:
+                        ret = parse_string_property(parser,
+                                                    props + i,
+                                                    object,
+                                                    error);
+                        break;
+                case FLT_PARSER_VALUE_TYPE_INT:
+                        ret = parse_int_property(parser,
+                                                 props + i,
+                                                 object,
+                                                 error);
+                        break;
+                case FLT_PARSER_VALUE_TYPE_BOOL:
+                        ret = parse_bool_property(parser,
+                                                  props + i,
+                                                  object,
+                                                  error);
+                        break;
+                }
+
+                if (ret != FLT_PARSER_RETURN_NOT_MATCHED)
+                        return ret;
+        }
+
+        return FLT_PARSER_RETURN_NOT_MATCHED;
 }
 
 static enum flt_parser_return

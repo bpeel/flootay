@@ -37,8 +37,12 @@
 #endif
 #endif
 
+#ifndef MIN
 #define MIN(a, b) ((a) < (b) ? (a) : (b))
+#endif
+#ifndef MAX
 #define MAX(a, b) ((a) > (b) ? (a) : (b))
+#endif
 
 #define FLT_STRINGIFY(macro_or_string) FLT_STRINGIFY_ARG(macro_or_string)
 #define FLT_STRINGIFY_ARG(contents) #contents

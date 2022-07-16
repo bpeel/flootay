@@ -161,16 +161,23 @@ write_surface(cairo_surface_t *surface)
         }
 }
 
+struct stdio_source {
+        struct flt_source base;
+        FILE *infile;
+};
+
 static bool
-read_stdin_cb(struct flt_source *source,
+read_stdio_cb(struct flt_source *source,
               void *ptr,
               size_t *length,
               struct flt_error **error)
 {
-        size_t got = fread(ptr, 1, *length, stdin);
+        struct stdio_source *stdio_source = (struct stdio_source *) source;
+
+        size_t got = fread(ptr, 1, *length, stdio_source->infile);
 
         if (got < *length) {
-                if (ferror(stdin)) {
+                if (ferror(stdio_source->infile)) {
                         flt_file_error_set(error,
                                            errno,
                                            "%s",
@@ -185,20 +192,49 @@ read_stdin_cb(struct flt_source *source,
 }
 
 static struct flt_scene *
-load_stdin(void)
+load_stdin(struct flt_error **error)
 {
-        struct flt_source source = {
-                .read_source = read_stdin_cb,
+        struct stdio_source source = {
+                .base = { .read_source = read_stdio_cb },
+                .infile = stdin,
         };
 
-        struct flt_error *error = NULL;
+        return flt_parser_parse(&source.base, NULL, error);
+}
 
-        struct flt_scene *scene = flt_parser_parse(&source, ".", &error);
+static struct flt_scene *
+load_file(const char *filename,
+          struct flt_error **error)
+{
+        struct stdio_source source = {
+                .base = { .read_source = read_stdio_cb },
+                .infile = fopen(filename, "rb"),
+        };
 
-        if (scene == NULL) {
-                fprintf(stderr, "%s\n", error->message);
-                flt_error_free(error);
+        if (source.infile == NULL) {
+                flt_file_error_set(error,
+                                   errno,
+                                   "%s: %s",
+                                   filename,
+                                   strerror(errno));
+                return NULL;
         }
+
+        char *base_dir;
+
+        const char *last_part = strrchr(filename, '/');
+
+        if (last_part == NULL)
+                base_dir = NULL;
+        else
+                base_dir = flt_strndup(filename, last_part - filename);
+
+        struct flt_scene *scene =
+                flt_parser_parse(&source.base, base_dir, error);
+
+        fclose(source.infile);
+
+        flt_free(base_dir);
 
         return scene;
 }
@@ -206,10 +242,23 @@ load_stdin(void)
 int
 main(int argc, char **argv)
 {
-        struct flt_scene *scene = load_stdin();
+        struct flt_scene *scene;
+        struct flt_error *error = NULL;
 
-        if (scene == NULL)
+        if (argc == 1) {
+                scene = load_stdin(&error);
+        } else if (argc == 2) {
+                scene = load_file(argv[1], &error);
+        } else {
+                fprintf(stderr, "usage: flootay [script-file]\n");
                 return EXIT_FAILURE;
+        }
+
+        if (scene == NULL) {
+                fprintf(stderr, "%s\n", error->message);
+                flt_error_free(error);
+                return EXIT_FAILURE;
+        }
 
         cairo_surface_t *surface =
                 cairo_image_surface_create(CAIRO_FORMAT_ARGB32,

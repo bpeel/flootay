@@ -41,12 +41,27 @@ fill_rectangle(cairo_t *cr,
 static void
 interpolate_and_add_rectangle(const struct flt_scene *scene,
                               cairo_t *cr,
-                              int frame_num,
-                              const struct flt_scene_rectangle *rect)
+                              float i,
+                              const struct flt_scene_rectangle_key_frame *s,
+                              const struct flt_scene_rectangle_key_frame *e)
 {
-        const struct flt_scene_rectangle_key_frame *end_frame;
+        int x1 = clamp(interpolate(i, s->x1, e->x1), 0, scene->video_width);
+        int y1 = clamp(interpolate(i, s->y1, e->y1), 0, scene->video_height);
+        int x2 = clamp(interpolate(i, s->x2, e->x2), x1, scene->video_width);
+        int y2 = clamp(interpolate(i, s->y2, e->y2), y1, scene->video_height);
 
-        flt_list_for_each(end_frame, &rect->key_frames, link) {
+        fill_rectangle(cr, x1, y1, x2, y2);
+}
+
+static void
+interpolate_and_add_object(const struct flt_scene *scene,
+                           cairo_t *cr,
+                           int frame_num,
+                           const struct flt_scene_object *object)
+{
+        const struct flt_scene_key_frame *end_frame;
+
+        flt_list_for_each(end_frame, &object->key_frames, link) {
                 if (end_frame->num > frame_num)
                         goto found_frame;
         }
@@ -56,22 +71,28 @@ interpolate_and_add_rectangle(const struct flt_scene *scene,
 found_frame:
 
         /* Ignore if the end frame is the first frame */
-        if (rect->key_frames.next == &end_frame->link)
+        if (object->key_frames.next == &end_frame->link)
                 return;
 
-        const struct flt_scene_rectangle_key_frame *s =
+        const struct flt_scene_key_frame *s =
                 flt_container_of(end_frame->link.prev,
-                                 struct flt_scene_rectangle_key_frame,
+                                 struct flt_scene_key_frame,
                                  link);
-        const struct flt_scene_rectangle_key_frame *e = end_frame;
-        float i = (frame_num - s->num) / (float) (e->num - s->num);
+        float i = (frame_num - s->num) / (float) (end_frame->num - s->num);
 
-        int x1 = clamp(interpolate(i, s->x1, e->x1), 0, scene->video_width);
-        int y1 = clamp(interpolate(i, s->y1, e->y1), 0, scene->video_height);
-        int x2 = clamp(interpolate(i, s->x2, e->x2), x1, scene->video_width);
-        int y2 = clamp(interpolate(i, s->y2, e->y2), y1, scene->video_height);
-
-        fill_rectangle(cr, x1, y1, x2, y2);
+        switch (object->type) {
+        case FLT_SCENE_OBJECT_TYPE_RECTANGLE:
+                interpolate_and_add_rectangle(scene,
+                                              cr,
+                                              i,
+                                              (const struct
+                                               flt_scene_rectangle_key_frame *)
+                                              s,
+                                              (const struct
+                                               flt_scene_rectangle_key_frame *)
+                                              end_frame);
+                break;
+        }
 }
 
 static void
@@ -176,13 +197,13 @@ main(int argc, char **argv)
                 cairo_paint(cr);
                 cairo_restore(cr);
 
-                const struct flt_scene_rectangle *rectangle;
+                const struct flt_scene_object *object;
 
-                flt_list_for_each(rectangle, &scene->rectangles, link) {
-                        interpolate_and_add_rectangle(scene,
-                                                      cr,
-                                                      frame_num,
-                                                      rectangle);
+                flt_list_for_each(object, &scene->objects, link) {
+                        interpolate_and_add_object(scene,
+                                                   cr,
+                                                   frame_num,
+                                                   object);
                 }
 
                 cairo_surface_flush(surface);

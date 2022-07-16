@@ -21,22 +21,37 @@
 
 #include "flt-list.h"
 
-struct flt_scene_rectangle {
+enum flt_scene_object_type {
+        FLT_SCENE_OBJECT_TYPE_RECTANGLE,
+};
+
+struct flt_scene_object {
         struct flt_list link;
+
+        enum flt_scene_object_type type;
+
         struct flt_list key_frames;
 };
 
-struct flt_scene_rectangle_key_frame {
+struct flt_scene_key_frame {
         struct flt_list link;
-
         int num;
+};
+
+struct flt_scene_rectangle {
+        struct flt_scene_object base;
+};
+
+struct flt_scene_rectangle_key_frame {
+        struct flt_scene_key_frame base;
+
         int x1, y1, x2, y2;
 };
 
 struct flt_scene {
         int video_width, video_height;
 
-        struct flt_list rectangles;
+        struct flt_list objects;
 };
 
 struct flt_scene *

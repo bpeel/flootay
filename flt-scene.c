@@ -23,7 +23,7 @@
 static void
 destroy_key_frames(struct flt_list *key_frames)
 {
-        struct flt_scene_rectangle_key_frame *key_frame, *tmp;
+        struct flt_scene_key_frame *key_frame, *tmp;
 
         flt_list_for_each_safe(key_frame, tmp, key_frames, link) {
                 flt_free(key_frame);
@@ -31,14 +31,14 @@ destroy_key_frames(struct flt_list *key_frames)
 }
 
 static void
-destroy_rectangles(struct flt_scene *scene)
+destroy_objects(struct flt_scene *scene)
 {
-        struct flt_scene_rectangle *rectangle, *tmp;
+        struct flt_scene_object *object, *tmp;
 
-        flt_list_for_each_safe(rectangle, tmp, &scene->rectangles, link) {
-                destroy_key_frames(&rectangle->key_frames);
+        flt_list_for_each_safe(object, tmp, &scene->objects, link) {
+                destroy_key_frames(&object->key_frames);
 
-                flt_free(rectangle);
+                flt_free(object);
         }
 }
 
@@ -50,7 +50,7 @@ flt_scene_new(void)
         scene->video_width = 1920;
         scene->video_height = 1080;
 
-        flt_list_init(&scene->rectangles);
+        flt_list_init(&scene->objects);
 
         return scene;
 }
@@ -60,12 +60,12 @@ flt_scene_get_n_frames(const struct flt_scene *scene)
 {
         int max_frame = 0;
 
-        const struct flt_scene_rectangle *rect;
+        const struct flt_scene_object *rect;
 
-        flt_list_for_each(rect, &scene->rectangles, link) {
-                const struct flt_scene_rectangle_key_frame *last_frame =
+        flt_list_for_each(rect, &scene->objects, link) {
+                const struct flt_scene_key_frame *last_frame =
                         flt_container_of(rect->key_frames.prev,
-                                         struct flt_scene_rectangle_key_frame,
+                                         struct flt_scene_key_frame,
                                          link);
 
                 if (last_frame->num > max_frame)
@@ -78,7 +78,7 @@ flt_scene_get_n_frames(const struct flt_scene *scene)
 void
 flt_scene_free(struct flt_scene *scene)
 {
-        destroy_rectangles(scene);
+        destroy_objects(scene);
 
         flt_free(scene);
 }

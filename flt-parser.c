@@ -330,9 +330,9 @@ parse_key_frame(struct flt_parser *parser,
                       "Frame number expected",
                       error);
 
-        struct flt_scene_rectangle *rectangle =
-                flt_container_of(parser->scene->rectangles.prev,
-                                 struct flt_scene_rectangle,
+        struct flt_scene_object *object =
+                flt_container_of(parser->scene->objects.prev,
+                                 struct flt_scene_object,
                                  link);
 
         struct flt_scene_rectangle_key_frame *key_frame =
@@ -340,18 +340,18 @@ parse_key_frame(struct flt_parser *parser,
 
         int last_frame_num = -1;
 
-        if (!flt_list_empty(&rectangle->key_frames)) {
+        if (!flt_list_empty(&object->key_frames)) {
                 const struct flt_scene_rectangle_key_frame *last_key_frame =
-                        flt_container_of(rectangle->key_frames.prev,
+                        flt_container_of(object->key_frames.prev,
                                          struct flt_scene_rectangle_key_frame,
-                                         link);
+                                         base.link);
 
                 *key_frame = *last_key_frame;
 
-                last_frame_num = last_key_frame->num;
+                last_frame_num = last_key_frame->base.num;
         }
 
-        flt_list_insert(rectangle->key_frames.prev, &key_frame->link);
+        flt_list_insert(object->key_frames.prev, &key_frame->base.link);
 
         if (token->number_value <= last_frame_num) {
                 set_error(parser,
@@ -360,7 +360,7 @@ parse_key_frame(struct flt_parser *parser,
                 return FLT_PARSER_RETURN_ERROR;
         }
 
-        key_frame->num = token->number_value;
+        key_frame->base.num = token->number_value;
 
         require_token(parser,
                       FLT_LEXER_TOKEN_TYPE_OPEN_BRACKET,
@@ -418,8 +418,10 @@ parse_rectangle(struct flt_parser *parser,
 
         struct flt_scene_rectangle *rectangle = flt_alloc(sizeof *rectangle);
 
-        flt_list_init(&rectangle->key_frames);
-        flt_list_insert(parser->scene->rectangles.prev, &rectangle->link);
+        rectangle->base.type = FLT_SCENE_OBJECT_TYPE_RECTANGLE;
+
+        flt_list_init(&rectangle->base.key_frames);
+        flt_list_insert(parser->scene->objects.prev, &rectangle->base.link);
 
         while (true) {
                 token = flt_lexer_get_token(parser->lexer, error);
@@ -455,7 +457,7 @@ parse_rectangle(struct flt_parser *parser,
                 return FLT_PARSER_RETURN_ERROR;
         }
 
-        if (flt_list_empty(&rectangle->key_frames)) {
+        if (flt_list_empty(&rectangle->base.key_frames)) {
                 set_error_with_line(parser,
                                     error,
                                     rectangle_line_num,

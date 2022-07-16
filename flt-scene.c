@@ -31,14 +31,35 @@ destroy_key_frames(struct flt_list *key_frames)
 }
 
 static void
+destroy_svg(struct flt_scene_svg *svg)
+{
+        if (svg->handle)
+                g_object_unref(svg->handle);
+}
+
+static void
+destroy_object(struct flt_scene_object *object)
+{
+        destroy_key_frames(&object->key_frames);
+
+        switch (object->type) {
+        case FLT_SCENE_OBJECT_TYPE_RECTANGLE:
+                break;
+        case FLT_SCENE_OBJECT_TYPE_SVG:
+                destroy_svg((struct flt_scene_svg *) object);
+                break;
+        }
+
+        flt_free(object);
+}
+
+static void
 destroy_objects(struct flt_scene *scene)
 {
         struct flt_scene_object *object, *tmp;
 
         flt_list_for_each_safe(object, tmp, &scene->objects, link) {
-                destroy_key_frames(&object->key_frames);
-
-                flt_free(object);
+                destroy_object(object);
         }
 }
 

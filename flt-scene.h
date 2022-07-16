@@ -19,10 +19,13 @@
 #ifndef FLT_SCENE
 #define FLT_SCENE
 
+#include <librsvg/rsvg.h>
+
 #include "flt-list.h"
 
 enum flt_scene_object_type {
         FLT_SCENE_OBJECT_TYPE_RECTANGLE,
+        FLT_SCENE_OBJECT_TYPE_SVG,
 };
 
 struct flt_scene_object {
@@ -46,6 +49,18 @@ struct flt_scene_rectangle_key_frame {
         struct flt_scene_key_frame base;
 
         int x1, y1, x2, y2;
+};
+
+struct flt_scene_svg {
+        struct flt_scene_object base;
+
+        RsvgHandle *handle;
+};
+
+struct flt_scene_svg_key_frame {
+        struct flt_scene_key_frame base;
+
+        int x, y;
 };
 
 struct flt_scene {

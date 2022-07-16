@@ -54,6 +54,23 @@ interpolate_and_add_rectangle(const struct flt_scene *scene,
 }
 
 static void
+interpolate_and_add_svg(const struct flt_scene *scene,
+                        const struct flt_scene_svg *svg,
+                        cairo_t *cr,
+                        float i,
+                        const struct flt_scene_svg_key_frame *s,
+                        const struct flt_scene_svg_key_frame *e)
+{
+        int x = interpolate(i, s->x, e->x);
+        int y = interpolate(i, s->y, e->y);
+
+        cairo_save(cr);
+        cairo_translate(cr, x, y);
+        rsvg_handle_render_cairo(svg->handle, cr);
+        cairo_restore(cr);
+}
+
+static void
 interpolate_and_add_object(const struct flt_scene *scene,
                            cairo_t *cr,
                            int frame_num,
@@ -91,6 +108,18 @@ found_frame:
                                               (const struct
                                                flt_scene_rectangle_key_frame *)
                                               end_frame);
+                break;
+        case FLT_SCENE_OBJECT_TYPE_SVG:
+                interpolate_and_add_svg(scene,
+                                        (const struct flt_scene_svg *) object,
+                                        cr,
+                                        i,
+                                        (const struct
+                                         flt_scene_svg_key_frame *)
+                                        s,
+                                        (const struct
+                                         flt_scene_svg_key_frame *)
+                                        end_frame);
                 break;
         }
 }
@@ -164,7 +193,7 @@ load_stdin(void)
 
         struct flt_error *error = NULL;
 
-        struct flt_scene *scene = flt_parser_parse(&source, &error);
+        struct flt_scene *scene = flt_parser_parse(&source, ".", &error);
 
         if (scene == NULL) {
                 fprintf(stderr, "%s\n", error->message);

@@ -14,6 +14,7 @@ m_dep = cc.find_library('m', required : false)
 sdl_dep = dependency('sdl2')
 sdl_image_dep = dependency('SDL2_image')
 cairo_dep = dependency('cairo')
+rsvg_dep = dependency('librsvg-2.0')
 
 executable('flootay',
            ['flootay.c',
@@ -26,7 +27,7 @@ executable('flootay',
             'flt-scene.c',
             'flt-utf8.c',
             'flt-util.c'],
-           dependencies: [m_dep, cairo_dep])
+           dependencies: [m_dep, cairo_dep, rsvg_dep])
 
 executable('make-key-frames',
            ['make-key-frames.c'],

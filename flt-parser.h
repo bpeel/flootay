@@ -32,6 +32,7 @@ enum flt_parser_error {
 
 struct flt_scene *
 flt_parser_parse(struct flt_source *source,
+                 const char *base_dir,
                  struct flt_error **error);
 
 #endif /* FLT_PARSER */

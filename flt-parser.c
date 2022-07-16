@@ -19,6 +19,7 @@
 #include "flt-parser.h"
 
 #include <limits.h>
+#include <string.h>
 
 #include "flt-lexer.h"
 #include "flt-utf8.h"
@@ -289,6 +290,63 @@ parse_items(struct flt_parser *parser,
         return FLT_PARSER_RETURN_NOT_MATCHED;
 }
 
+static enum flt_parser_return
+parse_base_key_frame(struct flt_parser *parser,
+                     size_t struct_size,
+                     struct flt_scene_key_frame **key_frame_out,
+                     struct flt_error **error)
+{
+        const struct flt_lexer_token *token;
+
+        check_item_keyword(parser, FLT_LEXER_KEYWORD_KEY_FRAME, error);
+
+        require_token(parser,
+                      FLT_LEXER_TOKEN_TYPE_NUMBER,
+                      "Frame number expected",
+                      error);
+
+        struct flt_scene_object *object =
+                flt_container_of(parser->scene->objects.prev,
+                                 struct flt_scene_object,
+                                 link);
+
+        struct flt_scene_key_frame *key_frame =
+                flt_calloc(struct_size);
+
+        int last_frame_num = -1;
+
+        if (!flt_list_empty(&object->key_frames)) {
+                const struct flt_scene_key_frame *last_key_frame =
+                        flt_container_of(object->key_frames.prev,
+                                         struct flt_scene_key_frame,
+                                         link);
+
+                memcpy(key_frame, last_key_frame, struct_size);
+
+                last_frame_num = last_key_frame->num;
+        }
+
+        flt_list_insert(object->key_frames.prev, &key_frame->link);
+
+        if (token->number_value <= last_frame_num) {
+                set_error(parser,
+                          error,
+                          "frame numbers out of order");
+                return FLT_PARSER_RETURN_ERROR;
+        }
+
+        key_frame->num = token->number_value;
+
+        require_token(parser,
+                      FLT_LEXER_TOKEN_TYPE_OPEN_BRACKET,
+                      "expected ‘{’",
+                      error);
+
+        *key_frame_out = key_frame;
+
+        return FLT_PARSER_RETURN_OK;
+}
+
 static const struct flt_parser_property
 key_frame_props[] = {
         {
@@ -318,57 +376,29 @@ key_frame_props[] = {
 };
 
 static enum flt_parser_return
-parse_key_frame(struct flt_parser *parser,
-                struct flt_error **error)
+parse_rectangle_key_frame(struct flt_parser *parser,
+                          struct flt_error **error)
 {
-        const struct flt_lexer_token *token;
+        struct flt_scene_key_frame *base_key_frame;
 
-        check_item_keyword(parser, FLT_LEXER_KEYWORD_KEY_FRAME, error);
+        const size_t struct_size =
+                sizeof (struct flt_scene_rectangle_key_frame);
 
-        require_token(parser,
-                      FLT_LEXER_TOKEN_TYPE_NUMBER,
-                      "Frame number expected",
-                      error);
+        enum flt_parser_return base_ret =
+                parse_base_key_frame(parser,
+                                     struct_size,
+                                     &base_key_frame,
+                                     error);
 
-        struct flt_scene_object *object =
-                flt_container_of(parser->scene->objects.prev,
-                                 struct flt_scene_object,
-                                 link);
+        if (base_ret != FLT_PARSER_RETURN_OK)
+                return base_ret;
 
         struct flt_scene_rectangle_key_frame *key_frame =
-                flt_calloc(sizeof *key_frame);
-
-        int last_frame_num = -1;
-
-        if (!flt_list_empty(&object->key_frames)) {
-                const struct flt_scene_rectangle_key_frame *last_key_frame =
-                        flt_container_of(object->key_frames.prev,
-                                         struct flt_scene_rectangle_key_frame,
-                                         base.link);
-
-                *key_frame = *last_key_frame;
-
-                last_frame_num = last_key_frame->base.num;
-        }
-
-        flt_list_insert(object->key_frames.prev, &key_frame->base.link);
-
-        if (token->number_value <= last_frame_num) {
-                set_error(parser,
-                          error,
-                          "frame numbers out of order");
-                return FLT_PARSER_RETURN_ERROR;
-        }
-
-        key_frame->base.num = token->number_value;
-
-        require_token(parser,
-                      FLT_LEXER_TOKEN_TYPE_OPEN_BRACKET,
-                      "expected ‘{’",
-                      error);
+                (struct flt_scene_rectangle_key_frame *) base_key_frame;
 
         while (true) {
-                token = flt_lexer_get_token(parser->lexer, error);
+                const struct flt_lexer_token *token =
+                        flt_lexer_get_token(parser->lexer, error);
 
                 if (token == NULL)
                         return FLT_PARSER_RETURN_ERROR;
@@ -435,7 +465,7 @@ parse_rectangle(struct flt_parser *parser,
                 flt_lexer_put_token(parser->lexer);
 
                 static const item_parse_func funcs[] = {
-                        parse_key_frame,
+                        parse_rectangle_key_frame,
                 };
 
                 switch (parse_items(parser,

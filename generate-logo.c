@@ -16,7 +16,7 @@
 #define FPS 30
 
 /* Total time of the animation in seconds */
-#define TOTAL_TIME 2
+#define TOTAL_TIME 3
 
 #define N_FRAMES (TOTAL_TIME * FPS)
 
@@ -30,11 +30,19 @@
 #define WHEEL_RADIUS (561 - WHEEL_X)
 #define WHEEL_DIAMETER (2.0f * M_PI * WHEEL_RADIUS)
 
+#define Y_START 158
+#define Y_END 1025
+#define Y_TIME 1
+
+#define LON_START_TIME 1
+#define LON_TIME 1
+
 enum {
         LABEL_BACKGROUND,
         LABEL_BICLU,
         LABEL_WHEEL,
-        LABEL_LYON,
+        LABEL_LON,
+        LABEL_Y,
 };
 
 static const char * const
@@ -42,7 +50,8 @@ labels[] = {
         [LABEL_BACKGROUND] = "background",
         [LABEL_BICLU] = "biclu",
         [LABEL_WHEEL] = "wheel",
-        [LABEL_LYON] = "Lyon",
+        [LABEL_LON] = "lon",
+        [LABEL_Y] = "y",
 };
 
 #define N_LABELS FLT_N_ELEMENTS(labels)
@@ -50,6 +59,7 @@ labels[] = {
 struct painter {
         char *ids[N_LABELS];
         RsvgHandle *svg;
+        cairo_surface_t *lon_surface;
 };
 
 static void
@@ -206,6 +216,51 @@ render_biclou(cairo_t *cr, int frame_num, struct painter *painter)
 }
 
 static void
+render_y(cairo_t *cr, int frame_num, struct painter *painter)
+{
+        int total_frames = Y_TIME * FPS;
+
+        if (frame_num > total_frames)
+                frame_num = total_frames;
+
+        cairo_save(cr);
+        cairo_rectangle(cr,
+                        0,
+                        Y_START,
+                        VIDEO_WIDTH,
+                        frame_num * (Y_END - Y_START) / total_frames);
+        cairo_clip(cr);
+        rsvg_handle_render_cairo_sub(painter->svg,
+                                     cr,
+                                     painter->ids[LABEL_Y]);
+        cairo_restore(cr);
+}
+
+static void
+render_lon(cairo_t *cr, int frame_num, struct painter *painter)
+{
+        frame_num -= LON_START_TIME * FPS;
+
+        if (frame_num < 0)
+                return;
+
+        float alpha;
+
+        if (frame_num >= LON_TIME * FPS) {
+                alpha = 1.0f;
+        } else {
+                float t = 1.0f - frame_num / ((float) LON_TIME * FPS);
+                /* quadratic easing */
+                alpha = 1.0f - t * t;
+        }
+
+        cairo_save(cr);
+        cairo_set_source_surface(cr, painter->lon_surface, 0.0, 0.0);
+        cairo_paint_with_alpha(cr, alpha);
+        cairo_restore(cr);
+}
+
+static void
 paint_frame(cairo_t *cr, int frame_num, struct painter *painter)
 {
         rsvg_handle_render_cairo_sub(painter->svg,
@@ -213,6 +268,10 @@ paint_frame(cairo_t *cr, int frame_num, struct painter *painter)
                                      painter->ids[LABEL_BACKGROUND]);
 
         render_biclou(cr, frame_num, painter);
+
+        render_y(cr, frame_num, painter);
+
+        render_lon(cr, frame_num, painter);
 }
 
 static void
@@ -232,6 +291,27 @@ render_animation(struct painter *painter)
 
         cairo_destroy(cr);
         cairo_surface_destroy(surface);
+}
+
+static void
+create_lon_surface(struct painter *painter)
+{
+        painter->lon_surface = cairo_image_surface_create(CAIRO_FORMAT_ARGB32,
+                                                          VIDEO_WIDTH,
+                                                          VIDEO_HEIGHT);
+        cairo_t *cr = cairo_create(painter->lon_surface);
+
+        cairo_save(cr);
+        cairo_set_source_rgba(cr, 0.0, 0.0, 0.0, 0.0);
+        cairo_set_operator(cr, CAIRO_OPERATOR_SOURCE);
+        cairo_paint(cr);
+        cairo_restore(cr);
+
+        rsvg_handle_render_cairo_sub(painter->svg,
+                                     cr,
+                                     painter->ids[LABEL_LON]);
+
+        cairo_destroy(cr);
 }
 
 int
@@ -255,7 +335,9 @@ main(int argc, char **argv)
                 g_error_free(error);
                 ret = EXIT_FAILURE;
         } else {
+                create_lon_surface(&painter);
                 render_animation(&painter);
+                cairo_surface_destroy(painter.lon_surface);
                 g_object_unref(painter.svg);
         }
 

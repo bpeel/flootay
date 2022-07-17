@@ -64,7 +64,8 @@ open_child_proc(char *const argv[],
 static bool
 close_child_proc(struct child_proc *cp)
 {
-        close(cp->read_fd);
+        if (cp->read_fd != -1)
+                close(cp->read_fd);
 
         int status = EXIT_FAILURE;
 
@@ -162,6 +163,101 @@ get_speedy_args(const char *speedy_file,
 }
 
 static void
+add_arg(struct flt_buffer *args, const char *arg)
+{
+        char *arg_dup = flt_strdup(arg);
+        flt_buffer_append(args, &arg_dup, sizeof arg_dup);
+}
+
+static void
+add_ffmpeg_args(struct flt_buffer *args,
+                int n_inputs,
+                const char *filter_arg,
+                struct child_proc *logo_proc)
+{
+        int logo_input = n_inputs;
+
+        add_arg(args, "-f");
+        add_arg(args, "rawvideo");
+        add_arg(args, "-pixel_format");
+        add_arg(args, "rgb32");
+        add_arg(args, "-video_size");
+        add_arg(args, "1920x1080");
+        add_arg(args, "-framerate");
+        add_arg(args, "30");
+        add_arg(args, "-i");
+
+        struct flt_buffer buf = FLT_BUFFER_STATIC_INIT;
+
+        flt_buffer_append_printf(&buf, "pipe:%i", logo_proc->read_fd);
+
+        add_arg(args, (const char *) buf.data);
+
+        add_arg(args, "-filter_complex");
+
+        flt_buffer_set_length(&buf, 0);
+
+        flt_buffer_append_printf(&buf,
+                                 "%s;"
+                                 "[outv]scale=1920:1080[soutv];"
+                                 "[%i:v][soutv]concat=n=2:v=1:a=0[finalv]",
+                                 filter_arg,
+                                 logo_input);
+
+        add_arg(args, (const char *) buf.data);
+
+        add_arg(args, "-map");
+        add_arg(args, "[finalv]");
+        add_arg(args, "film.mp4");
+
+        char *terminator = NULL;
+        flt_buffer_append(args, &terminator, sizeof terminator);
+
+        flt_buffer_destroy(&buf);
+}
+
+static bool
+run_ffmpeg(struct flt_buffer *args,
+           struct child_proc *logo_proc)
+{
+        pid_t pid = fork();
+
+        if (pid == -1) {
+                fprintf(stderr, "fork failed: %s\n", strerror(errno));
+                return false;
+        }
+
+        char **argv = (char **) args->data;
+
+        if (pid == 0) {
+                execvp(argv[0], argv);
+
+                fprintf(stderr,
+                        "exec failed: %s: %s\n",
+                        argv[0],
+                        strerror(errno));
+
+                exit(EXIT_FAILURE);
+
+                return false;
+        }
+
+        close(logo_proc->read_fd);
+        logo_proc->read_fd = -1;
+
+        int status = EXIT_FAILURE;
+
+        if (waitpid(pid, &status, 0 /* options */) == -1 ||
+            !WIFEXITED(status) ||
+            WEXITSTATUS(status) != EXIT_SUCCESS) {
+                fprintf(stderr, "%s failed\n", argv[0]);
+                return false;
+        } else {
+                return true;
+        }
+}
+
+static void
 free_args(struct flt_buffer *buf)
 {
         size_t n_args = buf->length / sizeof (char *);
@@ -192,18 +288,29 @@ main(int argc, char **argv)
 
         int ret = EXIT_SUCCESS;
 
+        add_arg(&args, "ffmpeg");
+
         if (!get_speedy_args(speedy_file, &args, &n_inputs, &filter_arg)) {
                 ret = EXIT_FAILURE;
         } else {
-                size_t n_args = args.length / sizeof (char *);
-                char **argsp = (char **) args.data;
+                struct child_proc logo_proc;
+                char *logo_args[] = { "./build/generate-logo", NULL };
 
-                for (int i = 0; i < n_args; i++)
-                        printf("*** %s\n", argsp[i]);
+                if (!open_child_proc(logo_args, &logo_proc)) {
+                        ret = EXIT_FAILURE;
+                } else {
+                        add_ffmpeg_args(&args,
+                                        n_inputs,
+                                        filter_arg,
+                                        &logo_proc);
+
+                        if (!run_ffmpeg(&args, &logo_proc))
+                                ret = EXIT_FAILURE;
+
+                        if (!close_child_proc(&logo_proc))
+                                ret = EXIT_FAILURE;
+                }
         }
-
-        printf("=== -filter_complex %s\n", filter_arg);
-        printf("n_inputs = %i\n", n_inputs);
 
         free_args(&args);
         flt_free(filter_arg);

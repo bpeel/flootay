@@ -9,21 +9,29 @@
 #include "flt-buffer.h"
 #include "flt-util.h"
 
-static char *
-get_process_output(char *const argv[])
+struct child_proc {
+        pid_t pid;
+        int read_fd;
+};
+
+static bool
+open_child_proc(char *const argv[],
+                struct child_proc *cp)
 {
         int pipe_fds[2];
 
         if (pipe(pipe_fds) == -1) {
                 fprintf(stderr, "pipe failed: %s\n", strerror(errno));
-                return NULL;
+                return false;
         }
 
         pid_t pid = fork();
 
         if (pid == -1) {
+                close(pipe_fds[0]);
+                close(pipe_fds[1]);
                 fprintf(stderr, "fork failed: %s\n", strerror(errno));
-                return NULL;
+                return false;
         }
 
         if (pid == 0) {
@@ -42,17 +50,48 @@ get_process_output(char *const argv[])
 
                 exit(EXIT_FAILURE);
 
-                return NULL;
+                return false;
         }
 
         close(pipe_fds[1]);
+
+        cp->pid = pid;
+        cp->read_fd = pipe_fds[0];
+
+        return true;
+}
+
+static bool
+close_child_proc(struct child_proc *cp)
+{
+        close(cp->read_fd);
+
+        int status = EXIT_FAILURE;
+
+        if (waitpid(cp->pid, &status, 0 /* options */) == -1 ||
+            !WIFEXITED(status) ||
+            WEXITSTATUS(status) != EXIT_SUCCESS) {
+                fprintf(stderr, "subprocess failed\n");
+                return false;
+        } else {
+                return true;
+        }
+}
+
+static char *
+get_process_output(char *const argv[])
+{
+        struct child_proc cp;
+
+        if (!open_child_proc(argv, &cp))
+                return NULL;
 
         struct flt_buffer buf = FLT_BUFFER_STATIC_INIT;
 
         while (true) {
                 flt_buffer_ensure_size(&buf, buf.length + 1024);
 
-                ssize_t got = read(pipe_fds[0],
+                ssize_t got = read(cp.read_fd,
                                    buf.data + buf.length,
                                    buf.size - buf.length);
 
@@ -62,14 +101,7 @@ get_process_output(char *const argv[])
                 buf.length += got;
         }
 
-        close(pipe_fds[0]);
-
-        int status = EXIT_FAILURE;
-
-        if (waitpid(pid, &status, 0 /* options */) == -1 ||
-            !WIFEXITED(status) ||
-            WEXITSTATUS(status) != EXIT_SUCCESS) {
-                fprintf(stderr, "%s failed\n", argv[0]);
+        if (!close_child_proc(&cp)) {
                 flt_buffer_destroy(&buf);
                 return NULL;
         } else {

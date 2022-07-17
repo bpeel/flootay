@@ -194,5 +194,11 @@ def get_ffmpeg_args(clips):
     filter = get_ffmpeg_filter(clips)
 
     return input_args + ["-filter_complex", filter, "-map", "[outv]"]
-                
-print("\n".join(get_ffmpeg_args(get_clips(parse_script(sys.stdin)))))
+
+if len(sys.argv) >= 2:
+    with open(sys.argv[1], "rt", encoding="utf-8") as f:
+        videos = parse_script(f)
+else:
+    videos = parse_script(sys.stdin)
+
+print("\n".join(get_ffmpeg_args(get_clips(videos))))

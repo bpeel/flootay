@@ -15,6 +15,7 @@ sdl_dep = dependency('sdl2')
 sdl_image_dep = dependency('SDL2_image')
 cairo_dep = dependency('cairo')
 rsvg_dep = dependency('librsvg-2.0')
+expat_dep = dependency('expat')
 
 executable('flootay',
            ['flootay.c',
@@ -28,6 +29,11 @@ executable('flootay',
             'flt-utf8.c',
             'flt-util.c'],
            dependencies: [m_dep, cairo_dep, rsvg_dep])
+
+executable('generate-logo',
+           ['generate-logo.c',
+            'flt-util.c'],
+           dependencies: [m_dep, cairo_dep, rsvg_dep, expat_dep])
 
 executable('make-key-frames',
            ['make-key-frames.c'],

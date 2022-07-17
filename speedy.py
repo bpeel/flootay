@@ -195,5 +195,4 @@ def get_ffmpeg_args(clips):
 
     return input_args + ["-filter_complex", filter, "-map", "[outv]"]
                 
-print(" ".join(shlex.quote(arg) for arg in
-               get_ffmpeg_args(get_clips(parse_script(sys.stdin)))))
+print("\n".join(get_ffmpeg_args(get_clips(parse_script(sys.stdin)))))

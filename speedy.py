@@ -6,16 +6,39 @@ import sys
 import subprocess
 import shlex
 
-Video = collections.namedtuple('Video', ['filename', 'sounds'])
+Video = collections.namedtuple('Video', ['filename',
+                                         'start_time',
+                                         'end_time',
+                                         'sounds'])
 Sound = collections.namedtuple('Sound', ['start_time', 'filename'])
 Clip = collections.namedtuple('Clip',
                               ['filename', 'start_time', 'length', 'fast'])
 
+TIME_RE = re.compile(r'(?:([0-9]+):)?([0-9]+)')
+
 class ParseError(Exception):
     pass
 
+def decode_time(time_str):
+    md = TIME_RE.match(time_str)
+    seconds = int(md.group(2))
+
+    if md.group(1):
+        seconds += int(md.group(1)) * 60
+
+    return seconds
+
 def parse_script(infile):
-    sound_re = re.compile(r'(?:([0-9]+):)?([0-9]+)\s+(.*)')
+    sound_re = re.compile(r'(?P<time>' +
+                          TIME_RE.pattern +
+                          r')' +
+                          r'\s+(?P<filename>.*)')
+    video_re = re.compile(r'(?P<filename>.*?)' +
+                          r'(?:\s+(?P<start_time>' +
+                          TIME_RE.pattern +
+                          r')(?:\s+(?P<end_time>' +
+                          TIME_RE.pattern +
+                          r'))?)?$')
     videos = []
     
     for line_num, line in enumerate(infile):
@@ -31,15 +54,22 @@ def parse_script(infile):
                 raise ParseError(("line {}: sound specified "
                                   "with no video").format(line_num + 1))
 
-            start_time = int(md.group(2))
+            start_time = decode_time(md.group('time'))
 
-            if md.group(1):
-                start_time += int(md.group(1)) * 60
-
-            sound = Sound(start_time, md.group(3))
+            sound = Sound(start_time, md.group('filename'))
             videos[-1].sounds.append(sound)
         else:
-            videos.append(Video(line, []))
+            md = video_re.match(line)
+
+            start_time = md.group('start_time')
+            if start_time:
+                start_time = decode_time(start_time)
+
+            end_time = md.group('end_time')
+            if end_time:
+                end_time = decode_time(end_time)
+
+            videos.append(Video(md.group('filename'), start_time, end_time, []))
 
     return videos
 
@@ -57,17 +87,28 @@ def get_clips(videos):
     overlap = 0
 
     for video in videos:
-        video_length = get_video_length(video.filename)
         last_pos = 0
 
+        if video.start_time is not None:
+            last_pos = video.start_time
+
+        if video.end_time is not None:
+            video_end_time = video.end_time
+        else:
+            video_end_time = get_video_length(video.filename)
+
         if overlap > 0:
-            if overlap > video_length:
-                clips.append(Clip(video.filename, 0, None, False))
-                overlap -= video_length
+            if overlap > video_end_time - last_pos:
+                if video.end_time:
+                    clip_end = video.end_time - last_pos
+                else:
+                    clip_end = None
+                clips.append(Clip(video.filename, last_pos, clip_end, False))
+                overlap -= video_end_time - last_pos
                 continue
 
-            clips.append(Clip(video.filename, 0, video_length, False))
-            last_pos = overlap
+            clips.append(Clip(video.filename, last_pos, overlap, False))
+            last_pos += overlap
             overlap = 0
 
         for sound in video.sounds:
@@ -79,13 +120,17 @@ def get_clips(videos):
                                   sound.start_time - last_pos,
                                   True))
 
-            if sound.start_time + sound_length > video_length:
+            if sound.start_time + sound_length > video_end_time:
+                if video.end_time:
+                    clip_end = video.end_time - sound.start_time
+                else:
+                    clip_end = None
                 clips.append(Clip(video.filename,
                                   sound.start_time,
-                                  None,
+                                  clip_end,
                                   False))
-                overlap = sound.start_time + sound_length - video_length
-                last_pos = video_length
+                overlap = sound.start_time + sound_length - video_end_time
+                last_pos = video_end_time
             else:
                 clips.append(Clip(video.filename,
                                   sound.start_time,
@@ -93,10 +138,14 @@ def get_clips(videos):
                                   False))
                 last_pos = sound.start_time + sound_length
 
-        if last_pos < video_length:
+        if last_pos < video_end_time:
+            if video.end_time:
+                clip_end = video.end_time - last_pos
+            else:
+                clip_end = None
             clips.append(Clip(video.filename,
                               last_pos,
-                              None,
+                              clip_end,
                               True))
 
     return clips

@@ -38,3 +38,8 @@ executable('generate-logo',
 executable('make-key-frames',
            ['make-key-frames.c'],
            dependencies: [sdl_dep, sdl_image_dep])
+
+executable('generate-film',
+           ['generate-film.c',
+            'flt-util.c',
+            'flt-buffer.c'])

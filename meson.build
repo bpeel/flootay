@@ -22,13 +22,14 @@ executable('flootay',
             'flt-buffer.c',
             'flt-error.c',
             'flt-file-error.c',
+            'flt-gpx.c',
             'flt-lexer.c',
             'flt-list.c',
             'flt-parser.c',
             'flt-scene.c',
             'flt-utf8.c',
             'flt-util.c'],
-           dependencies: [m_dep, cairo_dep, rsvg_dep])
+           dependencies: [m_dep, cairo_dep, rsvg_dep, expat_dep])
 
 executable('generate-logo',
            ['generate-logo.c',

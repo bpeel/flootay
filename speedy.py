@@ -6,6 +6,7 @@ import sys
 import subprocess
 import shlex
 
+Script = collections.namedtuple('Script', ['videos', 'scores'])
 Video = collections.namedtuple('Video', ['filename',
                                          'start_time',
                                          'end_time',
@@ -15,10 +16,13 @@ Clip = collections.namedtuple('Clip',
                               ['filename', 'start_time', 'length', 'fast'])
 # Filename can be None if silence should be played
 SoundClip = collections.namedtuple('SoundClip', ['filename', 'length'])
+ScoreDiff = collections.namedtuple('ScoreDiff', ['video', 'time', 'diff'])
 
 TIME_RE = re.compile(r'(?:([0-9]+):)?([0-9]+)')
 
 SPEED_UP = 1.0 / 3.0
+
+FPS = 30
 
 class ParseError(Exception):
     pass
@@ -43,7 +47,11 @@ def parse_script(infile):
                           r')(?:\s+(?P<end_time>' +
                           TIME_RE.pattern +
                           r'))?)?$')
+    score_re = re.compile(r'(?P<time>' +
+                          TIME_RE.pattern +
+                          r')\s+(?P<diff>[+-][0-9]+)\s*$')
     videos = []
+    scores = []
     
     for line_num, line in enumerate(infile):
         line = line.strip()
@@ -51,8 +59,18 @@ def parse_script(infile):
         if len(line) <= 0 or line[0] == '#':
             continue
  
-        md = sound_re.match(line)
+        md = score_re.match(line)
+        if md:
+            if len(videos) <= 0:
+                raise ParseError(("line {}: score specified "
+                                  "with no video").format(line_num + 1))
 
+            scores.append(ScoreDiff(videos[-1],
+                                    decode_time(md.group('time')),
+                                    int(md.group('diff'))))
+            continue
+
+        md = sound_re.match(line)
         if md:
             if len(videos) <= 0:
                 raise ParseError(("line {}: sound specified "
@@ -62,20 +80,21 @@ def parse_script(infile):
 
             sound = Sound(start_time, md.group('filename'))
             videos[-1].sounds.append(sound)
-        else:
-            md = video_re.match(line)
+            continue
 
-            start_time = md.group('start_time')
-            if start_time:
-                start_time = decode_time(start_time)
+        md = video_re.match(line)
 
-            end_time = md.group('end_time')
-            if end_time:
-                end_time = decode_time(end_time)
+        start_time = md.group('start_time')
+        if start_time:
+            start_time = decode_time(start_time)
 
-            videos.append(Video(md.group('filename'), start_time, end_time, []))
+        end_time = md.group('end_time')
+        if end_time:
+            end_time = decode_time(end_time)
 
-    return videos
+        videos.append(Video(md.group('filename'), start_time, end_time, []))
+
+    return Script(videos, scores)
 
 def get_video_length(filename):
     s = subprocess.check_output(["ffprobe",
@@ -238,10 +257,56 @@ def get_ffmpeg_args(clips, sound_clips):
                          "-map", "[outv]",
                          "-map", "[outa]"]
 
+def get_output_time(filename, time, clips):
+    t = 0
+
+    for clip in clips:
+        if (filename == clip.filename and
+            time >= clip.start_time and
+            time < clip.start_time + clip.length):
+            off = time - clip.start_time
+            if clip.fast:
+                off *= SPEED_UP
+            return t + off
+
+        if clip.fast:
+            t += clip.length * SPEED_UP
+        else:
+            t += clip.length
+
+    raise Exception("no clip found for {} @ {}".format(filename, time))
+
+def write_score_script(f, scores, clips):
+    print("score {\n"
+          "        key_frame 0 { v 0 }",
+          file=f)
+
+    value = 0
+
+    for score in scores:
+        value += score.diff
+        time = get_output_time(score.video.filename, score.time, clips)
+        print("        key_frame {} {{ v {} }}".format(round(time * FPS),
+                                                       value),
+              file=f)
+
+    end_time = get_output_time(clips[-1].filename,
+                               clips[-1].start_time + clips[-1].length - 0.01,
+                               clips)
+    print("        key_frame {} {{ v {} }}\n".format(round(end_time * FPS),
+                                                     value) +
+          "}",
+          file=f)
+
 if len(sys.argv) >= 2:
     with open(sys.argv[1], "rt", encoding="utf-8") as f:
-        videos = parse_script(f)
+        script = parse_script(f)
 else:
-    videos = parse_script(sys.stdin)
+    script = parse_script(sys.stdin)
 
-print("\n".join(get_ffmpeg_args(*get_clips(videos))))
+clips, sound_clips = get_clips(script.videos)
+
+with open("scores.flt", "wt", encoding="utf-8") as f:
+    write_score_script(f, script.scores, clips)
+
+print("\n".join(get_ffmpeg_args(clips, sound_clips)))

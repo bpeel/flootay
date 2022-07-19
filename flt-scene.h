@@ -22,11 +22,13 @@
 #include <librsvg/rsvg.h>
 
 #include "flt-list.h"
+#include "flt-gpx.h"
 
 enum flt_scene_object_type {
         FLT_SCENE_OBJECT_TYPE_RECTANGLE,
         FLT_SCENE_OBJECT_TYPE_SVG,
         FLT_SCENE_OBJECT_TYPE_SCORE,
+        FLT_SCENE_OBJECT_TYPE_SPEED,
 };
 
 struct flt_scene_object {
@@ -71,6 +73,18 @@ struct flt_scene_score {
 struct flt_scene_score_key_frame {
         struct flt_scene_key_frame base;
         int value;
+};
+
+struct flt_scene_speed {
+        struct flt_scene_object base;
+        size_t n_points;
+        struct flt_gpx_point *points;
+};
+
+struct flt_scene_speed_key_frame {
+        struct flt_scene_key_frame base;
+        int timestamp;
+        int fps;
 };
 
 struct flt_scene {

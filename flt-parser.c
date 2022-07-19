@@ -25,6 +25,7 @@
 #include "flt-utf8.h"
 #include "flt-list.h"
 #include "flt-buffer.h"
+#include "flt-gpx.h"
 
 struct flt_error_domain
 flt_parser_error;
@@ -293,10 +294,11 @@ parse_items(struct flt_parser *parser,
 }
 
 static enum flt_parser_return
-parse_base_key_frame(struct flt_parser *parser,
-                     size_t struct_size,
-                     struct flt_scene_key_frame **key_frame_out,
-                     struct flt_error **error)
+parse_base_key_frame_default(struct flt_parser *parser,
+                             size_t struct_size,
+                             const void *default_value,
+                             struct flt_scene_key_frame **key_frame_out,
+                             struct flt_error **error)
 {
         const struct flt_lexer_token *token;
 
@@ -313,11 +315,16 @@ parse_base_key_frame(struct flt_parser *parser,
                                  link);
 
         struct flt_scene_key_frame *key_frame =
-                flt_calloc(struct_size);
+                flt_alloc(struct_size);
 
         int last_frame_num = -1;
 
-        if (!flt_list_empty(&object->key_frames)) {
+        if (flt_list_empty(&object->key_frames)) {
+                if (default_value)
+                        memcpy(key_frame, default_value, struct_size);
+                else
+                        memset(key_frame, 0, struct_size);
+        } else {
                 const struct flt_scene_key_frame *last_key_frame =
                         flt_container_of(object->key_frames.prev,
                                          struct flt_scene_key_frame,
@@ -347,6 +354,19 @@ parse_base_key_frame(struct flt_parser *parser,
         *key_frame_out = key_frame;
 
         return FLT_PARSER_RETURN_OK;
+}
+
+static enum flt_parser_return
+parse_base_key_frame(struct flt_parser *parser,
+                     size_t struct_size,
+                     struct flt_scene_key_frame **key_frame_out,
+                     struct flt_error **error)
+{
+        return parse_base_key_frame_default(parser,
+                                            struct_size,
+                                            NULL, /* default */
+                                            key_frame_out,
+                                            error);
 }
 
 static const struct flt_parser_property
@@ -846,6 +866,205 @@ parse_svg(struct flt_parser *parser,
 }
 
 static const struct flt_parser_property
+speed_key_frame_props[] = {
+        {
+                offsetof(struct flt_scene_speed_key_frame, timestamp),
+                FLT_PARSER_VALUE_TYPE_INT,
+                FLT_LEXER_KEYWORD_TIMESTAMP,
+                .min_value = 0, .max_value = INT_MAX,
+        },
+        {
+                offsetof(struct flt_scene_speed_key_frame, fps),
+                FLT_PARSER_VALUE_TYPE_INT,
+                FLT_LEXER_KEYWORD_FPS,
+                .min_value = 1, .max_value = 1000,
+        },
+};
+
+static const struct flt_scene_speed_key_frame
+default_speed_key_frame = {
+        .fps = 30,
+        .timestamp = 0,
+};
+
+static enum flt_parser_return
+parse_speed_key_frame(struct flt_parser *parser,
+                      struct flt_error **error)
+{
+        struct flt_scene_key_frame *base_key_frame;
+
+        const size_t struct_size =
+                sizeof (struct flt_scene_speed_key_frame);
+
+        enum flt_parser_return base_ret =
+                parse_base_key_frame_default(parser,
+                                             struct_size,
+                                             &default_speed_key_frame,
+                                             &base_key_frame,
+                                             error);
+
+        if (base_ret != FLT_PARSER_RETURN_OK)
+                return base_ret;
+
+        struct flt_scene_speed_key_frame *key_frame =
+                (struct flt_scene_speed_key_frame *) base_key_frame;
+
+        while (true) {
+                const struct flt_lexer_token *token =
+                        flt_lexer_get_token(parser->lexer, error);
+
+                if (token == NULL)
+                        return FLT_PARSER_RETURN_ERROR;
+
+                if (token->type == FLT_LEXER_TOKEN_TYPE_CLOSE_BRACKET)
+                        break;
+
+                flt_lexer_put_token(parser->lexer);
+
+                switch (parse_properties(parser,
+                                         speed_key_frame_props,
+                                         FLT_N_ELEMENTS(speed_key_frame_props),
+                                         key_frame,
+                                         error)) {
+                case FLT_PARSER_RETURN_OK:
+                        continue;
+                case FLT_PARSER_RETURN_NOT_MATCHED:
+                        break;
+                case FLT_PARSER_RETURN_ERROR:
+                        return FLT_PARSER_RETURN_ERROR;
+                }
+
+                set_error(parser,
+                          error,
+                          "Expected key_frame item (like timestamp etc)");
+
+                return FLT_PARSER_RETURN_ERROR;
+        }
+
+        return FLT_PARSER_RETURN_OK;
+}
+
+static enum flt_parser_return
+parse_speed_file(struct flt_parser *parser,
+                 struct flt_scene_speed *speed,
+                 struct flt_error **error)
+{
+        const struct flt_lexer_token *token;
+
+        check_item_keyword(parser, FLT_LEXER_KEYWORD_FILE, error);
+
+        require_token(parser,
+                      FLT_LEXER_TOKEN_TYPE_STRING,
+                      "expected filename",
+                      error);
+
+        if (speed->points != NULL) {
+                set_error(parser,
+                          error,
+                          "speed object already has a file");
+                return FLT_PARSER_RETURN_ERROR;
+        }
+
+        char *filename = get_relative_filename(parser, token->string_value);
+
+        bool parse_ret = flt_gpx_parse(filename,
+                                       &speed->points,
+                                       &speed->n_points,
+                                       error);
+
+        flt_free(filename);
+
+        if (!parse_ret)
+                return FLT_PARSER_RETURN_ERROR;
+
+        return FLT_PARSER_RETURN_OK;
+}
+
+static enum flt_parser_return
+parse_speed(struct flt_parser *parser,
+            struct flt_error **error)
+{
+        const struct flt_lexer_token *token;
+
+        check_item_keyword(parser, FLT_LEXER_KEYWORD_SPEED, error);
+
+        int speed_line_num = flt_lexer_get_line_num(parser->lexer);
+
+        require_token(parser,
+                      FLT_LEXER_TOKEN_TYPE_OPEN_BRACKET,
+                      "expected ‘{’",
+                      error);
+
+        struct flt_scene_speed *speed = flt_calloc(sizeof *speed);
+
+        speed->base.type = FLT_SCENE_OBJECT_TYPE_SPEED;
+
+        flt_list_init(&speed->base.key_frames);
+        flt_list_insert(parser->scene->objects.prev, &speed->base.link);
+
+        while (true) {
+                token = flt_lexer_get_token(parser->lexer, error);
+
+                if (token == NULL)
+                        return FLT_PARSER_RETURN_ERROR;
+
+                if (token->type == FLT_LEXER_TOKEN_TYPE_CLOSE_BRACKET)
+                        break;
+
+                flt_lexer_put_token(parser->lexer);
+
+                static const item_parse_func funcs[] = {
+                        parse_speed_key_frame,
+                };
+
+                switch (parse_items(parser,
+                                    funcs,
+                                    FLT_N_ELEMENTS(funcs),
+                                    error)) {
+                case FLT_PARSER_RETURN_OK:
+                        continue;
+                case FLT_PARSER_RETURN_NOT_MATCHED:
+                        break;
+                case FLT_PARSER_RETURN_ERROR:
+                        return FLT_PARSER_RETURN_ERROR;
+                }
+
+                switch (parse_speed_file(parser, speed, error)) {
+                case FLT_PARSER_RETURN_OK:
+                        continue;
+                case FLT_PARSER_RETURN_NOT_MATCHED:
+                        break;
+                case FLT_PARSER_RETURN_ERROR:
+                        return FLT_PARSER_RETURN_ERROR;
+                }
+
+                set_error(parser,
+                          error,
+                          "Expected speed item (like a key_frame)");
+
+                return FLT_PARSER_RETURN_ERROR;
+        }
+
+        if (flt_list_empty(&speed->base.key_frames)) {
+                set_error_with_line(parser,
+                                    error,
+                                    speed_line_num,
+                                    "speed has no key frames");
+                return FLT_PARSER_RETURN_ERROR;
+        }
+
+        if (speed->points == NULL) {
+                set_error_with_line(parser,
+                                    error,
+                                    speed_line_num,
+                                    "speed has no file");
+                return FLT_PARSER_RETURN_ERROR;
+        }
+
+        return FLT_PARSER_RETURN_OK;
+}
+
+static const struct flt_parser_property
 file_props[] = {
         {
                 offsetof(struct flt_scene, video_width),
@@ -881,6 +1100,7 @@ parse_file(struct flt_parser *parser,
                         parse_rectangle,
                         parse_svg,
                         parse_score,
+                        parse_speed,
                 };
 
                 switch (parse_items(parser,

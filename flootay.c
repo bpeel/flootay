@@ -236,6 +236,8 @@ found_frame:
                                            flt_scene_score_key_frame *)
                                           end_frame);
                 break;
+        case FLT_SCENE_OBJECT_TYPE_SPEED:
+                break;
         }
 }
 

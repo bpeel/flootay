@@ -88,6 +88,7 @@ keywords[] = {
         [FLT_LEXER_KEYWORD_RECTANGLE] = "rectangle",
         [FLT_LEXER_KEYWORD_SVG] = "svg",
         [FLT_LEXER_KEYWORD_SCORE] = "score",
+        [FLT_LEXER_KEYWORD_SPEED] = "speed",
         [FLT_LEXER_KEYWORD_KEY_FRAME] = "key_frame",
         [FLT_LEXER_KEYWORD_VIDEO_WIDTH] = "video_width",
         [FLT_LEXER_KEYWORD_VIDEO_HEIGHT] = "video_height",
@@ -99,6 +100,8 @@ keywords[] = {
         [FLT_LEXER_KEYWORD_Y2] = "y2",
         [FLT_LEXER_KEYWORD_FILE] = "file",
         [FLT_LEXER_KEYWORD_V] = "v",
+        [FLT_LEXER_KEYWORD_TIMESTAMP] = "timestamp",
+        [FLT_LEXER_KEYWORD_FPS] = "fps",
 };
 
 _Static_assert(FLT_N_ELEMENTS(keywords) == FLT_LEXER_N_KEYWORDS,

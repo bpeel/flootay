@@ -87,6 +87,7 @@ static const char * const
 keywords[] = {
         [FLT_LEXER_KEYWORD_RECTANGLE] = "rectangle",
         [FLT_LEXER_KEYWORD_SVG] = "svg",
+        [FLT_LEXER_KEYWORD_SCORE] = "score",
         [FLT_LEXER_KEYWORD_KEY_FRAME] = "key_frame",
         [FLT_LEXER_KEYWORD_VIDEO_WIDTH] = "video_width",
         [FLT_LEXER_KEYWORD_VIDEO_HEIGHT] = "video_height",
@@ -97,6 +98,7 @@ keywords[] = {
         [FLT_LEXER_KEYWORD_X2] = "x2",
         [FLT_LEXER_KEYWORD_Y2] = "y2",
         [FLT_LEXER_KEYWORD_FILE] = "file",
+        [FLT_LEXER_KEYWORD_V] = "v",
 };
 
 _Static_assert(FLT_N_ELEMENTS(keywords) == FLT_LEXER_N_KEYWORDS,

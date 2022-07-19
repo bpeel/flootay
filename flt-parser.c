@@ -501,6 +501,139 @@ parse_rectangle(struct flt_parser *parser,
 }
 
 static const struct flt_parser_property
+score_key_frame_props[] = {
+        {
+                offsetof(struct flt_scene_score_key_frame, value),
+                FLT_PARSER_VALUE_TYPE_INT,
+                FLT_LEXER_KEYWORD_V,
+                .min_value = INT_MIN, .max_value = INT_MAX,
+        },
+};
+
+static enum flt_parser_return
+parse_score_key_frame(struct flt_parser *parser,
+                          struct flt_error **error)
+{
+        struct flt_scene_key_frame *base_key_frame;
+
+        const size_t struct_size =
+                sizeof (struct flt_scene_score_key_frame);
+
+        enum flt_parser_return base_ret =
+                parse_base_key_frame(parser,
+                                     struct_size,
+                                     &base_key_frame,
+                                     error);
+
+        if (base_ret != FLT_PARSER_RETURN_OK)
+                return base_ret;
+
+        struct flt_scene_score_key_frame *key_frame =
+                (struct flt_scene_score_key_frame *) base_key_frame;
+
+        while (true) {
+                const struct flt_lexer_token *token =
+                        flt_lexer_get_token(parser->lexer, error);
+
+                if (token == NULL)
+                        return FLT_PARSER_RETURN_ERROR;
+
+                if (token->type == FLT_LEXER_TOKEN_TYPE_CLOSE_BRACKET)
+                        break;
+
+                flt_lexer_put_token(parser->lexer);
+
+                switch (parse_properties(parser,
+                                         score_key_frame_props,
+                                         FLT_N_ELEMENTS(score_key_frame_props),
+                                         key_frame,
+                                         error)) {
+                case FLT_PARSER_RETURN_OK:
+                        continue;
+                case FLT_PARSER_RETURN_NOT_MATCHED:
+                        break;
+                case FLT_PARSER_RETURN_ERROR:
+                        return FLT_PARSER_RETURN_ERROR;
+                }
+
+                set_error(parser,
+                          error,
+                          "Expected key_frame item (like v)");
+
+                return FLT_PARSER_RETURN_ERROR;
+        }
+
+        return FLT_PARSER_RETURN_OK;
+}
+
+static enum flt_parser_return
+parse_score(struct flt_parser *parser,
+                struct flt_error **error)
+{
+        const struct flt_lexer_token *token;
+
+        check_item_keyword(parser, FLT_LEXER_KEYWORD_SCORE, error);
+
+        int score_line_num = flt_lexer_get_line_num(parser->lexer);
+
+        require_token(parser,
+                      FLT_LEXER_TOKEN_TYPE_OPEN_BRACKET,
+                      "expected ‘{’",
+                      error);
+
+        struct flt_scene_score *score = flt_alloc(sizeof *score);
+
+        score->base.type = FLT_SCENE_OBJECT_TYPE_SCORE;
+
+        flt_list_init(&score->base.key_frames);
+        flt_list_insert(parser->scene->objects.prev, &score->base.link);
+
+        while (true) {
+                token = flt_lexer_get_token(parser->lexer, error);
+
+                if (token == NULL)
+                        return FLT_PARSER_RETURN_ERROR;
+
+                if (token->type == FLT_LEXER_TOKEN_TYPE_CLOSE_BRACKET)
+                        break;
+
+                flt_lexer_put_token(parser->lexer);
+
+                static const item_parse_func funcs[] = {
+                        parse_score_key_frame,
+                };
+
+                switch (parse_items(parser,
+                                    funcs,
+                                    FLT_N_ELEMENTS(funcs),
+                                    error)) {
+                case FLT_PARSER_RETURN_OK:
+                        continue;
+                case FLT_PARSER_RETURN_NOT_MATCHED:
+                        break;
+                case FLT_PARSER_RETURN_ERROR:
+                        return FLT_PARSER_RETURN_ERROR;
+                }
+
+                set_error(parser,
+                          error,
+                          "Expected score item (like a key_frame)");
+
+                return FLT_PARSER_RETURN_ERROR;
+        }
+
+        if (flt_list_empty(&score->base.key_frames)) {
+                set_error_with_line(parser,
+                                    error,
+                                    score_line_num,
+                                    "score has no key frames");
+                return FLT_PARSER_RETURN_ERROR;
+        }
+
+        return FLT_PARSER_RETURN_OK;
+}
+
+static const struct flt_parser_property
 svg_key_frame_props[] = {
         {
                 offsetof(struct flt_scene_svg_key_frame, x),
@@ -747,6 +880,7 @@ parse_file(struct flt_parser *parser,
                 static const item_parse_func funcs[] = {
                         parse_rectangle,
                         parse_svg,
+                        parse_score,
                 };
 
                 switch (parse_items(parser,

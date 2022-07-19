@@ -11,6 +11,9 @@
 #include "flt-scene.h"
 #include "flt-parser.h"
 #include "flt-file-error.h"
+#include "flt-buffer.h"
+
+#define SCORE_NAME "LYON"
 
 static int
 interpolate(float factor, int s, int e)
@@ -71,6 +74,44 @@ interpolate_and_add_svg(const struct flt_scene *scene,
 }
 
 static void
+interpolate_and_add_score(const struct flt_scene *scene,
+                          const struct flt_scene_score *score,
+                          cairo_t *cr,
+                          float i,
+                          const struct flt_scene_score_key_frame *s,
+                          const struct flt_scene_score_key_frame *e)
+{
+        struct flt_buffer buf = FLT_BUFFER_STATIC_INIT;
+
+        float gap = scene->video_height / 15.0f;
+
+        flt_buffer_append_printf(&buf, "SCORE %i", s->value);
+
+        cairo_save(cr);
+        cairo_set_font_size(cr, scene->video_height / 10.0f);
+        cairo_set_source_rgba(cr, 1.0, 1.0, 1.0, 1.0);
+
+        cairo_font_extents_t extents;
+
+        cairo_font_extents(cr, &extents);
+        cairo_move_to(cr, gap, extents.height);
+
+        cairo_show_text(cr, (const char *) buf.data);
+
+        cairo_text_extents_t text_extents;
+
+        cairo_text_extents(cr, SCORE_NAME, &text_extents);
+        cairo_move_to(cr,
+                      scene->video_width - text_extents.x_advance - gap,
+                      extents.height);
+        cairo_show_text(cr, SCORE_NAME);
+
+        cairo_restore(cr);
+
+        flt_buffer_destroy(&buf);
+}
+
+static void
 interpolate_and_add_object(const struct flt_scene *scene,
                            cairo_t *cr,
                            int frame_num,
@@ -120,6 +161,19 @@ found_frame:
                                         (const struct
                                          flt_scene_svg_key_frame *)
                                         end_frame);
+                break;
+        case FLT_SCENE_OBJECT_TYPE_SCORE:
+                interpolate_and_add_score(scene,
+                                          (const struct flt_scene_score *)
+                                          object,
+                                          cr,
+                                          i,
+                                          (const struct
+                                           flt_scene_score_key_frame *)
+                                          s,
+                                          (const struct
+                                           flt_scene_score_key_frame *)
+                                          end_frame);
                 break;
         }
 }

@@ -44,6 +44,7 @@ destroy_object(struct flt_scene_object *object)
 
         switch (object->type) {
         case FLT_SCENE_OBJECT_TYPE_RECTANGLE:
+        case FLT_SCENE_OBJECT_TYPE_SCORE:
                 break;
         case FLT_SCENE_OBJECT_TYPE_SVG:
                 destroy_svg((struct flt_scene_svg *) object);

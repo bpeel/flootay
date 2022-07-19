@@ -36,6 +36,7 @@ enum flt_lexer_error {
 enum flt_lexer_keyword {
         FLT_LEXER_KEYWORD_RECTANGLE = 1,
         FLT_LEXER_KEYWORD_SVG,
+        FLT_LEXER_KEYWORD_SCORE,
         FLT_LEXER_KEYWORD_KEY_FRAME,
         FLT_LEXER_KEYWORD_VIDEO_WIDTH,
         FLT_LEXER_KEYWORD_VIDEO_HEIGHT,
@@ -46,6 +47,7 @@ enum flt_lexer_keyword {
         FLT_LEXER_KEYWORD_X2,
         FLT_LEXER_KEYWORD_Y2,
         FLT_LEXER_KEYWORD_FILE,
+        FLT_LEXER_KEYWORD_V,
 
         FLT_LEXER_N_KEYWORDS,
 };

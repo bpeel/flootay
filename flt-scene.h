@@ -26,6 +26,7 @@
 enum flt_scene_object_type {
         FLT_SCENE_OBJECT_TYPE_RECTANGLE,
         FLT_SCENE_OBJECT_TYPE_SVG,
+        FLT_SCENE_OBJECT_TYPE_SCORE,
 };
 
 struct flt_scene_object {
@@ -61,6 +62,15 @@ struct flt_scene_svg_key_frame {
         struct flt_scene_key_frame base;
 
         int x, y;
+};
+
+struct flt_scene_score {
+        struct flt_scene_object base;
+};
+
+struct flt_scene_score_key_frame {
+        struct flt_scene_key_frame base;
+        int value;
 };
 
 struct flt_scene {

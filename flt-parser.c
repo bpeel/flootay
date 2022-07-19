@@ -784,23 +784,24 @@ parse_file(struct flt_parser *parser,
         return true;
 }
 
-struct flt_scene *
-flt_parser_parse(struct flt_source *source,
+bool
+flt_parser_parse(struct flt_scene *scene,
+                 struct flt_source *source,
                  const char *base_dir,
                  struct flt_error **error)
 {
         struct flt_parser parser = {
                 .lexer = flt_lexer_new(source),
-                .scene = flt_scene_new(),
+                .scene = scene,
                 .base_dir = base_dir,
         };
 
-        if (!parse_file(&parser, error)) {
-                flt_scene_free(parser.scene);
-                parser.scene = NULL;
-        }
+        bool ret = true;
+
+        if (!parse_file(&parser, error))
+                ret = false;
 
         flt_lexer_free(parser.lexer);
 
-        return parser.scene;
+        return ret;
 }

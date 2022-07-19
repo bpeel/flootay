@@ -191,19 +191,21 @@ read_stdio_cb(struct flt_source *source,
         return true;
 }
 
-static struct flt_scene *
-load_stdin(struct flt_error **error)
+static bool
+load_stdin(struct flt_scene *scene,
+           struct flt_error **error)
 {
         struct stdio_source source = {
                 .base = { .read_source = read_stdio_cb },
                 .infile = stdin,
         };
 
-        return flt_parser_parse(&source.base, NULL, error);
+        return flt_parser_parse(scene, &source.base, NULL, error);
 }
 
-static struct flt_scene *
-load_file(const char *filename,
+static bool
+load_file(struct flt_scene *scene,
+          const char *filename,
           struct flt_error **error)
 {
         struct stdio_source source = {
@@ -217,7 +219,7 @@ load_file(const char *filename,
                                    "%s: %s",
                                    filename,
                                    strerror(errno));
-                return NULL;
+                return false;
         }
 
         char *base_dir;
@@ -229,35 +231,42 @@ load_file(const char *filename,
         else
                 base_dir = flt_strndup(filename, last_part - filename);
 
-        struct flt_scene *scene =
-                flt_parser_parse(&source.base, base_dir, error);
+        bool ret = flt_parser_parse(scene, &source.base, base_dir, error);
 
         fclose(source.infile);
 
         flt_free(base_dir);
 
-        return scene;
+        return ret;
 }
 
 int
 main(int argc, char **argv)
 {
-        struct flt_scene *scene;
-        struct flt_error *error = NULL;
+        struct flt_scene *scene = flt_scene_new();
+        int ret = EXIT_SUCCESS;
 
-        if (argc == 1) {
-                scene = load_stdin(&error);
-        } else if (argc == 2) {
-                scene = load_file(argv[1], &error);
-        } else {
-                fprintf(stderr, "usage: flootay [script-file]\n");
-                return EXIT_FAILURE;
+        if (argc <= 1) {
+                fprintf(stderr, "usage: <script-file>…\n");
+                ret = EXIT_FAILURE;
+                goto out;
         }
 
-        if (scene == NULL) {
-                fprintf(stderr, "%s\n", error->message);
-                flt_error_free(error);
-                return EXIT_FAILURE;
+        for (int i = 1; i < argc; i++) {
+                struct flt_error *error = NULL;
+                bool load_ret;
+
+                if (!strcmp(argv[i], "-"))
+                        load_ret = load_stdin(scene, &error);
+                else
+                        load_ret = load_file(scene, argv[i], &error);
+
+                if (!load_ret) {
+                        fprintf(stderr, "%s\n", error->message);
+                        flt_error_free(error);
+                        ret = EXIT_FAILURE;
+                        goto out;
+                }
         }
 
         cairo_surface_t *surface =
@@ -292,7 +301,8 @@ main(int argc, char **argv)
         cairo_surface_destroy(surface);
         cairo_destroy(cr);
 
+out:
         flt_scene_free(scene);
 
-        return EXIT_SUCCESS;
+        return ret;
 }

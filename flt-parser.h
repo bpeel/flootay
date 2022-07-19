@@ -19,6 +19,8 @@
 #ifndef FLT_PARSER
 #define FLT_PARSER
 
+#include <stdbool.h>
+
 #include "flt-error.h"
 #include "flt-scene.h"
 #include "flt-source.h"
@@ -30,8 +32,9 @@ enum flt_parser_error {
         FLT_PARSER_ERROR_INVALID,
 };
 
-struct flt_scene *
-flt_parser_parse(struct flt_source *source,
+bool
+flt_parser_parse(struct flt_scene *scene,
+                 struct flt_source *source,
                  const char *base_dir,
                  struct flt_error **error);
 

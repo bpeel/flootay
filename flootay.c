@@ -74,6 +74,22 @@ interpolate_and_add_svg(const struct flt_scene *scene,
 }
 
 static void
+render_score_text(const struct flt_scene *scene,
+                  cairo_t *cr,
+                  const char *text)
+{
+        cairo_save(cr);
+        cairo_set_line_width(cr, scene->video_height / 90.0f);
+        cairo_text_path(cr, text);
+        cairo_set_source_rgb(cr, 0.0, 0.0, 0.0);
+        cairo_set_line_join(cr, CAIRO_LINE_JOIN_ROUND);
+        cairo_stroke_preserve(cr);
+        cairo_set_source_rgb(cr, 1.0, 1.0, 1.0);
+        cairo_fill(cr);
+        cairo_restore(cr);
+}
+
+static void
 interpolate_and_add_score(const struct flt_scene *scene,
                           const struct flt_scene_score *score,
                           cairo_t *cr,
@@ -89,14 +105,13 @@ interpolate_and_add_score(const struct flt_scene *scene,
 
         cairo_save(cr);
         cairo_set_font_size(cr, scene->video_height / 10.0f);
-        cairo_set_source_rgba(cr, 1.0, 1.0, 1.0, 1.0);
 
         cairo_font_extents_t extents;
 
         cairo_font_extents(cr, &extents);
         cairo_move_to(cr, gap, extents.height);
 
-        cairo_show_text(cr, (const char *) buf.data);
+        render_score_text(scene, cr, (const char *) buf.data);
 
         cairo_text_extents_t text_extents;
 
@@ -104,7 +119,7 @@ interpolate_and_add_score(const struct flt_scene *scene,
         cairo_move_to(cr,
                       scene->video_width - text_extents.x_advance - gap,
                       extents.height);
-        cairo_show_text(cr, SCORE_NAME);
+        render_score_text(scene, cr, SCORE_NAME);
 
         cairo_restore(cr);
 

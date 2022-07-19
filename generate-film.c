@@ -175,7 +175,8 @@ add_ffmpeg_args(struct flt_buffer *args,
                 const char *filter_arg,
                 struct child_proc *logo_proc)
 {
-        int logo_input = n_inputs;
+        int logo_input = n_inputs++;
+        int logo_sound_input = n_inputs++;
 
         add_arg(args, "-f");
         add_arg(args, "rawvideo");
@@ -193,6 +194,9 @@ add_ffmpeg_args(struct flt_buffer *args,
 
         add_arg(args, (const char *) buf.data);
 
+        add_arg(args, "-i");
+        add_arg(args, "logo-sound.flac");
+
         add_arg(args, "-filter_complex");
 
         flt_buffer_set_length(&buf, 0);
@@ -200,14 +204,19 @@ add_ffmpeg_args(struct flt_buffer *args,
         flt_buffer_append_printf(&buf,
                                  "%s;"
                                  "[outv]scale=1920:1080[soutv];"
-                                 "[%i:v][soutv]concat=n=2:v=1:a=0[finalv]",
+                                 "[%i:v][%i:a]"
+                                 "[soutv][outa]concat=n=2:v=1:a=1"
+                                 "[finalv][finala]",
                                  filter_arg,
-                                 logo_input);
+                                 logo_input,
+                                 logo_sound_input);
 
         add_arg(args, (const char *) buf.data);
 
         add_arg(args, "-map");
         add_arg(args, "[finalv]");
+        add_arg(args, "-map");
+        add_arg(args, "[finala]");
         add_arg(args, "film.mp4");
 
         char *terminator = NULL;

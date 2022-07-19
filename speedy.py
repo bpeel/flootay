@@ -277,9 +277,10 @@ def get_output_time(filename, time, clips):
     raise Exception("no clip found for {} @ {}".format(filename, time))
 
 def write_score_script(f, scores, clips):
-    print("score {\n"
-          "        key_frame 0 { v 0 }",
-          file=f)
+    if len(scores) <= 0:
+        return
+
+    print("score {", file=f)
 
     value = 0
 

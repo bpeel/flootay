@@ -343,6 +343,7 @@ main(int argc, char **argv)
         char *flootay_args[] = {
                 "./build/flootay",
                 (char *) flootay_file,
+                "scores.flt",
                 NULL
         };
 

@@ -13,7 +13,9 @@
 #include "flt-file-error.h"
 #include "flt-buffer.h"
 
+#define SCORE_LABEL "SCORE "
 #define SCORE_NAME "LYON"
+#define SCORE_SLIDE_FRAMES 15
 
 static int
 interpolate(float factor, int s, int e)
@@ -78,30 +80,31 @@ render_score_text(const struct flt_scene *scene,
                   cairo_t *cr,
                   const char *text)
 {
+        double after_x, after_y;
+
         cairo_save(cr);
         cairo_set_line_width(cr, scene->video_height / 90.0f);
         cairo_text_path(cr, text);
+        cairo_get_current_point(cr, &after_x, &after_y);
         cairo_set_source_rgb(cr, 0.0, 0.0, 0.0);
         cairo_set_line_join(cr, CAIRO_LINE_JOIN_ROUND);
         cairo_stroke_preserve(cr);
         cairo_set_source_rgb(cr, 1.0, 1.0, 1.0);
         cairo_fill(cr);
         cairo_restore(cr);
+
+        cairo_move_to(cr, after_x, after_y);
 }
 
 static void
 interpolate_and_add_score(const struct flt_scene *scene,
                           const struct flt_scene_score *score,
                           cairo_t *cr,
-                          float i,
+                          int frame_num,
                           const struct flt_scene_score_key_frame *s,
                           const struct flt_scene_score_key_frame *e)
 {
-        struct flt_buffer buf = FLT_BUFFER_STATIC_INIT;
-
         float gap = scene->video_height / 15.0f;
-
-        flt_buffer_append_printf(&buf, "SCORE %i", s->value);
 
         cairo_save(cr);
         cairo_set_font_size(cr, scene->video_height / 10.0f);
@@ -111,7 +114,40 @@ interpolate_and_add_score(const struct flt_scene *scene,
         cairo_font_extents(cr, &extents);
         cairo_move_to(cr, gap, extents.height);
 
-        render_score_text(scene, cr, (const char *) buf.data);
+        render_score_text(scene, cr, SCORE_LABEL);
+
+        struct flt_buffer buf = FLT_BUFFER_STATIC_INIT;
+
+        if (s->value != e->value &&
+            frame_num >= e->base.num - SCORE_SLIDE_FRAMES) {
+                double score_x, score_y;
+                cairo_get_current_point(cr, &score_x, &score_y);
+
+                cairo_save(cr);
+                cairo_rectangle(cr,
+                                0,
+                                score_y - extents.ascent,
+                                scene->video_width,
+                                extents.ascent + extents.descent);
+                cairo_clip(cr);
+
+                double offset = ((e->base.num - frame_num) * extents.height /
+                                 SCORE_SLIDE_FRAMES);
+
+                cairo_move_to(cr, score_x, score_y + extents.height - offset);
+                flt_buffer_append_printf(&buf, "%i", s->value);
+                render_score_text(scene, cr, (const char *) buf.data);
+
+                cairo_move_to(cr, score_x, score_y - offset);
+                flt_buffer_set_length(&buf, 0);
+                flt_buffer_append_printf(&buf, "%i", e->value);
+                render_score_text(scene, cr, (const char *) buf.data);
+
+                cairo_restore(cr);
+        } else {
+                flt_buffer_append_printf(&buf, "%i", s->value);
+                render_score_text(scene, cr, (const char *) buf.data);
+        }
 
         cairo_text_extents_t text_extents;
 
@@ -182,7 +218,7 @@ found_frame:
                                           (const struct flt_scene_score *)
                                           object,
                                           cr,
-                                          i,
+                                          frame_num,
                                           (const struct
                                            flt_scene_score_key_frame *)
                                           s,

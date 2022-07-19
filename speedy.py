@@ -13,8 +13,12 @@ Video = collections.namedtuple('Video', ['filename',
 Sound = collections.namedtuple('Sound', ['start_time', 'filename'])
 Clip = collections.namedtuple('Clip',
                               ['filename', 'start_time', 'length', 'fast'])
+# Filename can be None if silence should be played
+SoundClip = collections.namedtuple('SoundClip', ['filename', 'length'])
 
 TIME_RE = re.compile(r'(?:([0-9]+):)?([0-9]+)')
+
+SPEED_UP = 1.0 / 3.0
 
 class ParseError(Exception):
     pass
@@ -81,10 +85,23 @@ def get_video_length(filename):
                                  "-of", "csv=p=0"])
     return float(s)                                 
 
+def get_clips_length(clips):
+    total = 0
+
+    for clip in clips:
+        if clip.fast:
+            total += clip.length * SPEED_UP
+        else:
+            total += clip.length
+
+    return total
+
 def get_clips(videos):
     clips = []
+    sound_clips = []
 
     overlap = 0
+    sound_pos = 0
 
     for video in videos:
         last_pos = 0
@@ -120,6 +137,14 @@ def get_clips(videos):
                                   sound.start_time - last_pos,
                                   True))
 
+            sound_clip_pos = get_clips_length(clips)
+
+            if sound_clip_pos > sound_pos:
+                sound_clips.append(SoundClip(None, sound_clip_pos - sound_pos))
+                
+            sound_clips.append(SoundClip(sound.filename, sound_length))
+            sound_pos = sound_clip_pos + sound_length
+
             if sound.start_time + sound_length > video_end_time:
                 if video.end_time:
                     clip_end = video.end_time - sound.start_time
@@ -148,7 +173,7 @@ def get_clips(videos):
                               clip_end,
                               True))
 
-    return clips
+    return clips, sound_clips
 
 def get_ffmpeg_input_args(clip):
     args = []
@@ -163,6 +188,12 @@ def get_ffmpeg_input_args(clip):
 
     return args
 
+def get_ffmpeg_sound_input_args(clip):
+    if clip.filename is None:
+        return ["-f", "lavfi", "-t", str(clip.length), "-i", "anullsrc"]
+    else:
+        return ["-i", clip.filename]
+
 def get_ffmpeg_filter(clips):
     parts = []
 
@@ -173,8 +204,8 @@ def get_ffmpeg_filter(clips):
         if len(parts) > 0:
             parts.append(";")
 
-        parts.append("[{}:v]setpts=0.333333333333*PTS[f{}]".format(
-            clip_num, clip_num))
+        parts.append("[{}:v]setpts={}*PTS[f{}]".format(
+            clip_num, SPEED_UP, clip_num))
 
     if len(parts) > 0:
         parts.append(";")
@@ -189,11 +220,23 @@ def get_ffmpeg_filter(clips):
 
     return "".join(parts)
 
-def get_ffmpeg_args(clips):
-    input_args = sum((get_ffmpeg_input_args(clip) for clip in clips), [])
-    filter = get_ffmpeg_filter(clips)
+def get_ffmpeg_sound_filter(sound_clips, first_input):
+    inputs = "".join("[{}]".format(i + first_input)
+                     for i in range(len(sound_clips)))
+    return inputs + "concat=n={}:v=0:a=1[outa]".format(len(sound_clips))
 
-    return input_args + ["-filter_complex", filter, "-map", "[outv]"]
+def get_ffmpeg_args(clips, sound_clips):
+    input_args = sum((get_ffmpeg_input_args(clip) for clip in clips), [])
+    input_args.extend(sum((get_ffmpeg_sound_input_args(clip)
+                           for clip in sound_clips),
+                          []))
+    filter = (get_ffmpeg_filter(clips) +
+              ";" +
+              get_ffmpeg_sound_filter(sound_clips, len(clips)))
+
+    return input_args + ["-filter_complex", filter,
+                         "-map", "[outv]",
+                         "-map", "[outa]"]
 
 if len(sys.argv) >= 2:
     with open(sys.argv[1], "rt", encoding="utf-8") as f:
@@ -201,4 +244,4 @@ if len(sys.argv) >= 2:
 else:
     videos = parse_script(sys.stdin)
 
-print("\n".join(get_ffmpeg_args(get_clips(videos))))
+print("\n".join(get_ffmpeg_args(*get_clips(videos))))

@@ -314,19 +314,44 @@ create_lon_surface(struct painter *painter)
         cairo_destroy(cr);
 }
 
+static char *
+get_source_dir(const char *exe)
+{
+        const char *end = strrchr(exe, '/');
+
+        if (end == NULL)
+                return flt_strdup(".");
+
+        static const char build_end[] = "/build";
+
+        if (end - exe >= sizeof build_end &&
+            !memcmp(build_end,
+                    end - (sizeof build_end) + 1,
+                    (sizeof build_end) - 1))
+                end -= (sizeof build_end) - 1;
+
+        return flt_strndup(exe, end - exe);
+}
+
 int
 main(int argc, char **argv)
 {
+        int ret = EXIT_SUCCESS;
+
         struct painter painter;
 
-        if (!read_labels(LOGO_FILENAME, painter.ids))
-                return EXIT_FAILURE;
+        char *source_dir = get_source_dir(argv[0]);
+        char *logo_filename =
+                flt_strconcat(source_dir, "/" LOGO_FILENAME, NULL);
 
-        int ret = EXIT_SUCCESS;
+        if (!read_labels(logo_filename, painter.ids)) {
+                ret = EXIT_FAILURE;
+                goto out;
+        }
 
         GError *error = NULL;
 
-        painter.svg = rsvg_handle_new_from_file(LOGO_FILENAME, &error);
+        painter.svg = rsvg_handle_new_from_file(logo_filename, &error);
 
         if (painter.svg == NULL) {
                 fprintf(stderr,
@@ -342,6 +367,10 @@ main(int argc, char **argv)
         }
 
         free_ids(painter.ids);
+
+out:
+        flt_free(source_dir);
+        flt_free(logo_filename);
 
         return ret;
 }

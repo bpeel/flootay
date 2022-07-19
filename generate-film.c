@@ -10,11 +10,12 @@
 #include "flt-util.h"
 
 struct child_proc {
+        char *program_name;
         pid_t pid;
         int read_fd;
 };
 
-#define CHILD_PROC_INIT { .pid = -1, .read_fd = -1 }
+#define CHILD_PROC_INIT { .program_name = NULL, .pid = -1, .read_fd = -1 }
 
 static bool
 open_child_proc(const char *source_dir,
@@ -82,6 +83,7 @@ open_child_proc(const char *source_dir,
 
         cp->pid = pid;
         cp->read_fd = pipe_fds[0];
+        cp->program_name = flt_strdup(program_name);
 
         return true;
 }
@@ -98,10 +100,20 @@ close_child_proc(struct child_proc *cp)
                 if (waitpid(cp->pid, &status, 0 /* options */) == -1 ||
                     !WIFEXITED(status) ||
                     WEXITSTATUS(status) != EXIT_SUCCESS) {
-                        fprintf(stderr, "subprocess failed\n");
+                        if (cp->program_name) {
+                                fprintf(stderr,
+                                        "%s: subprocess failed\n",
+                                        cp->program_name);
+                        } else {
+                                fprintf(stderr, "subprocess failed\n");
+                        }
+
                         return false;
                 }
         }
+
+        if (cp->program_name)
+                flt_free(cp->program_name);
 
         return true;
 }

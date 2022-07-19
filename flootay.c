@@ -133,14 +133,24 @@ interpolate_and_add_score(const struct flt_scene *scene,
 
                 double offset = ((e->base.num - frame_num) * extents.height /
                                  SCORE_SLIDE_FRAMES);
+                int top_value, bottom_value;
+
+                if (e->value > s->value) {
+                        top_value = s->value;
+                        bottom_value = e->value;
+                        offset = extents.height - offset;
+                } else {
+                        top_value = e->value;
+                        bottom_value = s->value;
+                }
 
                 cairo_move_to(cr, score_x, score_y + extents.height - offset);
-                flt_buffer_append_printf(&buf, "%i", s->value);
+                flt_buffer_append_printf(&buf, "%i", bottom_value);
                 render_score_text(scene, cr, (const char *) buf.data);
 
                 cairo_move_to(cr, score_x, score_y - offset);
                 flt_buffer_set_length(&buf, 0);
-                flt_buffer_append_printf(&buf, "%i", e->value);
+                flt_buffer_append_printf(&buf, "%i", top_value);
                 render_score_text(scene, cr, (const char *) buf.data);
 
                 cairo_restore(cr);

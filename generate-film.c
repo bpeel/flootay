@@ -14,6 +14,8 @@ struct child_proc {
         int read_fd;
 };
 
+#define CHILD_PROC_INIT { .pid = -1, .read_fd = -1 }
+
 static bool
 open_child_proc(char *const argv[],
                 struct child_proc *cp)
@@ -67,16 +69,18 @@ close_child_proc(struct child_proc *cp)
         if (cp->read_fd != -1)
                 close(cp->read_fd);
 
-        int status = EXIT_FAILURE;
+        if (cp->pid > 0) {
+                int status = EXIT_FAILURE;
 
-        if (waitpid(cp->pid, &status, 0 /* options */) == -1 ||
-            !WIFEXITED(status) ||
-            WEXITSTATUS(status) != EXIT_SUCCESS) {
-                fprintf(stderr, "subprocess failed\n");
-                return false;
-        } else {
-                return true;
+                if (waitpid(cp->pid, &status, 0 /* options */) == -1 ||
+                    !WIFEXITED(status) ||
+                    WEXITSTATUS(status) != EXIT_SUCCESS) {
+                        fprintf(stderr, "subprocess failed\n");
+                        return false;
+                }
         }
+
+        return true;
 }
 
 static char *
@@ -173,10 +177,12 @@ static void
 add_ffmpeg_args(struct flt_buffer *args,
                 int n_inputs,
                 const char *filter_arg,
-                struct child_proc *logo_proc)
+                struct child_proc *logo_proc,
+                struct child_proc *flootay_proc)
 {
         int logo_input = n_inputs++;
         int logo_sound_input = n_inputs++;
+        int flootay_input = n_inputs++;
 
         add_arg(args, "-f");
         add_arg(args, "rawvideo");
@@ -197,6 +203,20 @@ add_ffmpeg_args(struct flt_buffer *args,
         add_arg(args, "-i");
         add_arg(args, "logo-sound.flac");
 
+        add_arg(args, "-f");
+        add_arg(args, "rawvideo");
+        add_arg(args, "-pixel_format");
+        add_arg(args, "rgba");
+        add_arg(args, "-video_size");
+        add_arg(args, "1920x1080");
+        add_arg(args, "-framerate");
+        add_arg(args, "30");
+        add_arg(args, "-i");
+
+        flt_buffer_set_length(&buf, 0);
+        flt_buffer_append_printf(&buf, "pipe:%i", flootay_proc->read_fd);
+        add_arg(args, (const char *) buf.data);
+
         add_arg(args, "-filter_complex");
 
         flt_buffer_set_length(&buf, 0);
@@ -204,10 +224,12 @@ add_ffmpeg_args(struct flt_buffer *args,
         flt_buffer_append_printf(&buf,
                                  "%s;"
                                  "[outv]scale=1920:1080[soutv];"
+                                 "[soutv][%i]overlay[overoutv];"
                                  "[%i:v][%i:a]"
-                                 "[soutv][outa]concat=n=2:v=1:a=1"
+                                 "[overoutv][outa]concat=n=2:v=1:a=1"
                                  "[finalv][finala]",
                                  filter_arg,
+                                 flootay_input,
                                  logo_input,
                                  logo_sound_input);
 
@@ -227,7 +249,8 @@ add_ffmpeg_args(struct flt_buffer *args,
 
 static bool
 run_ffmpeg(struct flt_buffer *args,
-           struct child_proc *logo_proc)
+           struct child_proc *logo_proc,
+           struct child_proc *flootay_proc)
 {
         pid_t pid = fork();
 
@@ -253,6 +276,9 @@ run_ffmpeg(struct flt_buffer *args,
 
         close(logo_proc->read_fd);
         logo_proc->read_fd = -1;
+
+        close(flootay_proc->read_fd);
+        flootay_proc->read_fd = -1;
 
         int status = EXIT_FAILURE;
 
@@ -299,27 +325,47 @@ main(int argc, char **argv)
 
         add_arg(&args, "ffmpeg");
 
+        struct child_proc logo_proc = CHILD_PROC_INIT;
+        struct child_proc flootay_proc = CHILD_PROC_INIT;
+
         if (!get_speedy_args(speedy_file, &args, &n_inputs, &filter_arg)) {
                 ret = EXIT_FAILURE;
-        } else {
-                struct child_proc logo_proc;
-                char *logo_args[] = { "./build/generate-logo", NULL };
-
-                if (!open_child_proc(logo_args, &logo_proc)) {
-                        ret = EXIT_FAILURE;
-                } else {
-                        add_ffmpeg_args(&args,
-                                        n_inputs,
-                                        filter_arg,
-                                        &logo_proc);
-
-                        if (!run_ffmpeg(&args, &logo_proc))
-                                ret = EXIT_FAILURE;
-
-                        if (!close_child_proc(&logo_proc))
-                                ret = EXIT_FAILURE;
-                }
+                goto out;
         }
+
+        char *logo_args[] = { "./build/generate-logo", NULL };
+
+        if (!open_child_proc(logo_args, &logo_proc)) {
+                ret = EXIT_FAILURE;
+                goto out;
+        }
+
+        char *flootay_args[] = {
+                "./build/flootay",
+                (char *) flootay_file,
+                NULL
+        };
+
+        if (!open_child_proc(flootay_args, &flootay_proc)) {
+                ret = EXIT_FAILURE;
+                goto out;
+        }
+
+        add_ffmpeg_args(&args,
+                        n_inputs,
+                        filter_arg,
+                        &logo_proc,
+                        &flootay_proc);
+
+        if (!run_ffmpeg(&args, &logo_proc, &flootay_proc))
+                ret = EXIT_FAILURE;
+
+out:
+        if (!close_child_proc(&logo_proc))
+                ret = EXIT_FAILURE;
+
+        if (!close_child_proc(&flootay_proc))
+                ret = EXIT_FAILURE;
 
         free_args(&args);
         flt_free(filter_arg);

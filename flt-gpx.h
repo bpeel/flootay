@@ -45,4 +45,10 @@ flt_gpx_parse(const char *filename,
               size_t *n_points_out,
               struct flt_error **error);
 
+bool
+flt_gpx_find_speed(const struct flt_gpx_point *points,
+                   size_t n_points,
+                   double timestamp,
+                   double *speed_out);
+
 #endif /* FLT_GPX */

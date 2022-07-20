@@ -30,6 +30,11 @@
 #include "flt-buffer.h"
 #include "flt-file-error.h"
 
+/* Don’t use the point if the timestamp is more than 5 seconds from
+ * what we are looking for.
+ */
+#define MAX_TIME_GAP 5
+
 struct flt_error_domain
 flt_gpx_error;
 
@@ -392,6 +397,68 @@ flt_gpx_parse(const char *filename,
               *n_points_out,
               sizeof **points_out,
               compare_point_time_cb);
+
+        return true;
+}
+
+bool
+flt_gpx_find_speed(const struct flt_gpx_point *points,
+                   size_t n_points,
+                   double timestamp,
+                   double *speed_out)
+{
+        int min = 0, max = n_points;
+
+        while (max > min) {
+                int mid = (min + max) / 2;
+
+                if (points[mid].time < timestamp) {
+                        min = mid + 1;
+                } else {
+                        max = mid;
+                }
+        }
+
+        if (min >= n_points || points[min].time != timestamp)
+                min--;
+
+        if (min <= 0 && timestamp <= points[0].time) {
+                if (points[0].time - timestamp <= MAX_TIME_GAP) {
+                        *speed_out = points[0].speed;
+                        return true;
+                }
+
+                return false;
+        }
+
+        if (min >= n_points - 1) {
+                if (timestamp - points[n_points - 1].time <= MAX_TIME_GAP) {
+                        *speed_out = points[n_points - 1].speed;
+                        return true;
+                }
+
+                return false;
+        }
+
+        if (timestamp - points[min].time > MAX_TIME_GAP) {
+                if (points[min + 1].time - timestamp <= MAX_TIME_GAP) {
+                        *speed_out = points[min + 1].speed;
+                        return true;
+                }
+
+                return false;
+        }
+
+        if (points[min + 1].time - timestamp > MAX_TIME_GAP) {
+                *speed_out = points[min].speed;
+                return true;
+        }
+
+        /* Both points are in range so interpolate them */
+        *speed_out = ((timestamp - points[min].time) /
+                      (double) (points[min + 1].time - points[min].time) *
+                      (points[min + 1].speed - points[min].speed) +
+                      points[min].speed);
 
         return true;
 }

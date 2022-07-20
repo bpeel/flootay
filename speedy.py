@@ -5,11 +5,16 @@ import re
 import sys
 import subprocess
 import shlex
+import dateutil.parser
 
-Script = collections.namedtuple('Script', ['videos', 'scores', 'svgs'])
+Script = collections.namedtuple('Script', ['videos',
+                                           'scores',
+                                           'svgs',
+                                           'gpx_offset'])
 Video = collections.namedtuple('Video', ['filename',
                                          'start_time',
                                          'end_time',
+                                         'length',
                                          'sounds'])
 Svg = collections.namedtuple('Svg', ['video',
                                      'filename',
@@ -59,14 +64,25 @@ def parse_script(infile):
                         r')\s+(?P<length>' +
                         TIME_RE.pattern +
                         r')\s+(?P<filename>.*\.svg)\s*$')
+    gpx_offset_re = re.compile(r'gpx_offset\s+(?P<video_time>'
+                               + TIME_RE.pattern +
+                               r')\s+(?P<utc_time>.*)')
     videos = []
     scores = []
     svgs = []
+    gpx_offset = None
     
     for line_num, line in enumerate(infile):
         line = line.strip()
 
         if len(line) <= 0 or line[0] == '#':
+            continue
+
+        md = gpx_offset_re.match(line)
+        if md:
+            timestamp = dateutil.parser.parse(md.group('utc_time'))
+            gpx_offset = (timestamp.timestamp() -
+                          decode_time(md.group('video_time')))
             continue
 
         md = svg_re.match(line)
@@ -107,6 +123,8 @@ def parse_script(infile):
 
         md = video_re.match(line)
 
+        filename = md.group('filename')
+
         start_time = md.group('start_time')
         if start_time:
             start_time = decode_time(start_time)
@@ -115,9 +133,13 @@ def parse_script(infile):
         if end_time:
             end_time = decode_time(end_time)
 
-        videos.append(Video(md.group('filename'), start_time, end_time, []))
+        videos.append(Video(filename,
+                            start_time,
+                            end_time,
+                            get_video_length(filename),
+                            []))
 
-    return Script(videos, scores, svgs)
+    return Script(videos, scores, svgs, gpx_offset)
 
 def get_video_length(filename):
     s = subprocess.check_output(["ffprobe",
@@ -154,7 +176,7 @@ def get_clips(videos):
         if video.end_time is not None:
             video_end_time = video.end_time
         else:
-            video_end_time = get_video_length(video.filename)
+            video_end_time = video.length
 
         if overlap > 0:
             if overlap > video_end_time - last_pos:
@@ -335,6 +357,42 @@ def write_svg_script(f, svgs, clips):
                               round((start_time + svg.length) * FPS)),
               file=f)
 
+def write_speed_script(f, script, clips):
+    if script.gpx_offset is None:
+        return
+
+    print("speed {\n"
+          "        file \"speed.gpx\"",
+          file=f)
+
+    videos = list(sorted(set((video.filename, video.length)
+                             for video in script.videos)))
+
+    for clip in clips:
+        video_time = 0
+
+        for video in videos:
+            if video[0] == clip.filename:
+                break
+            video_time += video[1]
+
+        utc_time = round(script.gpx_offset + video_time + clip.start_time)
+        out_time = get_output_time(clip.filename, clip.start_time, clips)
+        fps = round(FPS * SPEED_UP) if clip.fast else FPS
+
+        print("        key_frame {} {{ fps {} timestamp {} }}".format(
+            round(out_time * FPS),
+            fps,
+            utc_time),
+              file=f)
+
+    end_time = get_output_time(clips[-1].filename,
+                               clips[-1].start_time + clips[-1].length - 0.01,
+                               clips)
+    print(("        key_frame {} {{ }}\n"
+           "}}\n").format(round(end_time * FPS)),
+          file=f)
+
 if len(sys.argv) >= 2:
     with open(sys.argv[1], "rt", encoding="utf-8") as f:
         script = parse_script(f)
@@ -346,5 +404,6 @@ clips, sound_clips = get_clips(script.videos)
 with open("scores.flt", "wt", encoding="utf-8") as f:
     write_score_script(f, script.scores, clips)
     write_svg_script(f, script.svgs, clips)
+    write_speed_script(f, script, clips)
 
 print("\n".join(get_ffmpeg_args(clips, sound_clips)))

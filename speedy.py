@@ -258,19 +258,6 @@ def get_clips(videos):
 
     return clips, sound_clips
 
-def get_ffmpeg_input_args(clip):
-    args = []
-
-    if clip.start_time > 0:
-        args.extend(["-ss", str(clip.start_time)])
-
-    if clip.length is not None:
-        args.extend(["-t", str(clip.length)])
-
-    args.extend(["-i", clip.filename])
-
-    return args
-
 def get_ffmpeg_sound_input_args(clip):
     if clip.filename is None:
         return ["-f", "lavfi", "-t", str(clip.length), "-i", "anullsrc"]
@@ -278,28 +265,32 @@ def get_ffmpeg_sound_input_args(clip):
         return ["-i", clip.filename]
 
 def get_ffmpeg_filter(clips):
-    parts = []
+    input_time = 0
+    output_time = 0
+    parts = ["[0:v]setpts='"]
 
-    for clip_num, clip in enumerate(clips):
-        if not clip.fast:
-            continue
+    for i, clip in enumerate(clips):
+        if i < len(clips) - 1:
+            parts.append("if(lt(T-STARTT,{}),".format(input_time +
+                                                       clip.length))
 
-        if len(parts) > 0:
-            parts.append(";")
-
-        parts.append("[{}:v]setpts={}*PTS[f{}]".format(
-            clip_num, SPEED_UP, clip_num))
-
-    if len(parts) > 0:
-        parts.append(";")
-
-    for clip_num, clip in enumerate(clips):
+        parts.append("STARTPTS+{}/TB+(PTS-STARTPTS-{}/TB)".format(output_time,
+                                                                  input_time))
         if clip.fast:
-            parts.append("[f{}]".format(clip_num))
-        else:
-            parts.append("[{}:v]".format(clip_num))
+            parts.append("*{}".format(SPEED_UP))
 
-    parts.append("concat=n={}:v=1:a=0[outv]".format(len(clips)))
+        if i < len(clips) - 1:
+            parts.append(",")
+
+        input_time += clip.length
+
+        clip_length = clip.length
+        if clip.fast:
+            clip_length *= SPEED_UP
+        output_time += clip_length
+
+    parts.append(")" * (len(clips) - 1))
+    parts.append("',trim=duration={}[outv]".format(output_time))
 
     return "".join(parts)
 
@@ -309,13 +300,15 @@ def get_ffmpeg_sound_filter(sound_clips, first_input):
     return inputs + "concat=n={}:v=0:a=1[outa]".format(len(sound_clips))
 
 def get_ffmpeg_args(clips, sound_clips):
-    input_args = sum((get_ffmpeg_input_args(clip) for clip in clips), [])
+    input_args = ["-safe", "0", "-f", "concat", "-i", "concat.txt"]
+
     input_args.extend(sum((get_ffmpeg_sound_input_args(clip)
                            for clip in sound_clips),
                           []))
+
     filter = (get_ffmpeg_filter(clips) +
               ";" +
-              get_ffmpeg_sound_filter(sound_clips, len(clips)))
+              get_ffmpeg_sound_filter(sound_clips, 1))
 
     return input_args + ["-filter_complex", filter,
                          "-map", "[outv]",
@@ -430,6 +423,14 @@ def write_videos_script(f, videos, clips):
         print(script_time_re.sub(replace_video_time, "\n".join(video.script)),
               file=f)
 
+def write_concat_script(f, videos):
+    for video in videos:
+        print(("file '{}'\n"
+               "inpoint {}").format(video.filename, video.start_time),
+              file=f)
+        if video.end_time is not None:
+            print("outpoint {}".format(video.end_time), file=f)
+
 if len(sys.argv) >= 2:
     with open(sys.argv[1], "rt", encoding="utf-8") as f:
         script = parse_script(f)
@@ -437,6 +438,9 @@ else:
     script = parse_script(sys.stdin)
 
 clips, sound_clips = get_clips(script.videos)
+
+with open("concat.txt", "wt", encoding="utf-8") as f:
+    write_concat_script(f, script.videos)
 
 with open("scores.flt", "wt", encoding="utf-8") as f:
     write_score_script(f, script.scores, clips)

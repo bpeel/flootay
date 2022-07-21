@@ -367,15 +367,13 @@ get_source_dir(const char *exe)
 int
 main(int argc, char **argv)
 {
-        if (argc != 3) {
+        if (argc != 2) {
                 fprintf(stderr,
-                        "usage: generate-film "
-                        "<speedy-file> <flootay-file>\n");
+                        "usage: generate-film <speedy-file>\n");
                 return EXIT_FAILURE;
         }
 
         const char *speedy_file = argv[1];
-        const char *flootay_file = argv[2];
 
         struct flt_buffer args = FLT_BUFFER_STATIC_INIT;
         char *filter_arg = NULL;
@@ -410,7 +408,6 @@ main(int argc, char **argv)
         }
 
         const char * const flootay_args[] = {
-                flootay_file,
                 "scores.flt",
                 NULL
         };

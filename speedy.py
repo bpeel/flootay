@@ -15,7 +15,8 @@ Video = collections.namedtuple('Video', ['filename',
                                          'start_time',
                                          'end_time',
                                          'length',
-                                         'sounds'])
+                                         'sounds',
+                                         'script'])
 Svg = collections.namedtuple('Svg', ['video',
                                      'filename',
                                      'start_time',
@@ -70,13 +71,27 @@ def parse_script(infile):
     gpx_offset_re = re.compile(r'gpx_offset\s+(?P<video_time>'
                                + TIME_RE.pattern +
                                r')\s+(?P<utc_time>.*)')
+
     videos = []
     scores = []
     svgs = []
     gpx_offset = None
+
+    in_script = False
     
     for line_num, line in enumerate(infile):
         line = line.strip()
+
+        if in_script:
+            if line == "}}":
+                in_script = False
+            else:
+                videos[-1].script.append(line)
+            continue
+
+        if line == "{{":
+            in_script = True
+            continue
 
         if len(line) <= 0 or line[0] == '#':
             continue
@@ -140,6 +155,7 @@ def parse_script(infile):
                             start_time,
                             end_time,
                             get_video_length(filename),
+                            [],
                             []))
 
     return Script(videos, scores, svgs, gpx_offset)
@@ -396,6 +412,24 @@ def write_speed_script(f, script, clips):
            "}}\n").format(round(end_time * FPS)),
           file=f)
 
+def write_videos_script(f, videos, clips):
+    script_time_re = re.compile(r'\bkey_frame\s+(?P<time>' +
+                                TIME_RE.pattern +
+                                r')')
+
+    for video in videos:
+        if len(video.script) == 0:
+            continue
+
+        def replace_video_time(md):
+            t = decode_time(md.group('time'))
+            ot = get_output_time(video.filename, t, clips)
+            return (md.group(0)[:(md.start('time') - md.start(0))] +
+                    str(round(ot * FPS)))
+
+        print(script_time_re.sub(replace_video_time, "\n".join(video.script)),
+              file=f)
+
 if len(sys.argv) >= 2:
     with open(sys.argv[1], "rt", encoding="utf-8") as f:
         script = parse_script(f)
@@ -408,5 +442,6 @@ with open("scores.flt", "wt", encoding="utf-8") as f:
     write_score_script(f, script.scores, clips)
     write_svg_script(f, script.svgs, clips)
     write_speed_script(f, script, clips)
+    write_videos_script(f, script.videos, clips)
 
 print("\n".join(get_ffmpeg_args(clips, sound_clips)))

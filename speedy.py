@@ -27,7 +27,7 @@ Clip = collections.namedtuple('Clip',
 SoundClip = collections.namedtuple('SoundClip', ['filename', 'length'])
 ScoreDiff = collections.namedtuple('ScoreDiff', ['video', 'time', 'diff'])
 
-TIME_RE = re.compile(r'(?:([0-9]+):)?([0-9]+)')
+TIME_RE = re.compile(r'(?:([0-9]+):)?([0-9]+)(\.[0-9]+)?')
 
 SPEED_UP = 1.0 / 3.0
 
@@ -42,6 +42,9 @@ def decode_time(time_str):
 
     if md.group(1):
         seconds += int(md.group(1)) * 60
+
+    if md.group(3):
+        seconds += float("0" + md.group(3))
 
     return seconds
 
@@ -376,7 +379,7 @@ def write_speed_script(f, script, clips):
                 break
             video_time += video[1]
 
-        utc_time = round(script.gpx_offset + video_time + clip.start_time)
+        utc_time = script.gpx_offset + video_time + clip.start_time
         out_time = get_output_time(clip.filename, clip.start_time, clips)
         fps = round(FPS * SPEED_UP) if clip.fast else FPS
 

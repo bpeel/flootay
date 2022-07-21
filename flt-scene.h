@@ -83,7 +83,7 @@ struct flt_scene_speed {
 
 struct flt_scene_speed_key_frame {
         struct flt_scene_key_frame base;
-        int timestamp;
+        double timestamp;
         int fps;
 };
 

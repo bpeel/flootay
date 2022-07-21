@@ -47,6 +47,7 @@ struct flt_parser {
 enum flt_parser_value_type {
         FLT_PARSER_VALUE_TYPE_STRING,
         FLT_PARSER_VALUE_TYPE_INT,
+        FLT_PARSER_VALUE_TYPE_DOUBLE,
         FLT_PARSER_VALUE_TYPE_BOOL,
 };
 
@@ -61,6 +62,9 @@ struct flt_parser_property {
         union {
                 struct {
                         long min_value, max_value;
+                };
+                struct {
+                        long min_double_value, max_double_value;
                 };
         };
 };
@@ -223,6 +227,37 @@ parse_int_property(struct flt_parser *parser,
 }
 
 static enum flt_parser_return
+parse_double_property(struct flt_parser *parser,
+                      const struct flt_parser_property *prop,
+                      void *object,
+                      struct flt_error **error)
+{
+        const struct flt_lexer_token *token;
+
+        check_item_keyword(parser, prop->prop_keyword, error);
+        require_token(parser,
+                      FLT_LEXER_TOKEN_TYPE_FLOAT,
+                      "Expected floating-point number",
+                      error);
+
+        double *field = (double *) (((uint8_t *) object) + prop->offset);
+
+        double value = (token->number_value +
+                        token->fraction / (double) FLT_LEXER_FRACTION_RANGE);
+
+        if (value < prop->min_double_value || value > prop->max_double_value) {
+                set_error(parser,
+                          error,
+                          "Number is out of range");
+                return FLT_PARSER_RETURN_ERROR;
+        }
+
+        *field = value;
+
+        return FLT_PARSER_RETURN_OK;
+}
+
+static enum flt_parser_return
 parse_bool_property(struct flt_parser *parser,
                     const struct flt_parser_property *prop,
                     void *object,
@@ -261,6 +296,12 @@ parse_properties(struct flt_parser *parser,
                                                  props + i,
                                                  object,
                                                  error);
+                        break;
+                case FLT_PARSER_VALUE_TYPE_DOUBLE:
+                        ret = parse_double_property(parser,
+                                                    props + i,
+                                                    object,
+                                                    error);
                         break;
                 case FLT_PARSER_VALUE_TYPE_BOOL:
                         ret = parse_bool_property(parser,
@@ -869,7 +910,7 @@ static const struct flt_parser_property
 speed_key_frame_props[] = {
         {
                 offsetof(struct flt_scene_speed_key_frame, timestamp),
-                FLT_PARSER_VALUE_TYPE_INT,
+                FLT_PARSER_VALUE_TYPE_DOUBLE,
                 FLT_LEXER_KEYWORD_TIMESTAMP,
                 .min_value = 0, .max_value = INT_MAX,
         },

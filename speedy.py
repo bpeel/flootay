@@ -159,9 +159,6 @@ def parse_script(infile):
             sound = Sound(start_time, filename, length)
             videos[-1].sounds.append(sound)
 
-            slow_times.append(SlowTime(videos[-1].filename,
-                                       start_time,
-                                       length))
             continue
 
         md = video_re.match(line)

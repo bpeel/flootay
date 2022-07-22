@@ -74,6 +74,11 @@ def parse_script(infile):
     gpx_offset_re = re.compile(r'gpx_offset\s+(?P<video_time>'
                                + TIME_RE.pattern +
                                r')\s+(?P<utc_time>.*)')
+    slow_re = re.compile(r'slow\s+(?P<start_time>' +
+                         TIME_RE.pattern +
+                         r')\s+(?P<end_time>' +
+                         TIME_RE.pattern +
+                         r')$')
 
     videos = []
     scores = []
@@ -98,6 +103,15 @@ def parse_script(infile):
             continue
 
         if len(line) <= 0 or line[0] == '#':
+            continue
+
+        md = slow_re.match(line)
+        if md:
+            start_time = decode_time(md.group('start_time'))
+            end_time = decode_time(md.group('end_time'))
+            slow_times.append(SlowTime(videos[-1].filename,
+                                       start_time,
+                                       end_time - start_time))
             continue
 
         md = gpx_offset_re.match(line)

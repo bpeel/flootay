@@ -299,16 +299,31 @@ def get_sound_clips(videos, video_speeds):
 
     return sound_clips
 
+def get_ffmpeg_input_args(video):
+    args = []
+
+    if video.start_time > 0:
+        args.extend(["-ss", str(video.start_time)])
+
+    if video.end_time is not None:
+        args.extend(["-to", str(video.end_time)])
+
+    args.extend(["-i", video.filename])
+
+    return args
+
 def get_ffmpeg_sound_input_args(clip):
     if clip.filename is None:
         return ["-f", "lavfi", "-t", str(clip.length), "-i", "anullsrc"]
     else:
         return ["-i", clip.filename]
 
-def get_ffmpeg_filter(video_speeds):
+def get_ffmpeg_filter(videos, video_speeds):
     input_time = 0
     output_time = 0
-    parts = ["[0:v]setpts='"]
+    parts = ["".join("[{}]".format(i) for i in range(len(videos))),
+             "concat=n={}:v=1:a=0[ccv];".format(len(videos)),
+             "[ccv]setpts='"]
 
     for i, vs in enumerate(video_speeds):
         if i < len(video_speeds) - 1:
@@ -335,14 +350,14 @@ def get_ffmpeg_sound_filter(sound_clips, first_input):
                      for i in range(len(sound_clips)))
     return inputs + "concat=n={}:v=0:a=1[outa]".format(len(sound_clips))
 
-def get_ffmpeg_args(video_speeds, sound_clips):
-    input_args = ["-safe", "0", "-f", "concat", "-i", "concat.txt"]
+def get_ffmpeg_args(videos, video_speeds, sound_clips):
+    input_args = sum((get_ffmpeg_input_args(video) for video in videos), [])
 
     input_args.extend(sum((get_ffmpeg_sound_input_args(clip)
                            for clip in sound_clips),
                           []))
 
-    filter = (get_ffmpeg_filter(video_speeds) +
+    filter = (get_ffmpeg_filter(videos, video_speeds) +
               ";" +
               get_ffmpeg_sound_filter(sound_clips, 1))
 
@@ -435,14 +450,6 @@ def write_videos_script(f, videos, video_speeds):
         print(script_time_re.sub(replace_video_time, "\n".join(video.script)),
               file=f)
 
-def write_concat_script(f, videos):
-    for video in videos:
-        print(("file '{}'\n"
-               "inpoint {}").format(video.filename, video.start_time),
-              file=f)
-        if video.end_time is not None:
-            print("outpoint {}".format(video.end_time), file=f)
-
 if len(sys.argv) >= 2:
     with open(sys.argv[1], "rt", encoding="utf-8") as f:
         script = parse_script(f)
@@ -452,13 +459,10 @@ else:
 video_speeds = get_video_speeds(script.videos, script.slow_times)
 sound_clips = get_sound_clips(script.videos, video_speeds)
 
-with open("concat.txt", "wt", encoding="utf-8") as f:
-    write_concat_script(f, script.videos)
-
 with open("scores.flt", "wt", encoding="utf-8") as f:
     write_score_script(f, script.scores, script.videos, video_speeds)
     write_svg_script(f, script.svgs, script.videos, video_speeds)
     write_speed_script(f, script, video_speeds)
     write_videos_script(f, script.videos, video_speeds)
 
-print("\n".join(get_ffmpeg_args(video_speeds, sound_clips)))
+print("\n".join(get_ffmpeg_args(script.videos, video_speeds, sound_clips)))

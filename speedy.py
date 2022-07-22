@@ -10,7 +10,8 @@ import dateutil.parser
 Script = collections.namedtuple('Script', ['videos',
                                            'scores',
                                            'svgs',
-                                           'gpx_offset'])
+                                           'gpx_offset',
+                                           'slow_times'])
 Video = collections.namedtuple('Video', ['filename',
                                          'start_time',
                                          'end_time',
@@ -21,9 +22,11 @@ Svg = collections.namedtuple('Svg', ['video',
                                      'filename',
                                      'start_time',
                                      'length'])
-Sound = collections.namedtuple('Sound', ['start_time', 'filename'])
-Clip = collections.namedtuple('Clip',
-                              ['filename', 'start_time', 'length', 'fast'])
+Sound = collections.namedtuple('Sound', ['start_time', 'filename', 'length'])
+SlowTime = collections.namedtuple('SlowTime',
+                                  ['filename', 'start_time', 'length'])
+# Length is the time in seconds of the source video, ie, not accelerated
+VideoSpeed = collections.namedtuple('VideoSpeed', ['length', 'speed'])
 # Filename can be None if silence should be played
 SoundClip = collections.namedtuple('SoundClip', ['filename', 'length'])
 ScoreDiff = collections.namedtuple('ScoreDiff', ['video', 'time', 'diff'])
@@ -75,6 +78,7 @@ def parse_script(infile):
     videos = []
     scores = []
     svgs = []
+    slow_times = []
     gpx_offset = None
 
     in_script = False
@@ -99,7 +103,8 @@ def parse_script(infile):
         md = gpx_offset_re.match(line)
         if md:
             timestamp = dateutil.parser.parse(md.group('utc_time'))
-            gpx_offset = (timestamp.timestamp() -
+            gpx_offset = (timestamp.timestamp() +
+                          videos[-1].start_time -
                           decode_time(md.group('video_time')))
             continue
 
@@ -134,9 +139,15 @@ def parse_script(infile):
                                   "with no video").format(line_num + 1))
 
             start_time = decode_time(md.group('time'))
+            filename = md.group('filename')
+            length = get_video_length(filename)
 
-            sound = Sound(start_time, md.group('filename'))
+            sound = Sound(start_time, filename, length)
             videos[-1].sounds.append(sound)
+
+            slow_times.append(SlowTime(videos[-1].filename,
+                                       start_time,
+                                       length))
             continue
 
         md = video_re.match(line)
@@ -158,7 +169,7 @@ def parse_script(infile):
                             [],
                             []))
 
-    return Script(videos, scores, svgs, gpx_offset)
+    return Script(videos, scores, svgs, gpx_offset, slow_times)
 
 def get_video_length(filename):
     s = subprocess.check_output(["ffprobe",
@@ -166,97 +177,116 @@ def get_video_length(filename):
                                  "-show_entries", "format=duration",
                                  "-v", "quiet",
                                  "-of", "csv=p=0"])
-    return float(s)                                 
+    return float(s)
 
-def get_clips_length(clips):
-    total = 0
+def get_videos_length(videos):
+    total_length = 0
 
-    for clip in clips:
-        if clip.fast:
-            total += clip.length * SPEED_UP
+    for video in videos:
+        if video.end_time is None:
+            length = video.length - video.start_time
         else:
-            total += clip.length
+            length = video.end_time - video.start_time
 
-    return total
+        total_length += length
 
-def get_clips(videos):
-    clips = []
+    return total_length
+
+def get_input_time(videos, filename, t):
+    total_time = 0
+
+    for video in videos:
+        if video.end_time is None:
+            end_time = video.length
+        else:
+            end_time = video.end_time
+
+        if (filename == video.filename and
+            t >= video.start_time and
+            t < end_time):
+            return total_time + t - video.start_time
+
+        total_time += end_time - video.start_time
+
+    raise Exception("Couldn’t find input time in {} at {}".format(filename, t))
+
+def get_output_time(videos, video_speeds, filename, time):
+    input_time = get_input_time(videos, filename, time)
+    total_input_time = 0
+    total_output_time = 0
+
+    for vs in video_speeds:
+        if input_time < total_input_time + vs.length:
+            return (total_output_time +
+                    (input_time - total_input_time) *
+                    vs.speed)
+
+        total_input_time += vs.length
+        total_output_time += vs.length * vs.speed
+
+    raise Exception("Couldn’t find output time in {} at {}".format(filename,
+                                                                   time))
+
+def get_video_speeds(videos, slow_times):
+    total_input_length = get_videos_length(videos)
+
+    times = [[get_input_time(videos, st.filename, st.start_time), st.length]
+             for st in slow_times]
+    times.sort()
+
+    last_time = 0
+    video_speeds = []
+
+    for t in times:
+        if t[0] < last_time:
+            last_speed = video_speeds[-1]
+
+            if last_speed.speed != 1.0:
+                raise Exception("Trying to expand sped up sequence, something "
+                                "has gone wrong")
+
+            if t[0] + t[1] > last_time:
+                video_speeds[-1] = VideoSpeed(last_speed.length +
+                                              t[0] +
+                                              t[1] -
+                                              last_time,
+                                              1.0)
+                last_time = t[0] + t[1]
+        else:
+            if t[0] > last_time:
+                video_speeds.append(VideoSpeed(t[0] - last_time, SPEED_UP))
+
+            video_speeds.append(VideoSpeed(t[1], 1.0))
+            last_time = t[0] + t[1]
+
+    if last_time < total_input_length:
+        video_speeds.append(VideoSpeed(total_input_length - last_time,
+                                       SPEED_UP))
+
+    return video_speeds
+
+def get_sound_clips(videos, video_speeds):
     sound_clips = []
-
-    overlap = 0
     sound_pos = 0
 
     for video in videos:
-        last_pos = 0
-
-        if video.start_time is not None:
-            last_pos = video.start_time
-
-        if video.end_time is not None:
-            video_end_time = video.end_time
-        else:
-            video_end_time = video.length
-
-        if overlap > 0:
-            if overlap > video_end_time - last_pos:
-                if video.end_time:
-                    clip_end = video.end_time - last_pos
-                else:
-                    clip_end = None
-                clips.append(Clip(video.filename, last_pos, clip_end, False))
-                overlap -= video_end_time - last_pos
-                continue
-
-            clips.append(Clip(video.filename, last_pos, overlap, False))
-            last_pos += overlap
-            overlap = 0
-
         for sound in video.sounds:
-            sound_length = get_video_length(sound.filename)
+            sound_clip_pos = get_output_time(videos,
+                                             video_speeds,
+                                             video.filename,
+                                             sound.start_time)
 
-            if sound.start_time > last_pos:
-                clips.append(Clip(video.filename,
-                                  last_pos,
-                                  sound.start_time - last_pos,
-                                  True))
-
-            sound_clip_pos = get_clips_length(clips)
+            if sound_clip_pos < sound_pos:
+                raise Exception("Sound {} overlaps previous sound".
+                                format(sound.filename))
 
             if sound_clip_pos > sound_pos:
                 sound_clips.append(SoundClip(None, sound_clip_pos - sound_pos))
                 
-            sound_clips.append(SoundClip(sound.filename, sound_length))
-            sound_pos = sound_clip_pos + sound_length
+            sound_clips.append(SoundClip(sound.filename, sound.length))
+            sound_pos = sound_clip_pos + sound.length
 
-            if sound.start_time + sound_length > video_end_time:
-                if video.end_time:
-                    clip_end = video.end_time - sound.start_time
-                else:
-                    clip_end = None
-                clips.append(Clip(video.filename,
-                                  sound.start_time,
-                                  clip_end,
-                                  False))
-                overlap = sound.start_time + sound_length - video_end_time
-                last_pos = video_end_time
-            else:
-                clips.append(Clip(video.filename,
-                                  sound.start_time,
-                                  sound_length,
-                                  False))
-                last_pos = sound.start_time + sound_length
-
-        if last_pos < video_end_time:
-            if video.end_time:
-                clip_end = video.end_time - last_pos
-            else:
-                clip_end = None
-            clips.append(Clip(video.filename,
-                              last_pos,
-                              clip_end,
-                              True))
-
-    return clips, sound_clips
+    return sound_clips
 
 def get_ffmpeg_sound_input_args(clip):
     if clip.filename is None:
@@ -264,32 +294,27 @@ def get_ffmpeg_sound_input_args(clip):
     else:
         return ["-i", clip.filename]
 
-def get_ffmpeg_filter(clips):
+def get_ffmpeg_filter(video_speeds):
     input_time = 0
     output_time = 0
     parts = ["[0:v]setpts='"]
 
-    for i, clip in enumerate(clips):
-        if i < len(clips) - 1:
-            parts.append("if(lt(T-STARTT,{}),".format(input_time +
-                                                       clip.length))
+    for i, vs in enumerate(video_speeds):
+        if i < len(video_speeds) - 1:
+            parts.append("if(lt(T-STARTT,{}),".format(input_time + vs.length))
 
         parts.append("STARTPTS+{}/TB+(PTS-STARTPTS-{}/TB)".format(output_time,
                                                                   input_time))
-        if clip.fast:
-            parts.append("*{}".format(SPEED_UP))
+        if vs.speed != 1.0:
+            parts.append("*{}".format(vs.speed))
 
-        if i < len(clips) - 1:
+        if i < len(video_speeds) - 1:
             parts.append(",")
 
-        input_time += clip.length
+        input_time += vs.length
+        output_time += vs.length * vs.speed
 
-        clip_length = clip.length
-        if clip.fast:
-            clip_length *= SPEED_UP
-        output_time += clip_length
-
-    parts.append(")" * (len(clips) - 1))
+    parts.append(")" * (len(video_speeds) - 1))
     parts.append("',trim=duration={}[outv]".format(output_time))
 
     return "".join(parts)
@@ -299,14 +324,14 @@ def get_ffmpeg_sound_filter(sound_clips, first_input):
                      for i in range(len(sound_clips)))
     return inputs + "concat=n={}:v=0:a=1[outa]".format(len(sound_clips))
 
-def get_ffmpeg_args(clips, sound_clips):
+def get_ffmpeg_args(video_speeds, sound_clips):
     input_args = ["-safe", "0", "-f", "concat", "-i", "concat.txt"]
 
     input_args.extend(sum((get_ffmpeg_sound_input_args(clip)
                            for clip in sound_clips),
                           []))
 
-    filter = (get_ffmpeg_filter(clips) +
+    filter = (get_ffmpeg_filter(video_speeds) +
               ";" +
               get_ffmpeg_sound_filter(sound_clips, 1))
 
@@ -314,26 +339,7 @@ def get_ffmpeg_args(clips, sound_clips):
                          "-map", "[outv]",
                          "-map", "[outa]"]
 
-def get_output_time(filename, time, clips):
-    t = 0
-
-    for clip in clips:
-        if (filename == clip.filename and
-            time >= clip.start_time and
-            time < clip.start_time + clip.length):
-            off = time - clip.start_time
-            if clip.fast:
-                off *= SPEED_UP
-            return t + off
-
-        if clip.fast:
-            t += clip.length * SPEED_UP
-        else:
-            t += clip.length
-
-    raise Exception("no clip found for {} @ {}".format(filename, time))
-
-def write_score_script(f, scores, clips):
+def write_score_script(f, scores, videos, video_speeds):
     if len(scores) <= 0:
         return
 
@@ -343,22 +349,27 @@ def write_score_script(f, scores, clips):
 
     for score in scores:
         value += score.diff
-        time = get_output_time(score.video.filename, score.time, clips)
+        time = get_output_time(videos,
+                               video_speeds,
+                               score.video.filename,
+                               score.time)
         print("        key_frame {} {{ v {} }}".format(round(time * FPS),
                                                        value),
               file=f)
 
-    end_time = get_output_time(clips[-1].filename,
-                               clips[-1].start_time + clips[-1].length - 0.01,
-                               clips)
+    end_time = sum(vs.length * vs.speed for vs in video_speeds)
+
     print("        key_frame {} {{ v {} }}\n".format(round(end_time * FPS),
                                                      value) +
           "}\n",
           file=f)
 
-def write_svg_script(f, svgs, clips):
+def write_svg_script(f, svgs, videos, video_speeds):
     for svg in svgs:
-        start_time = get_output_time(svg.video.filename, svg.start_time, clips)
+        start_time = get_output_time(videos,
+                                     video_speeds,
+                                     svg.video.filename,
+                                     svg.start_time)
 
         print(("svg {{\n"
                "        file \"{}\"\n"
@@ -369,7 +380,7 @@ def write_svg_script(f, svgs, clips):
                               round((start_time + svg.length) * FPS)),
               file=f)
 
-def write_speed_script(f, script, clips):
+def write_speed_script(f, script, video_speeds):
     if script.gpx_offset is None:
         return
 
@@ -377,35 +388,25 @@ def write_speed_script(f, script, clips):
           "        file \"speed.gpx\"",
           file=f)
 
-    videos = list(sorted(set((video.filename, video.length)
-                             for video in script.videos)))
+    input_time = 0
+    output_time = 0
 
-    for clip in clips:
-        video_time = 0
-
-        for video in videos:
-            if video[0] == clip.filename:
-                break
-            video_time += video[1]
-
-        utc_time = script.gpx_offset + video_time + clip.start_time
-        out_time = get_output_time(clip.filename, clip.start_time, clips)
-        fps = round(FPS * SPEED_UP) if clip.fast else FPS
+    for vs in video_speeds:
+        utc_time = script.gpx_offset + input_time
+        fps = round(FPS * vs.speed)
 
         print("        key_frame {} {{ fps {} timestamp {} }}".format(
-            round(out_time * FPS),
+            round(output_time * FPS),
             fps,
             utc_time),
               file=f)
 
-    end_time = get_output_time(clips[-1].filename,
-                               clips[-1].start_time + clips[-1].length - 0.01,
-                               clips)
-    print(("        key_frame {} {{ }}\n"
-           "}}\n").format(round(end_time * FPS)),
-          file=f)
+        input_time += vs.length
+        output_time += vs.length * vs.speed
 
-def write_videos_script(f, videos, clips):
+    print("}}\n", file=f)
+
+def write_videos_script(f, videos, video_speeds):
     script_time_re = re.compile(r'\bkey_frame\s+(?P<time>' +
                                 TIME_RE.pattern +
                                 r')')
@@ -416,7 +417,7 @@ def write_videos_script(f, videos, clips):
 
         def replace_video_time(md):
             t = decode_time(md.group('time'))
-            ot = get_output_time(video.filename, t, clips)
+            ot = get_output_time(videos, video_speeds, video.filename, t)
             return (md.group(0)[:(md.start('time') - md.start(0))] +
                     str(round(ot * FPS)))
 
@@ -437,15 +438,16 @@ if len(sys.argv) >= 2:
 else:
     script = parse_script(sys.stdin)
 
-clips, sound_clips = get_clips(script.videos)
+video_speeds = get_video_speeds(script.videos, script.slow_times)
+sound_clips = get_sound_clips(script.videos, video_speeds)
 
 with open("concat.txt", "wt", encoding="utf-8") as f:
     write_concat_script(f, script.videos)
 
 with open("scores.flt", "wt", encoding="utf-8") as f:
-    write_score_script(f, script.scores, clips)
-    write_svg_script(f, script.svgs, clips)
-    write_speed_script(f, script, clips)
-    write_videos_script(f, script.videos, clips)
+    write_score_script(f, script.scores, script.videos, video_speeds)
+    write_svg_script(f, script.svgs, script.videos, video_speeds)
+    write_speed_script(f, script, video_speeds)
+    write_videos_script(f, script.videos, video_speeds)
 
-print("\n".join(get_ffmpeg_args(clips, sound_clips)))
+print("\n".join(get_ffmpeg_args(video_speeds, sound_clips)))

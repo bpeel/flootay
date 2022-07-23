@@ -66,10 +66,17 @@ flt_child_proc_open(const char *source_dir,
                         const char **argv_copy =
                                 flt_alloc((n_args + 2) *
                                           sizeof (const char *));
-                        char *full_program = flt_strconcat(source_dir,
-                                                           "/",
-                                                           program_name,
-                                                           NULL);
+                        char *full_program;
+
+                        if (source_dir) {
+                                full_program = flt_strconcat(source_dir,
+                                                             "/",
+                                                             program_name,
+                                                             NULL);
+                        } else {
+                                full_program = flt_strdup(program_name);
+                        }
+
                         argv_copy[0] = full_program;
                         memcpy(argv_copy + 1,
                                argv, (n_args + 1) * sizeof (const char *));

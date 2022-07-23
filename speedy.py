@@ -288,8 +288,10 @@ def get_sound_clips(videos, video_speeds):
                                              sound.start_time)
 
             if sound_clip_pos < sound_pos:
-                raise Exception("Sound {} overlaps previous sound".
-                                format(sound.filename))
+                raise Exception(("Sound {} overlaps previous sound by {} "
+                                 "seconds").
+                                format(sound.filename,
+                                       sound_pos - sound_clip_pos))
 
             if sound_clip_pos > sound_pos:
                 sound_clips.append(SoundClip(None, sound_clip_pos - sound_pos))

@@ -432,7 +432,7 @@ def write_speed_script(f, script, video_speeds):
         input_time += vs.length
         output_time += vs.length * vs.speed
 
-    print("}}\n", file=f)
+    print("}\n", file=f)
 
 def write_videos_script(f, videos, video_speeds):
     script_time_re = re.compile(r'\bkey_frame\s+(?P<time>' +

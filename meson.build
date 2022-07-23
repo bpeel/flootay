@@ -45,3 +45,10 @@ executable('generate-film',
             'flt-util.c',
             'flt-child-proc.c',
             'flt-buffer.c'])
+
+executable('generate-sound',
+           ['generate-sound.c',
+            'flt-util.c',
+            'flt-child-proc.c',
+            'flt-buffer.c'],
+            dependencies: [m_dep])

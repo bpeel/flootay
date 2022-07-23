@@ -108,11 +108,13 @@ add_ffmpeg_args(const char *source_dir,
                 int n_inputs,
                 const char *filter_arg,
                 struct flt_child_proc *logo_proc,
-                struct flt_child_proc *flootay_proc)
+                struct flt_child_proc *flootay_proc,
+                struct flt_child_proc *sound_proc)
 {
         int logo_input = n_inputs++;
         int logo_sound_input = n_inputs++;
         int flootay_input = n_inputs++;
+        int sound_input = n_inputs++;
 
         add_arg(args, "-f");
         add_arg(args, "rawvideo");
@@ -150,6 +152,20 @@ add_ffmpeg_args(const char *source_dir,
         flt_buffer_append_printf(&buf, "pipe:%i", flootay_proc->read_fd);
         add_arg(args, (const char *) buf.data);
 
+        add_arg(args, "-ar");
+        add_arg(args, "48000");
+        add_arg(args, "-ac");
+        add_arg(args, "2");
+        add_arg(args, "-f");
+        add_arg(args, "s24le");
+        add_arg(args, "-c:a");
+        add_arg(args, "pcm_s24le");
+        add_arg(args, "-i");
+
+        flt_buffer_set_length(&buf, 0);
+        flt_buffer_append_printf(&buf, "pipe:%i", sound_proc->read_fd);
+        add_arg(args, (const char *) buf.data);
+
         add_arg(args, "-filter_complex");
 
         flt_buffer_set_length(&buf, 0);
@@ -159,12 +175,13 @@ add_ffmpeg_args(const char *source_dir,
                                  "[outv]scale=1920:1080[soutv];"
                                  "[soutv][%i]overlay[overoutv];"
                                  "[%i:v][%i:a]"
-                                 "[overoutv][outa]concat=n=2:v=1:a=1"
+                                 "[overoutv][%i:a]concat=n=2:v=1:a=1"
                                  "[finalv][finala]",
                                  filter_arg,
                                  flootay_input,
                                  logo_input,
-                                 logo_sound_input);
+                                 logo_sound_input,
+                                 sound_input);
 
         add_arg(args, (const char *) buf.data);
 
@@ -183,7 +200,8 @@ add_ffmpeg_args(const char *source_dir,
 static bool
 run_ffmpeg(struct flt_buffer *args,
            struct flt_child_proc *logo_proc,
-           struct flt_child_proc *flootay_proc)
+           struct flt_child_proc *flootay_proc,
+           struct flt_child_proc *sound_proc)
 {
         pid_t pid = fork();
 
@@ -212,6 +230,9 @@ run_ffmpeg(struct flt_buffer *args,
 
         close(flootay_proc->read_fd);
         flootay_proc->read_fd = -1;
+
+        close(sound_proc->read_fd);
+        sound_proc->read_fd = -1;
 
         int status = EXIT_FAILURE;
 
@@ -279,6 +300,7 @@ main(int argc, char **argv)
 
         struct flt_child_proc logo_proc = FLT_CHILD_PROC_INIT;
         struct flt_child_proc flootay_proc = FLT_CHILD_PROC_INIT;
+        struct flt_child_proc sound_proc = FLT_CHILD_PROC_INIT;
 
         if (!get_speedy_args(source_dir,
                              speedy_file,
@@ -312,14 +334,27 @@ main(int argc, char **argv)
                 goto out;
         }
 
+        static const char * const sound_args[] = {
+                NULL,
+        };
+
+        if (!flt_child_proc_open(NULL, /* source_dir */
+                                 "./sound.sh",
+                                 sound_args,
+                                 &sound_proc)) {
+                ret = EXIT_FAILURE;
+                goto out;
+        }
+
         add_ffmpeg_args(source_dir,
                         &args,
                         n_inputs,
                         filter_arg,
                         &logo_proc,
-                        &flootay_proc);
+                        &flootay_proc,
+                        &sound_proc);
 
-        if (!run_ffmpeg(&args, &logo_proc, &flootay_proc))
+        if (!run_ffmpeg(&args, &logo_proc, &flootay_proc, &sound_proc))
                 ret = EXIT_FAILURE;
 
 out:
@@ -327,6 +362,9 @@ out:
                 ret = EXIT_FAILURE;
 
         if (!flt_child_proc_close(&flootay_proc))
+                ret = EXIT_FAILURE;
+
+        if (!flt_child_proc_close(&sound_proc))
                 ret = EXIT_FAILURE;
 
         free_args(&args);

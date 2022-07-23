@@ -8,124 +8,16 @@
 
 #include "flt-buffer.h"
 #include "flt-util.h"
-
-struct child_proc {
-        char *program_name;
-        pid_t pid;
-        int read_fd;
-};
-
-#define CHILD_PROC_INIT { .program_name = NULL, .pid = -1, .read_fd = -1 }
-
-static bool
-open_child_proc(const char *source_dir,
-                const char *program_name,
-                const char *const argv[],
-                struct child_proc *cp)
-{
-        int n_args = 0;
-
-        for (const char *const *p = argv; *p; p++)
-                n_args++;
-
-        int pipe_fds[2];
-
-        if (pipe(pipe_fds) == -1) {
-                fprintf(stderr, "pipe failed: %s\n", strerror(errno));
-                return false;
-        }
-
-        pid_t pid = fork();
-
-        if (pid == -1) {
-                close(pipe_fds[0]);
-                close(pipe_fds[1]);
-                fprintf(stderr, "fork failed: %s\n", strerror(errno));
-                return false;
-        }
-
-        if (pid == 0) {
-                close(pipe_fds[0]);
-
-                if (dup2(pipe_fds[1], STDOUT_FILENO) == -1) {
-                        fprintf(stderr, "dup2 failed: %s\n", strerror(errno));
-                } else {
-                        close(pipe_fds[1]);
-
-                        const char **argv_copy =
-                                flt_alloc((n_args + 2) *
-                                          sizeof (const char *));
-                        char *full_program = flt_strconcat(source_dir,
-                                                           "/",
-                                                           program_name,
-                                                           NULL);
-                        argv_copy[0] = full_program;
-                        memcpy(argv_copy + 1,
-                               argv, (n_args + 1) * sizeof (const char *));
-
-                        execvp(full_program, (char **) argv_copy);
-
-                        fprintf(stderr,
-                                "exec failed: %s: %s\n",
-                                full_program,
-                                strerror(errno));
-
-                        flt_free(argv_copy);
-                        flt_free(full_program);
-                }
-
-                exit(EXIT_FAILURE);
-
-                return false;
-        }
-
-        close(pipe_fds[1]);
-
-        cp->pid = pid;
-        cp->read_fd = pipe_fds[0];
-        cp->program_name = flt_strdup(program_name);
-
-        return true;
-}
-
-static bool
-close_child_proc(struct child_proc *cp)
-{
-        if (cp->read_fd != -1)
-                close(cp->read_fd);
-
-        if (cp->pid > 0) {
-                int status = EXIT_FAILURE;
-
-                if (waitpid(cp->pid, &status, 0 /* options */) == -1 ||
-                    !WIFEXITED(status) ||
-                    WEXITSTATUS(status) != EXIT_SUCCESS) {
-                        if (cp->program_name) {
-                                fprintf(stderr,
-                                        "%s: subprocess failed\n",
-                                        cp->program_name);
-                        } else {
-                                fprintf(stderr, "subprocess failed\n");
-                        }
-
-                        return false;
-                }
-        }
-
-        if (cp->program_name)
-                flt_free(cp->program_name);
-
-        return true;
-}
+#include "flt-child-proc.h"
 
 static char *
 get_process_output(const char *source_dir,
                    const char *program_name,
                    const char *const argv[])
 {
-        struct child_proc cp;
+        struct flt_child_proc cp;
 
-        if (!open_child_proc(source_dir, program_name, argv, &cp))
+        if (!flt_child_proc_open(source_dir, program_name, argv, &cp))
                 return NULL;
 
         struct flt_buffer buf = FLT_BUFFER_STATIC_INIT;
@@ -143,7 +35,7 @@ get_process_output(const char *source_dir,
                 buf.length += got;
         }
 
-        if (!close_child_proc(&cp)) {
+        if (!flt_child_proc_close(&cp)) {
                 flt_buffer_destroy(&buf);
                 return NULL;
         } else {
@@ -215,8 +107,8 @@ add_ffmpeg_args(const char *source_dir,
                 struct flt_buffer *args,
                 int n_inputs,
                 const char *filter_arg,
-                struct child_proc *logo_proc,
-                struct child_proc *flootay_proc)
+                struct flt_child_proc *logo_proc,
+                struct flt_child_proc *flootay_proc)
 {
         int logo_input = n_inputs++;
         int logo_sound_input = n_inputs++;
@@ -290,8 +182,8 @@ add_ffmpeg_args(const char *source_dir,
 
 static bool
 run_ffmpeg(struct flt_buffer *args,
-           struct child_proc *logo_proc,
-           struct child_proc *flootay_proc)
+           struct flt_child_proc *logo_proc,
+           struct flt_child_proc *flootay_proc)
 {
         pid_t pid = fork();
 
@@ -385,8 +277,8 @@ main(int argc, char **argv)
 
         add_arg(&args, "ffmpeg");
 
-        struct child_proc logo_proc = CHILD_PROC_INIT;
-        struct child_proc flootay_proc = CHILD_PROC_INIT;
+        struct flt_child_proc logo_proc = FLT_CHILD_PROC_INIT;
+        struct flt_child_proc flootay_proc = FLT_CHILD_PROC_INIT;
 
         if (!get_speedy_args(source_dir,
                              speedy_file,
@@ -399,10 +291,10 @@ main(int argc, char **argv)
 
         static const char * const logo_args[] = { NULL };
 
-        if (!open_child_proc(source_dir,
-                             "build/generate-logo",
-                             logo_args,
-                             &logo_proc)) {
+        if (!flt_child_proc_open(source_dir,
+                                 "build/generate-logo",
+                                 logo_args,
+                                 &logo_proc)) {
                 ret = EXIT_FAILURE;
                 goto out;
         }
@@ -412,10 +304,10 @@ main(int argc, char **argv)
                 NULL
         };
 
-        if (!open_child_proc(source_dir,
-                             "build/flootay",
-                             flootay_args,
-                             &flootay_proc)) {
+        if (!flt_child_proc_open(source_dir,
+                                 "build/flootay",
+                                 flootay_args,
+                                 &flootay_proc)) {
                 ret = EXIT_FAILURE;
                 goto out;
         }
@@ -431,10 +323,10 @@ main(int argc, char **argv)
                 ret = EXIT_FAILURE;
 
 out:
-        if (!close_child_proc(&logo_proc))
+        if (!flt_child_proc_close(&logo_proc))
                 ret = EXIT_FAILURE;
 
-        if (!close_child_proc(&flootay_proc))
+        if (!flt_child_proc_close(&flootay_proc))
                 ret = EXIT_FAILURE;
 
         free_args(&args);

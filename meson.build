@@ -43,4 +43,5 @@ executable('make-key-frames',
 executable('generate-film',
            ['generate-film.c',
             'flt-util.c',
+            'flt-child-proc.c',
             'flt-buffer.c'])

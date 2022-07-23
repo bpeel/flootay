@@ -6,6 +6,7 @@ import sys
 import subprocess
 import shlex
 import dateutil.parser
+import os
 
 Script = collections.namedtuple('Script', ['videos',
                                            'scores',
@@ -314,12 +315,6 @@ def get_ffmpeg_input_args(video):
 
     return args
 
-def get_ffmpeg_sound_input_args(clip):
-    if clip.filename is None:
-        return ["-f", "lavfi", "-t", str(clip.length), "-i", "anullsrc"]
-    else:
-        return ["-i", clip.filename]
-
 def get_ffmpeg_filter(videos, video_speeds):
     input_time = 0
     output_time = 0
@@ -347,25 +342,36 @@ def get_ffmpeg_filter(videos, video_speeds):
 
     return "".join(parts)
 
-def get_ffmpeg_sound_filter(sound_clips, first_input):
-    inputs = "".join("[{}]".format(i + first_input)
-                     for i in range(len(sound_clips)))
-    return inputs + "concat=n={}:v=0:a=1[outa]".format(len(sound_clips))
-
-def get_ffmpeg_args(videos, video_speeds, sound_clips):
+def get_ffmpeg_args(videos, video_speeds):
     input_args = sum((get_ffmpeg_input_args(video) for video in videos), [])
 
-    input_args.extend(sum((get_ffmpeg_sound_input_args(clip)
-                           for clip in sound_clips),
-                          []))
-
-    filter = (get_ffmpeg_filter(videos, video_speeds) +
-              ";" +
-              get_ffmpeg_sound_filter(sound_clips, 1))
+    filter = (get_ffmpeg_filter(videos, video_speeds))
 
     return input_args + ["-filter_complex", filter,
-                         "-map", "[outv]",
-                         "-map", "[outa]"]
+                         "-map", "[outv]"]
+
+def write_sound_script(f, sound_clips):
+    dirname = os.path.dirname(sys.argv[0])
+    if len(dirname) == 0:
+        dirname = "."
+    exe = os.path.join(dirname, "build", "generate-sound")
+
+    print(("#!/bin/bash\n"
+           "\n"
+           "exec {}").format(exe),
+          end='',
+          file=f)
+
+    pos = 0
+
+    for clip in sound_clips:
+        if clip.filename:
+            print(" {} {}".format(pos, shlex.quote(clip.filename)),
+                  end='',
+                  file=f)
+        pos += clip.length
+
+    print("", file=f)
 
 def write_score_script(f, scores, videos, video_speeds):
     if len(scores) <= 0:
@@ -459,7 +465,11 @@ else:
     script = parse_script(sys.stdin)
 
 video_speeds = get_video_speeds(script.videos, script.slow_times)
-sound_clips = get_sound_clips(script.videos, video_speeds)
+
+with open("sound.sh", "wt", encoding="utf-8") as f:
+    write_sound_script(f, get_sound_clips(script.videos, video_speeds))
+
+os.chmod("sound.sh", 0o775)
 
 with open("scores.flt", "wt", encoding="utf-8") as f:
     write_score_script(f, script.scores, script.videos, video_speeds)
@@ -467,4 +477,4 @@ with open("scores.flt", "wt", encoding="utf-8") as f:
     write_speed_script(f, script, video_speeds)
     write_videos_script(f, script.videos, video_speeds)
 
-print("\n".join(get_ffmpeg_args(script.videos, video_speeds, sound_clips)))
+print("\n".join(get_ffmpeg_args(script.videos, video_speeds)))

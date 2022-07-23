@@ -29,6 +29,8 @@ copy_file_to_stdout(const char *filename)
                 "-ac", "2",
                 "-f", "s24le",
                 "-c:a", "pcm_s24le",
+                "-hide_banner",
+                "-loglevel", "error",
                 "-",
                 NULL,
         };

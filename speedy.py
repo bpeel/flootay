@@ -425,18 +425,35 @@ def write_speed_script(f, script, video_speeds):
     input_time = 0
     output_time = 0
 
-    for vs in video_speeds:
-        utc_time = script.gpx_offset + input_time
-        fps = round(FPS * vs.speed)
+    key_frames = []
 
-        print("        key_frame {} {{ fps {} timestamp {} }}".format(
-            round(output_time * FPS),
-            fps,
-            utc_time),
-              file=f)
+    def add_frame():
+        frame = round(output_time * FPS)
+
+        # If the time rounds to the same frame as the previous one
+        # then replace it instead
+        if len(key_frames) > 0 and frame == key_frames[-1][0]:
+            key_frames.pop()
+
+        fps = round(FPS * vs.speed)
+        utc_time = script.gpx_offset + input_time
+
+        key_frames.append((frame, fps, utc_time))
+
+    for vs in video_speeds:
+        add_frame()
 
         input_time += vs.length
         output_time += vs.length * vs.speed
+
+    add_frame()
+
+    for frame, fps, utc_time in key_frames:
+        print("        key_frame {} {{ fps {} timestamp {} }}".format(
+            frame,
+            fps,
+            utc_time),
+              file=f)
 
     print("}\n", file=f)
 

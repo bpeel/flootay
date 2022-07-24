@@ -129,14 +129,14 @@ flt_child_proc_close(struct flt_child_proc *cp)
                                 fprintf(stderr, "subprocess failed\n");
                         }
 
-                        return false;
+                        ret = false;
                 }
         }
 
         if (cp->program_name)
                 flt_free(cp->program_name);
 
-        return true;
+        return ret;
 }
 
 char *

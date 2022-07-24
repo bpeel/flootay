@@ -133,7 +133,7 @@ main(int argc, char **argv)
                 if (sound_samples < 0)
                         return EXIT_FAILURE;
 
-                samples_written += sound_samples;
+                samples_written += sound_samples / (CHANNELS * SAMPLE_SIZE);
         }
 
         return EXIT_SUCCESS;

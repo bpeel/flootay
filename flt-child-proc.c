@@ -27,6 +27,7 @@
 #include <sys/wait.h>
 
 #include "flt-util.h"
+#include "flt-buffer.h"
 
 bool
 flt_child_proc_open(const char *source_dir,
@@ -109,6 +110,8 @@ flt_child_proc_open(const char *source_dir,
 bool
 flt_child_proc_close(struct flt_child_proc *cp)
 {
+        bool ret = true;
+
         if (cp->read_fd != -1)
                 close(cp->read_fd);
 
@@ -134,4 +137,38 @@ flt_child_proc_close(struct flt_child_proc *cp)
                 flt_free(cp->program_name);
 
         return true;
+}
+
+char *
+flt_child_proc_get_output(const char *source_dir,
+                          const char *program_name,
+                          const char *const argv[])
+{
+        struct flt_child_proc cp;
+
+        if (!flt_child_proc_open(source_dir, program_name, argv, &cp))
+                return NULL;
+
+        struct flt_buffer buf = FLT_BUFFER_STATIC_INIT;
+
+        while (true) {
+                flt_buffer_ensure_size(&buf, buf.length + 1024);
+
+                ssize_t got = read(cp.read_fd,
+                                   buf.data + buf.length,
+                                   buf.size - buf.length);
+
+                if (got <= 0)
+                        break;
+
+                buf.length += got;
+        }
+
+        if (!flt_child_proc_close(&cp)) {
+                flt_buffer_destroy(&buf);
+                return NULL;
+        } else {
+                flt_buffer_append_c(&buf, '\0');
+                return (char *) buf.data;
+        }
 }

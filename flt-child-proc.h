@@ -39,4 +39,9 @@ flt_child_proc_open(const char *source_dir,
 bool
 flt_child_proc_close(struct flt_child_proc *cp);
 
+char *
+flt_child_proc_get_output(const char *source_dir,
+                          const char *program_name,
+                          const char *const argv[]);
+
 #endif /* FLT_CHILD_PROC_H */

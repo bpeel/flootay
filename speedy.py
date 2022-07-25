@@ -366,7 +366,7 @@ def write_sound_script(f, sound_clips):
 
     for clip in sound_clips:
         if clip.filename:
-            print(" {} {}".format(pos, shlex.quote(clip.filename)),
+            print(" -s {} {}".format(pos, shlex.quote(clip.filename)),
                   end='',
                   file=f)
         pos += clip.length

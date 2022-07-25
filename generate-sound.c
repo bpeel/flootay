@@ -26,6 +26,11 @@ struct sound {
         char *filename;
 };
 
+static const struct sound
+default_sound = {
+        .start_time = 0.0,
+};
+
 static bool
 get_sound_length(const char *filename,
                  double *length_out)
@@ -185,6 +190,97 @@ free_sounds(struct flt_list *list)
         }
 }
 
+static int
+compare_start_time_cb(const void *pa, const void *pb)
+{
+        const struct sound *a = *(const struct sound **) pa;
+        const struct sound *b = *(const struct sound **) pb;
+
+        if (a->start_time < b->start_time)
+                return -1;
+        if (a->start_time > b->start_time)
+                return 1;
+        return 0;
+}
+
+static void
+sort_sounds(struct flt_list *sounds)
+{
+        int n_sounds = flt_list_length(sounds);
+        struct sound **array = flt_alloc(sizeof (struct sound *) * n_sounds);
+
+        int sound_num = 0;
+        struct sound *sound;
+
+        flt_list_for_each(sound, sounds, link) {
+                array[sound_num++] = sound;
+        }
+
+        qsort(array, n_sounds, sizeof (struct sound *), compare_start_time_cb);
+
+        flt_list_init(sounds);
+
+        for (int i = 0; i < n_sounds; i++)
+                flt_list_insert(sounds->prev, &array[i]->link);
+
+        flt_free(array);
+}
+
+static bool
+process_options(int argc, char **argv, struct flt_list *sounds)
+{
+        struct sound sound_template = default_sound;
+
+        while (true) {
+                switch (getopt(argc, argv, "-s:")) {
+                case 's':
+                        errno = 0;
+                        char *tail;
+
+                        sound_template.start_time = strtod(optarg, &tail);
+
+                        if (errno ||
+                            !isnormal(sound_template.start_time) ||
+                            *tail ||
+                            sound_template.start_time < 0) {
+                                fprintf(stderr,
+                                        "invalid start_time: %s\n",
+                                        optarg);
+                                return false;
+                        }
+                        break;
+
+                case 1: {
+                        struct sound *sound = flt_alloc(sizeof *sound);
+
+                        *sound = sound_template;
+
+                        flt_list_insert(sounds->prev, &sound->link);
+
+                        sound->filename = flt_strdup(optarg);
+
+                        if (!get_sound_length(sound->filename,
+                                              &sound->length))
+                                return false;
+
+                        sound_template = default_sound;
+                        /* By default the next sound will start
+                         * immediately after this one.
+                         */
+                        sound_template.start_time = (sound->start_time +
+                                                     sound->length);
+                        break;
+                }
+
+                case -1:
+                        return true;
+
+                default:
+                        return false;
+                }
+        }
+}
+
 int
 main(int argc, char **argv)
 {
@@ -194,33 +290,12 @@ main(int argc, char **argv)
 
         int ret = EXIT_SUCCESS;
 
-        for (int i = 1; i + 2 <= argc; i += 2) {
-                struct sound *sound = flt_calloc(sizeof *sound);
-
-                flt_list_insert(sounds.prev, &sound->link);
-
-                errno = 0;
-
-                char *tail;
-
-                double start_time = strtod(argv[i], &tail);
-
-                if (errno || !isnormal(start_time) || *tail || start_time < 0) {
-                        fprintf(stderr,
-                                "invalid start_time: %s\n",
-                                argv[i]);
-                        ret = EXIT_FAILURE;
-                        goto out;
-                }
-
-                sound->start_time = start_time;
-                sound->filename = flt_strdup(argv[i + 1]);
-
-                if (!get_sound_length(sound->filename, &sound->length)) {
-                        ret = EXIT_FAILURE;
-                        goto out;
-                }
+        if (!process_options(argc, argv, &sounds)) {
+                ret = EXIT_FAILURE;
+                goto out;
         }
+
+        sort_sounds(&sounds);
 
         if (!write_sounds(&sounds)) {
                 ret = EXIT_FAILURE;

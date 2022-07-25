@@ -25,6 +25,7 @@
 
 struct sound {
         struct flt_list link;
+        double volume;
         double start_time;
         double length;
         char *filename;
@@ -40,6 +41,7 @@ struct running_sound {
 static const struct sound
 default_sound = {
         .start_time = 0.0,
+        .volume = 1.0,
 };
 
 static const struct flt_child_proc
@@ -146,11 +148,12 @@ get_sound_sample_volume(const struct flt_list *sounds,
                                         max_volume = v;
                         }
                 } else {
-                        return QUIET_VOLUME;
+                        max_volume = QUIET_VOLUME;
+                        break;
                 }
         }
 
-        return max_volume;
+        return max_volume * sound->volume;
 }
 
 static bool
@@ -378,11 +381,12 @@ process_options(int argc, char **argv, struct flt_list *sounds)
 {
         struct sound sound_template = default_sound;
 
+        char *tail;
+
         while (true) {
-                switch (getopt(argc, argv, "-s:")) {
+                switch (getopt(argc, argv, "-s:v:")) {
                 case 's':
                         errno = 0;
-                        char *tail;
 
                         sound_template.start_time = strtod(optarg, &tail);
 
@@ -390,6 +394,23 @@ process_options(int argc, char **argv, struct flt_list *sounds)
                             !isnormal(sound_template.start_time) ||
                             *tail ||
                             sound_template.start_time < 0) {
+                                fprintf(stderr,
+                                        "invalid start_time: %s\n",
+                                        optarg);
+                                return false;
+                        }
+                        break;
+
+                case 'v':
+                        errno = 0;
+
+                        sound_template.volume = strtod(optarg, &tail);
+
+                        if (errno ||
+                            !isnormal(sound_template.volume) ||
+                            *tail ||
+                            sound_template.volume <= 0.0 ||
+                            sound_template.volume > 1.0) {
                                 fprintf(stderr,
                                         "invalid start_time: %s\n",
                                         optarg);

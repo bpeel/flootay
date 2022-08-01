@@ -333,9 +333,21 @@ def get_ffmpeg_input_args(video):
 def get_ffmpeg_filter(videos, video_speeds):
     input_time = 0
     output_time = 0
-    parts = ["".join("[{}]".format(i) for i in range(len(videos))),
-             "concat=n={}:v=1:a=0[ccv];".format(len(videos)),
-             "[ccv]setpts='"]
+
+    parts = []
+
+    for i, video in enumerate(videos):
+        if not video.filename.startswith("|"):
+            parts.append("[{}]scale=1920:1080[sv{}];".format(i, i))
+
+    for i, video in enumerate(videos):
+        parts.append("[")
+        if not video.filename.startswith("|"):
+            parts.append("sv")
+        parts.append("{}]".format(i))
+
+    parts.extend(["concat=n={}:v=1:a=0[ccv];".format(len(videos)),
+                  "[ccv]setpts='"])
 
     for i, vs in enumerate(video_speeds):
         if i < len(video_speeds) - 1:

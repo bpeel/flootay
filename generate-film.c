@@ -9,6 +9,27 @@
 #include "flt-buffer.h"
 #include "flt-util.h"
 #include "flt-child-proc.h"
+#include "flt-list.h"
+
+struct proc_input {
+        struct flt_list link;
+
+        struct flt_child_proc cp;
+};
+
+static struct flt_child_proc *
+add_child_proc(struct flt_list *list)
+{
+        struct proc_input *pi = flt_alloc(sizeof *pi);
+
+        static const struct flt_child_proc cp_init = FLT_CHILD_PROC_INIT;
+
+        pi->cp = cp_init;
+
+        flt_list_insert(list->prev, &pi->link);
+
+        return &pi->cp;
+}
 
 static bool
 get_speedy_args(const char *source_dir,
@@ -167,9 +188,7 @@ add_ffmpeg_args(const char *source_dir,
 
 static bool
 run_ffmpeg(struct flt_buffer *args,
-           struct flt_child_proc *logo_proc,
-           struct flt_child_proc *flootay_proc,
-           struct flt_child_proc *sound_proc)
+           struct flt_list *proc_inputs)
 {
         pid_t pid = fork();
 
@@ -193,14 +212,12 @@ run_ffmpeg(struct flt_buffer *args,
                 return false;
         }
 
-        close(logo_proc->read_fd);
-        logo_proc->read_fd = -1;
+        struct proc_input *pi;
 
-        close(flootay_proc->read_fd);
-        flootay_proc->read_fd = -1;
-
-        close(sound_proc->read_fd);
-        sound_proc->read_fd = -1;
+        flt_list_for_each(pi, proc_inputs, link) {
+                close(pi->cp.read_fd);
+                pi->cp.read_fd = -1;
+        }
 
         int status = EXIT_FAILURE;
 
@@ -245,6 +262,22 @@ get_source_dir(const char *exe)
         return flt_strndup(exe, end - exe);
 }
 
+static bool
+close_proc_inputs(struct flt_list *list)
+{
+        struct proc_input *pi, *tmp;
+        bool ret = true;
+
+        flt_list_for_each_safe(pi, tmp, list, link) {
+                if (!flt_child_proc_close(&pi->cp))
+                        ret = false;
+
+                flt_free(pi);
+        }
+
+        return ret;
+}
+
 int
 main(int argc, char **argv)
 {
@@ -266,9 +299,13 @@ main(int argc, char **argv)
 
         add_arg(&args, "ffmpeg");
 
-        struct flt_child_proc logo_proc = FLT_CHILD_PROC_INIT;
-        struct flt_child_proc flootay_proc = FLT_CHILD_PROC_INIT;
-        struct flt_child_proc sound_proc = FLT_CHILD_PROC_INIT;
+        struct flt_list proc_inputs;
+
+        flt_list_init(&proc_inputs);
+
+        struct flt_child_proc *logo_proc = add_child_proc(&proc_inputs);
+        struct flt_child_proc *flootay_proc = add_child_proc(&proc_inputs);
+        struct flt_child_proc *sound_proc = add_child_proc(&proc_inputs);
 
         if (!get_speedy_args(source_dir,
                              speedy_file,
@@ -284,7 +321,7 @@ main(int argc, char **argv)
         if (!flt_child_proc_open(source_dir,
                                  "build/generate-logo",
                                  logo_args,
-                                 &logo_proc)) {
+                                 logo_proc)) {
                 ret = EXIT_FAILURE;
                 goto out;
         }
@@ -297,7 +334,7 @@ main(int argc, char **argv)
         if (!flt_child_proc_open(source_dir,
                                  "build/flootay",
                                  flootay_args,
-                                 &flootay_proc)) {
+                                 flootay_proc)) {
                 ret = EXIT_FAILURE;
                 goto out;
         }
@@ -309,7 +346,7 @@ main(int argc, char **argv)
         if (!flt_child_proc_open(NULL, /* source_dir */
                                  "./sound.sh",
                                  sound_args,
-                                 &sound_proc)) {
+                                 sound_proc)) {
                 ret = EXIT_FAILURE;
                 goto out;
         }
@@ -318,21 +355,15 @@ main(int argc, char **argv)
                         &args,
                         n_inputs,
                         filter_arg,
-                        &logo_proc,
-                        &flootay_proc,
-                        &sound_proc);
+                        logo_proc,
+                        flootay_proc,
+                        sound_proc);
 
-        if (!run_ffmpeg(&args, &logo_proc, &flootay_proc, &sound_proc))
+        if (!run_ffmpeg(&args, &proc_inputs))
                 ret = EXIT_FAILURE;
 
 out:
-        if (!flt_child_proc_close(&logo_proc))
-                ret = EXIT_FAILURE;
-
-        if (!flt_child_proc_close(&flootay_proc))
-                ret = EXIT_FAILURE;
-
-        if (!flt_child_proc_close(&sound_proc))
+        if (!close_proc_inputs(&proc_inputs))
                 ret = EXIT_FAILURE;
 
         free_args(&args);

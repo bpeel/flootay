@@ -32,8 +32,41 @@ add_child_proc(struct flt_list *list)
 }
 
 static bool
+add_input_arg(const char *source_dir,
+              struct flt_list *proc_inputs,
+              struct flt_buffer *buf,
+              char *arg)
+{
+        bool ret = true;
+
+        if (*arg == '|') {
+                static const char *const proc_args[] = { NULL };
+
+                struct flt_child_proc *cp = add_child_proc(proc_inputs);
+
+                ret = flt_child_proc_open(source_dir,
+                                          arg + 1,
+                                          proc_args,
+                                          cp);
+
+                flt_free(arg);
+
+                struct flt_buffer str_buf = FLT_BUFFER_STATIC_INIT;
+
+                flt_buffer_append_printf(&str_buf, "pipe:%i", cp->read_fd);
+
+                arg = (char *) str_buf.data;
+        }
+
+        flt_buffer_append(buf, &arg, sizeof arg);
+
+        return ret;
+}
+
+static bool
 get_speedy_args(const char *source_dir,
                 const char *speedy_file,
+                struct flt_list *proc_inputs,
                 struct flt_buffer *buf,
                 int *n_inputs,
                 char **filter_arg_out)
@@ -53,12 +86,21 @@ get_speedy_args(const char *source_dir,
         const char *end;
         bool had_filter_arg = false;
         bool had_filter_value = false;
+        bool is_input = false;
         *n_inputs = 0;
+
+        bool ret = true;
 
         for (const char *p = output; (end = strchr(p, '\n')); p = end + 1) {
                 char *arg = flt_strndup(p, end - p);
 
-                if (had_filter_arg) {
+                if (is_input) {
+                        if (!add_input_arg(source_dir, proc_inputs, buf, arg)) {
+                                ret = false;
+                                break;
+                        }
+                        is_input = false;
+                } else if (had_filter_arg) {
                         *filter_arg_out = arg;
                         had_filter_value = true;
                         break;
@@ -66,8 +108,10 @@ get_speedy_args(const char *source_dir,
                         flt_free(arg);
                         had_filter_arg = true;
                 } else {
-                        if (!strcmp(arg, "-i"))
+                        if (!strcmp(arg, "-i")) {
+                                is_input = true;
                                 (*n_inputs)++;
+                        }
 
                         flt_buffer_append(buf, &arg, sizeof arg);
                 }
@@ -75,13 +119,13 @@ get_speedy_args(const char *source_dir,
 
         flt_free(output);
 
-        if (!had_filter_arg || !had_filter_value) {
+        if (ret && (!had_filter_arg || !had_filter_value)) {
                 fprintf(stderr,
                         "missing -filter_complex argument from speedy\n");
-                return false;
+                ret = false;
         }
 
-        return true;
+        return ret;
 }
 
 static void
@@ -309,6 +353,7 @@ main(int argc, char **argv)
 
         if (!get_speedy_args(source_dir,
                              speedy_file,
+                             &proc_inputs,
                              &args,
                              &n_inputs,
                              &filter_arg)) {

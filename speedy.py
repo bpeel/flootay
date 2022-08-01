@@ -174,10 +174,15 @@ def parse_script(infile):
         if end_time:
             end_time = decode_time(end_time)
 
+        if filename.startswith('|'):
+            video_length = end_time - start_time
+        else:
+            video_length = get_video_length(filename)
+
         videos.append(Video(filename,
                             start_time,
                             end_time,
-                            get_video_length(filename),
+                            video_length,
                             [],
                             []))
 
@@ -310,6 +315,16 @@ def get_ffmpeg_input_args(video):
 
     if video.end_time is not None:
         args.extend(["-to", str(video.end_time)])
+
+    if video.filename.startswith("|"):
+        args.extend(["-f",
+                     "rawvideo",
+                     "-pixel_format",
+                     "rgb32",
+                     "-video_size",
+                     "1920x1080",
+                     "-framerate",
+                     "30"])
 
     args.extend(["-i", video.filename])
 

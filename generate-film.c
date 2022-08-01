@@ -205,8 +205,7 @@ add_ffmpeg_args(const char *source_dir,
 
         flt_buffer_append_printf(&buf,
                                  "%s;"
-                                 "[outv]scale=1920:1080[soutv];"
-                                 "[soutv][%i]overlay[overoutv];"
+                                 "[outv][%i]overlay[overoutv];"
                                  "[%i:v][%i:a]"
                                  "[overoutv][%i:a]concat=n=2:v=1:a=1"
                                  "[finalv][finala]",

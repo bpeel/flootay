@@ -12,7 +12,8 @@ Script = collections.namedtuple('Script', ['videos',
                                            'scores',
                                            'svgs',
                                            'gpx_offset',
-                                           'slow_times'])
+                                           'slow_times',
+                                           'show_elevation'])
 Video = collections.namedtuple('Video', ['filename',
                                          'start_time',
                                          'end_time',
@@ -86,6 +87,7 @@ def parse_script(infile):
     svgs = []
     slow_times = []
     gpx_offset = None
+    show_elevation = False
 
     in_script = False
     
@@ -104,6 +106,10 @@ def parse_script(infile):
             continue
 
         if len(line) <= 0 or line[0] == '#':
+            continue
+
+        if line == "elevation":
+            show_elevation = True
             continue
 
         md = slow_re.match(line)
@@ -186,7 +192,7 @@ def parse_script(infile):
                             [],
                             []))
 
-    return Script(videos, scores, svgs, gpx_offset, slow_times)
+    return Script(videos, scores, svgs, gpx_offset, slow_times, show_elevation)
 
 def get_video_length(filename):
     s = subprocess.check_output(["ffprobe",
@@ -445,9 +451,12 @@ def write_speed_script(f, script, video_speeds):
     if script.gpx_offset is None:
         return
 
-    print("speed {\n"
-          "        file \"speed.gpx\"",
-          file=f)
+    print("speed {", file=f)
+
+    if script.show_elevation:
+        print("        elevation", file=f)
+
+    print("        file \"speed.gpx\"", file=f)
 
     input_time = 0
     output_time = 0

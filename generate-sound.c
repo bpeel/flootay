@@ -413,7 +413,7 @@ process_options(int argc, char **argv, struct flt_list *sounds)
                             sound_template.volume <= 0.0 ||
                             sound_template.volume > 1.0) {
                                 fprintf(stderr,
-                                        "invalid start_time: %s\n",
+                                        "invalid volume: %s\n",
                                         optarg);
                                 return false;
                         }

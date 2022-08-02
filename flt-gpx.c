@@ -25,6 +25,7 @@
 #include <string.h>
 #include <errno.h>
 #include <stdio.h>
+#include <math.h>
 
 #include "flt-util.h"
 #include "flt-buffer.h"
@@ -38,6 +39,13 @@
 struct flt_error_domain
 flt_gpx_error;
 
+enum child_element {
+        CHILD_ELEMENT_NONE,
+        CHILD_ELEMENT_TIME,
+        CHILD_ELEMENT_SPEED,
+        CHILD_ELEMENT_ELE,
+};
+
 struct flt_gpx_parser {
         XML_Parser parser;
 
@@ -48,8 +56,7 @@ struct flt_gpx_parser {
         /* Temporary buffer used for collecting element text */
         struct flt_buffer buf;
 
-        bool in_time;
-        bool in_speed;
+        enum child_element in_child;
 
         /* The current node depth if we are in a trkpt, or -1 otherwise */
         int trkpt_depth;
@@ -59,6 +66,8 @@ struct flt_gpx_parser {
         int64_t time;
         /* The speed that we found, or a negative number if not found yet */
         float speed;
+        /* The elevation that we found, or a negative number if not found yet */
+        float elevation;
 
         struct flt_error *error;
 };
@@ -187,7 +196,8 @@ fail:
 }
 
 static bool
-parse_speed(struct flt_gpx_parser *parser)
+parse_positive_float(struct flt_gpx_parser *parser,
+                     float *out)
 {
         char *tail;
 
@@ -197,12 +207,32 @@ parse_speed(struct flt_gpx_parser *parser)
         while (is_space(*tail))
                 tail++;
 
-        if (*tail != '\0' || errno || f < 0) {
+        if (*tail != '\0' || errno || f < 0)
+                return false;
+
+        *out = f;
+
+        return true;
+}
+
+static bool
+parse_speed(struct flt_gpx_parser *parser)
+{
+        if (!parse_positive_float(parser, &parser->speed)) {
                 report_error(parser, "invalid speed");
                 return false;
         }
 
-        parser->speed = f;
+        return true;
+}
+
+static bool
+parse_ele(struct flt_gpx_parser *parser)
+{
+        if (!parse_positive_float(parser, &parser->elevation)) {
+                report_error(parser, "invalid elevation");
+                return false;
+        }
 
         return true;
 }
@@ -220,6 +250,7 @@ add_point(struct flt_gpx_parser *parser)
 
         point->time = parser->time;
         point->speed = parser->speed;
+        point->elevation = parser->elevation;
 }
 
 static void
@@ -229,7 +260,7 @@ start_element_cb(void *user_data,
 {
         struct flt_gpx_parser *parser = user_data;
 
-        if (parser->in_time || parser->in_speed) {
+        if (parser->in_child != CHILD_ELEMENT_NONE) {
                 report_error(parser, "unexpected element start");
                 return;
         }
@@ -245,6 +276,7 @@ start_element_cb(void *user_data,
         if (parser->trkpt_depth == 0) {
                 parser->time = -1;
                 parser->speed = -1.0f;
+                parser->elevation = -1.0f;
                 return;
         }
 
@@ -254,9 +286,11 @@ start_element_cb(void *user_data,
         flt_buffer_set_length(&parser->buf, 0);
 
         if (!strcmp(name, "time"))
-                parser->in_time = true;
+                parser->in_child = CHILD_ELEMENT_TIME;
         else if (!strcmp(name, "speed"))
-                parser->in_speed = true;
+                parser->in_child = CHILD_ELEMENT_SPEED;
+        else if (!strcmp(name, "ele"))
+                parser->in_child = CHILD_ELEMENT_ELE;
 }
 
 static void
@@ -265,16 +299,24 @@ end_element_cb(void *user_data,
 {
         struct flt_gpx_parser *parser = user_data;
 
-        if (parser->in_time) {
+        switch (parser->in_child) {
+        case CHILD_ELEMENT_TIME:
                 if (!parse_time(parser))
                         return;
-                parser->in_time = false;
-        }
-
-        if (parser->in_speed) {
+                parser->in_child = CHILD_ELEMENT_NONE;
+                break;
+        case CHILD_ELEMENT_SPEED:
                 if (!parse_speed(parser))
                         return;
-                parser->in_speed = false;
+                parser->in_child = CHILD_ELEMENT_NONE;
+                break;
+        case CHILD_ELEMENT_ELE:
+                if (!parse_ele(parser))
+                        return;
+                parser->in_child = CHILD_ELEMENT_NONE;
+                break;
+        case CHILD_ELEMENT_NONE:
+                break;
         }
 
         if (parser->trkpt_depth < 0)
@@ -282,7 +324,8 @@ end_element_cb(void *user_data,
 
         if (parser->trkpt_depth == 0 &&
             parser->time >= 0 &&
-            parser->speed >= 0.0f)
+            parser->speed >= 0.0f &&
+            parser->elevation >= 0.0f)
                 add_point(parser);
 
         parser->trkpt_depth--;
@@ -295,7 +338,7 @@ character_data_cb(void *user_data,
 {
         struct flt_gpx_parser *parser = user_data;
 
-        if (parser->in_time || parser->in_speed) {
+        if (parser->in_child != CHILD_ELEMENT_NONE) {
                 flt_buffer_append(&parser->buf, s, len);
                 flt_buffer_append_c(&parser->buf, '\0');
                 parser->buf.length--;
@@ -401,11 +444,19 @@ flt_gpx_parse(const char *filename,
         return true;
 }
 
+static void
+set_data_from_point(struct flt_gpx_data *data,
+                    const struct flt_gpx_point *point)
+{
+        data->speed = point->speed;
+        data->elevation = point->elevation;
+}
+
 bool
-flt_gpx_find_speed(const struct flt_gpx_point *points,
-                   size_t n_points,
-                   double timestamp,
-                   double *speed_out)
+flt_gpx_find_data(const struct flt_gpx_point *points,
+                  size_t n_points,
+                  double timestamp,
+                  struct flt_gpx_data *data)
 {
         int min = 0, max = n_points;
 
@@ -424,7 +475,7 @@ flt_gpx_find_speed(const struct flt_gpx_point *points,
 
         if (min <= 0 && timestamp <= points[0].time) {
                 if (points[0].time - timestamp <= MAX_TIME_GAP) {
-                        *speed_out = points[0].speed;
+                        set_data_from_point(data, points + 0);
                         return true;
                 }
 
@@ -433,7 +484,7 @@ flt_gpx_find_speed(const struct flt_gpx_point *points,
 
         if (min >= n_points - 1) {
                 if (timestamp - points[n_points - 1].time <= MAX_TIME_GAP) {
-                        *speed_out = points[n_points - 1].speed;
+                        set_data_from_point(data, points + n_points - 1);
                         return true;
                 }
 
@@ -442,7 +493,7 @@ flt_gpx_find_speed(const struct flt_gpx_point *points,
 
         if (timestamp - points[min].time > MAX_TIME_GAP) {
                 if (points[min + 1].time - timestamp <= MAX_TIME_GAP) {
-                        *speed_out = points[min + 1].speed;
+                        set_data_from_point(data, points + min + 1);
                         return true;
                 }
 
@@ -450,15 +501,22 @@ flt_gpx_find_speed(const struct flt_gpx_point *points,
         }
 
         if (points[min + 1].time - timestamp > MAX_TIME_GAP) {
-                *speed_out = points[min].speed;
+                set_data_from_point(data, points + min);
                 return true;
         }
 
         /* Both points are in range so interpolate them */
-        *speed_out = ((timestamp - points[min].time) /
-                      (double) (points[min + 1].time - points[min].time) *
-                      (points[min + 1].speed - points[min].speed) +
-                      points[min].speed);
+
+        double t = ((timestamp - points[min].time) /
+                    (double) (points[min + 1].time - points[min].time));
+
+        data->speed = (t *
+                       (points[min + 1].speed - points[min].speed) +
+                       points[min].speed);
+
+        data->elevation = (t *
+                           (points[min + 1].elevation - points[min].elevation) +
+                           points[min].elevation);
 
         return true;
 }

@@ -183,15 +183,15 @@ add_speed(const struct flt_scene *scene,
                             (double) s->fps +
                             s->timestamp);
 
-        double speed_ms;
+        struct flt_gpx_data data;
 
-        if (!flt_gpx_find_speed(speed->points,
+        if (!flt_gpx_find_data(speed->points,
                                 speed->n_points,
                                 timestamp,
-                                &speed_ms))
+                                &data))
                 return;
 
-        int speed_kmh = round(speed_ms * 3600 / 1000);
+        int speed_kmh = round(data.speed * 3600 / 1000);
 
         float gap = scene->video_height / 15.0f;
 

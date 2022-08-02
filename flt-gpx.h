@@ -37,6 +37,12 @@ struct flt_gpx_point {
         int64_t time;
         /* Velocity in metres per second at that time */
         float speed;
+        /* Elevation in metres above sea level */
+        float elevation;
+};
+
+struct flt_gpx_data {
+        double speed, elevation;
 };
 
 bool
@@ -46,9 +52,9 @@ flt_gpx_parse(const char *filename,
               struct flt_error **error);
 
 bool
-flt_gpx_find_speed(const struct flt_gpx_point *points,
-                   size_t n_points,
-                   double timestamp,
-                   double *speed_out);
+flt_gpx_find_data(const struct flt_gpx_point *points,
+                  size_t n_points,
+                  double timestamp,
+                  struct flt_gpx_data *data);
 
 #endif /* FLT_GPX */

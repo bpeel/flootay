@@ -15,6 +15,7 @@
 
 #define SCORE_LABEL "SCORE "
 #define SCORE_NAME "LYON"
+#define ELEVATION_LABEL "ELEVATION"
 #define SCORE_SLIDE_FRAMES 15
 
 static int
@@ -212,6 +213,56 @@ add_speed(const struct flt_scene *scene,
 }
 
 static void
+add_elevation(const struct flt_scene *scene,
+              cairo_t *cr,
+              int frame_num,
+              double elevation)
+{
+        float gap = scene->video_height / 15.0f;
+
+        cairo_save(cr);
+
+        cairo_set_font_size(cr, scene->video_height / 12.0f);
+
+        struct flt_buffer buf = FLT_BUFFER_STATIC_INIT;
+
+        flt_buffer_append_printf(&buf, "%2i", (int) round(elevation));
+
+        cairo_save(cr);
+
+        cairo_select_font_face(cr,
+                               "monospace",
+                               CAIRO_FONT_SLANT_NORMAL,
+                               CAIRO_FONT_WEIGHT_NORMAL);
+
+        cairo_text_extents_t text_extents;
+
+        cairo_text_extents(cr, (const char *) buf.data, &text_extents);
+
+        cairo_move_to(cr,
+                      scene->video_width - gap - text_extents.x_advance,
+                      scene->video_height - gap);
+
+        render_score_text(scene, cr, (const char *) buf.data);
+
+        cairo_restore(cr);
+
+        flt_buffer_destroy(&buf);
+
+        cairo_set_font_size(cr, scene->video_height / 30.0f);
+
+        cairo_text_extents(cr, ELEVATION_LABEL, &text_extents);
+
+        cairo_move_to(cr,
+                      scene->video_width - gap - text_extents.x_advance,
+                      scene->video_height - gap + text_extents.height * 1.3);
+
+        render_score_text(scene, cr, ELEVATION_LABEL);
+
+        cairo_restore(cr);
+}
+
+static void
 add_gpx(const struct flt_scene *scene,
         const struct flt_scene_gpx *gpx,
         cairo_t *cr,
@@ -232,6 +283,8 @@ add_gpx(const struct flt_scene *scene,
 
         if (gpx->show_speed)
                 add_speed(scene, cr, frame_num, data.speed);
+        if (gpx->show_elevation)
+                add_elevation(scene, cr, frame_num, data.elevation);
 }
 
 static void

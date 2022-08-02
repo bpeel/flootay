@@ -391,7 +391,8 @@ process_options(int argc, char **argv, struct flt_list *sounds)
                         sound_template.start_time = strtod(optarg, &tail);
 
                         if (errno ||
-                            !isnormal(sound_template.start_time) ||
+                            (!isnormal(sound_template.start_time) &&
+                             sound_template.start_time != 0.0) ||
                             *tail ||
                             sound_template.start_time < 0) {
                                 fprintf(stderr,

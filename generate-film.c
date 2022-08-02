@@ -44,7 +44,7 @@ add_input_arg(const char *source_dir,
 
                 struct flt_child_proc *cp = add_child_proc(proc_inputs);
 
-                ret = flt_child_proc_open(source_dir,
+                ret = flt_child_proc_open(NULL,
                                           arg + 1,
                                           proc_args,
                                           cp);

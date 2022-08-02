@@ -38,9 +38,9 @@ destroy_svg(struct flt_scene_svg *svg)
 }
 
 static void
-destroy_speed(struct flt_scene_speed *speed)
+destroy_gpx(struct flt_scene_gpx *gpx)
 {
-        flt_free(speed->points);
+        flt_free(gpx->points);
 }
 
 static void
@@ -52,8 +52,8 @@ destroy_object(struct flt_scene_object *object)
         case FLT_SCENE_OBJECT_TYPE_RECTANGLE:
         case FLT_SCENE_OBJECT_TYPE_SCORE:
                 break;
-        case FLT_SCENE_OBJECT_TYPE_SPEED:
-                destroy_speed((struct flt_scene_speed *) object);
+        case FLT_SCENE_OBJECT_TYPE_GPX:
+                destroy_gpx((struct flt_scene_gpx *) object);
                 break;
         case FLT_SCENE_OBJECT_TYPE_SVG:
                 destroy_svg((struct flt_scene_svg *) object);

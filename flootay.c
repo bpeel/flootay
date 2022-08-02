@@ -174,24 +174,11 @@ interpolate_and_add_score(const struct flt_scene *scene,
 
 static void
 add_speed(const struct flt_scene *scene,
-          const struct flt_scene_speed *speed,
           cairo_t *cr,
           int frame_num,
-          const struct flt_scene_speed_key_frame *s)
+          double speed_ms)
 {
-        double timestamp = ((frame_num - s->base.num) /
-                            (double) s->fps +
-                            s->timestamp);
-
-        struct flt_gpx_data data;
-
-        if (!flt_gpx_find_data(speed->points,
-                                speed->n_points,
-                                timestamp,
-                                &data))
-                return;
-
-        int speed_kmh = round(data.speed * 3600 / 1000);
+        int speed_kmh = round(speed_ms * 3600 / 1000);
 
         float gap = scene->video_height / 15.0f;
 
@@ -222,6 +209,29 @@ add_speed(const struct flt_scene *scene,
         render_score_text(scene, cr, " km/h");
 
         cairo_restore(cr);
+}
+
+static void
+add_gpx(const struct flt_scene *scene,
+        const struct flt_scene_gpx *gpx,
+        cairo_t *cr,
+        int frame_num,
+        const struct flt_scene_gpx_key_frame *s)
+{
+        double timestamp = ((frame_num - s->base.num) /
+                            (double) s->fps +
+                            s->timestamp);
+
+        struct flt_gpx_data data;
+
+        if (!flt_gpx_find_data(gpx->points,
+                               gpx->n_points,
+                               timestamp,
+                               &data))
+                return;
+
+        if (gpx->show_speed)
+                add_speed(scene, cr, frame_num, data.speed);
 }
 
 static void
@@ -288,12 +298,12 @@ found_frame:
                                            flt_scene_score_key_frame *)
                                           end_frame);
                 break;
-        case FLT_SCENE_OBJECT_TYPE_SPEED:
-                add_speed(scene,
-                          (const struct flt_scene_speed *) object,
-                          cr,
-                          frame_num,
-                          (const struct flt_scene_speed_key_frame *) s);
+        case FLT_SCENE_OBJECT_TYPE_GPX:
+                add_gpx(scene,
+                        (const struct flt_scene_gpx *) object,
+                        cr,
+                        frame_num,
+                        (const struct flt_scene_gpx_key_frame *) s);
                 break;
         }
 }

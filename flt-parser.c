@@ -907,48 +907,48 @@ parse_svg(struct flt_parser *parser,
 }
 
 static const struct flt_parser_property
-speed_key_frame_props[] = {
+gpx_key_frame_props[] = {
         {
-                offsetof(struct flt_scene_speed_key_frame, timestamp),
+                offsetof(struct flt_scene_gpx_key_frame, timestamp),
                 FLT_PARSER_VALUE_TYPE_DOUBLE,
                 FLT_LEXER_KEYWORD_TIMESTAMP,
                 .min_value = 0, .max_value = INT_MAX,
         },
         {
-                offsetof(struct flt_scene_speed_key_frame, fps),
+                offsetof(struct flt_scene_gpx_key_frame, fps),
                 FLT_PARSER_VALUE_TYPE_INT,
                 FLT_LEXER_KEYWORD_FPS,
                 .min_value = 1, .max_value = 1000,
         },
 };
 
-static const struct flt_scene_speed_key_frame
-default_speed_key_frame = {
+static const struct flt_scene_gpx_key_frame
+default_gpx_key_frame = {
         .fps = 30,
         .timestamp = 0,
 };
 
 static enum flt_parser_return
-parse_speed_key_frame(struct flt_parser *parser,
+parse_gpx_key_frame(struct flt_parser *parser,
                       struct flt_error **error)
 {
         struct flt_scene_key_frame *base_key_frame;
 
         const size_t struct_size =
-                sizeof (struct flt_scene_speed_key_frame);
+                sizeof (struct flt_scene_gpx_key_frame);
 
         enum flt_parser_return base_ret =
                 parse_base_key_frame_default(parser,
                                              struct_size,
-                                             &default_speed_key_frame,
+                                             &default_gpx_key_frame,
                                              &base_key_frame,
                                              error);
 
         if (base_ret != FLT_PARSER_RETURN_OK)
                 return base_ret;
 
-        struct flt_scene_speed_key_frame *key_frame =
-                (struct flt_scene_speed_key_frame *) base_key_frame;
+        struct flt_scene_gpx_key_frame *key_frame =
+                (struct flt_scene_gpx_key_frame *) base_key_frame;
 
         while (true) {
                 const struct flt_lexer_token *token =
@@ -963,8 +963,8 @@ parse_speed_key_frame(struct flt_parser *parser,
                 flt_lexer_put_token(parser->lexer);
 
                 switch (parse_properties(parser,
-                                         speed_key_frame_props,
-                                         FLT_N_ELEMENTS(speed_key_frame_props),
+                                         gpx_key_frame_props,
+                                         FLT_N_ELEMENTS(gpx_key_frame_props),
                                          key_frame,
                                          error)) {
                 case FLT_PARSER_RETURN_OK:
@@ -986,9 +986,9 @@ parse_speed_key_frame(struct flt_parser *parser,
 }
 
 static enum flt_parser_return
-parse_speed_file(struct flt_parser *parser,
-                 struct flt_scene_speed *speed,
-                 struct flt_error **error)
+parse_gpx_file(struct flt_parser *parser,
+               struct flt_scene_gpx *gpx,
+               struct flt_error **error)
 {
         const struct flt_lexer_token *token;
 
@@ -999,18 +999,18 @@ parse_speed_file(struct flt_parser *parser,
                       "expected filename",
                       error);
 
-        if (speed->points != NULL) {
+        if (gpx->points != NULL) {
                 set_error(parser,
                           error,
-                          "speed object already has a file");
+                          "gpx object already has a file");
                 return FLT_PARSER_RETURN_ERROR;
         }
 
         char *filename = get_relative_filename(parser, token->string_value);
 
         bool parse_ret = flt_gpx_parse(filename,
-                                       &speed->points,
-                                       &speed->n_points,
+                                       &gpx->points,
+                                       &gpx->n_points,
                                        error);
 
         flt_free(filename);
@@ -1021,27 +1021,44 @@ parse_speed_file(struct flt_parser *parser,
         return FLT_PARSER_RETURN_OK;
 }
 
+static const struct flt_parser_property
+gpx_props[] = {
+        {
+                offsetof(struct flt_scene_gpx, show_speed),
+                FLT_PARSER_VALUE_TYPE_BOOL,
+                FLT_LEXER_KEYWORD_SPEED,
+        },
+        {
+                offsetof(struct flt_scene_gpx, show_elevation),
+                FLT_PARSER_VALUE_TYPE_BOOL,
+                FLT_LEXER_KEYWORD_ELEVATION,
+        },
+};
+
 static enum flt_parser_return
-parse_speed(struct flt_parser *parser,
-            struct flt_error **error)
+parse_gpx_base(struct flt_parser *parser,
+               bool show_speed,
+               bool show_elevation,
+               struct flt_error **error)
 {
+        int gpx_line_num = flt_lexer_get_line_num(parser->lexer);
+
         const struct flt_lexer_token *token;
-
-        check_item_keyword(parser, FLT_LEXER_KEYWORD_SPEED, error);
-
-        int speed_line_num = flt_lexer_get_line_num(parser->lexer);
 
         require_token(parser,
                       FLT_LEXER_TOKEN_TYPE_OPEN_BRACKET,
                       "expected ‘{’",
                       error);
 
-        struct flt_scene_speed *speed = flt_calloc(sizeof *speed);
+        struct flt_scene_gpx *gpx = flt_calloc(sizeof *gpx);
 
-        speed->base.type = FLT_SCENE_OBJECT_TYPE_SPEED;
+        gpx->base.type = FLT_SCENE_OBJECT_TYPE_GPX;
 
-        flt_list_init(&speed->base.key_frames);
-        flt_list_insert(parser->scene->objects.prev, &speed->base.link);
+        gpx->show_speed = show_speed;
+        gpx->show_elevation = show_elevation;
+
+        flt_list_init(&gpx->base.key_frames);
+        flt_list_insert(parser->scene->objects.prev, &gpx->base.link);
 
         while (true) {
                 token = flt_lexer_get_token(parser->lexer, error);
@@ -1055,7 +1072,7 @@ parse_speed(struct flt_parser *parser,
                 flt_lexer_put_token(parser->lexer);
 
                 static const item_parse_func funcs[] = {
-                        parse_speed_key_frame,
+                        parse_gpx_key_frame,
                 };
 
                 switch (parse_items(parser,
@@ -1070,7 +1087,20 @@ parse_speed(struct flt_parser *parser,
                         return FLT_PARSER_RETURN_ERROR;
                 }
 
-                switch (parse_speed_file(parser, speed, error)) {
+                switch (parse_properties(parser,
+                                         gpx_props,
+                                         FLT_N_ELEMENTS(gpx_props),
+                                         gpx,
+                                         error)) {
+                case FLT_PARSER_RETURN_OK:
+                        continue;
+                case FLT_PARSER_RETURN_NOT_MATCHED:
+                        break;
+                case FLT_PARSER_RETURN_ERROR:
+                        return FLT_PARSER_RETURN_ERROR;
+                }
+
+                switch (parse_gpx_file(parser, gpx, error)) {
                 case FLT_PARSER_RETURN_OK:
                         continue;
                 case FLT_PARSER_RETURN_NOT_MATCHED:
@@ -1081,28 +1111,70 @@ parse_speed(struct flt_parser *parser,
 
                 set_error(parser,
                           error,
-                          "Expected speed item (like a key_frame)");
+                          "Expected gpx item (like a key_frame)");
 
                 return FLT_PARSER_RETURN_ERROR;
         }
 
-        if (flt_list_empty(&speed->base.key_frames)) {
+        if (flt_list_empty(&gpx->base.key_frames)) {
                 set_error_with_line(parser,
                                     error,
-                                    speed_line_num,
-                                    "speed has no key frames");
+                                    gpx_line_num,
+                                    "gpx has no key frames");
                 return FLT_PARSER_RETURN_ERROR;
         }
 
-        if (speed->points == NULL) {
+        if (gpx->points == NULL) {
                 set_error_with_line(parser,
                                     error,
-                                    speed_line_num,
-                                    "speed has no file");
+                                    gpx_line_num,
+                                    "gpx has no file");
                 return FLT_PARSER_RETURN_ERROR;
         }
 
         return FLT_PARSER_RETURN_OK;
+}
+
+static enum flt_parser_return
+parse_gpx(struct flt_parser *parser,
+            struct flt_error **error)
+{
+        const struct flt_lexer_token *token;
+
+        check_item_keyword(parser, FLT_LEXER_KEYWORD_GPX, error);
+
+        return parse_gpx_base(parser,
+                              false, /* show_speed */
+                              false, /* show_elevation */
+                              error);
+}
+
+static enum flt_parser_return
+parse_speed(struct flt_parser *parser,
+            struct flt_error **error)
+{
+        const struct flt_lexer_token *token;
+
+        check_item_keyword(parser, FLT_LEXER_KEYWORD_SPEED, error);
+
+        return parse_gpx_base(parser,
+                              true, /* show_speed */
+                              false, /* show_elevation */
+                              error);
+}
+
+static enum flt_parser_return
+parse_elevation(struct flt_parser *parser,
+                struct flt_error **error)
+{
+        const struct flt_lexer_token *token;
+
+        check_item_keyword(parser, FLT_LEXER_KEYWORD_ELEVATION, error);
+
+        return parse_gpx_base(parser,
+                              false, /* show_speed */
+                              true, /* show_elevation */
+                              error);
 }
 
 static const struct flt_parser_property
@@ -1141,7 +1213,9 @@ parse_file(struct flt_parser *parser,
                         parse_rectangle,
                         parse_svg,
                         parse_score,
+                        parse_gpx,
                         parse_speed,
+                        parse_elevation,
                 };
 
                 switch (parse_items(parser,

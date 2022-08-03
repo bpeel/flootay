@@ -73,7 +73,8 @@ def parse_script(infile):
                         r')\s+(?P<length>' +
                         TIME_RE.pattern +
                         r')\s+(?P<filename>.*\.svg)\s*$')
-    gpx_offset_re = re.compile(r'gpx_offset\s+(?P<video_time>'
+    gpx_offset_re = re.compile(r'gpx_offset\s+(?P<filename>\S+)\s+'
+                               r'(?P<video_time>'
                                + TIME_RE.pattern +
                                r')\s+(?P<utc_time>.*)')
     slow_re = re.compile(r'slow\s+(?P<start_time>' +
@@ -124,9 +125,9 @@ def parse_script(infile):
         md = gpx_offset_re.match(line)
         if md:
             timestamp = dateutil.parser.parse(md.group('utc_time'))
-            gpx_offset = (timestamp.timestamp() +
-                          videos[-1].start_time -
-                          decode_time(md.group('video_time')))
+            gpx_offset = (md.group('filename'),
+                          (timestamp.timestamp() -
+                           decode_time(md.group('video_time'))))
             continue
 
         md = svg_re.match(line)
@@ -447,11 +448,40 @@ def write_svg_script(f, svgs, videos, video_speeds):
                               round((start_time + svg.length) * FPS)),
               file=f)
 
-def write_speed_script(f, script, video_speeds):
-    if script.gpx_offset is None:
-        return
+def get_video_gpx_offsets(script):
+    raw_footage = list(sorted(set((video.filename, video.length)
+                                  for video in script.videos
+                                  if not video.filename.startswith("|"))))
 
-    print("speed {", file=f)
+    raw_time = 0
+
+    for filename, length in raw_footage:
+        if filename == script.gpx_offset[0]:
+            offset = script.gpx_offset[1] - raw_time
+            break
+        raw_time += length
+    else:
+        raise Exception("Couldn’t find {} in raw footage".
+                        format(script.gpx_offset[0]))
+
+    offsets = {}
+    raw_time = 0
+
+    for filename, length in raw_footage:
+        offsets[filename] = raw_time + offset
+        raw_time += length
+
+    return offsets
+
+def write_speed_script_for_video(f,
+                                 script,
+                                 video,
+                                 gpx_offset,
+                                 video_input_time,
+                                 video_speeds):
+    print(("# {}\n"
+           "speed {{").format(video.filename),
+          file=f)
 
     if script.show_elevation:
         print("        elevation", file=f)
@@ -460,10 +490,14 @@ def write_speed_script(f, script, video_speeds):
 
     input_time = 0
     output_time = 0
-
     key_frames = []
 
-    def add_frame():
+    if video.end_time:
+        video_length = video.end_time - video.start_time
+    else:
+        video_length = video.length - video.start_time
+
+    def add_frame(input_time, output_time, speed):
         frame = round(output_time * FPS)
 
         # If the time rounds to the same frame as the previous one
@@ -471,18 +505,33 @@ def write_speed_script(f, script, video_speeds):
         if len(key_frames) > 0 and frame == key_frames[-1][0]:
             key_frames.pop()
 
-        fps = round(FPS * vs.speed)
-        utc_time = script.gpx_offset + input_time
+        fps = round(FPS * speed)
+        utc_time = gpx_offset + input_time - video_input_time
 
         key_frames.append((frame, fps, utc_time))
 
+    last_vs = None
+
     for vs in video_speeds:
-        add_frame()
+        if input_time >= video_input_time + video_length:
+            break
+
+        last_vs = vs
+
+        if input_time + vs.length > video_input_time:
+            clip_start_time = max(input_time, video_input_time)
+            add_frame(clip_start_time,
+                      output_time + (clip_start_time - input_time) * vs.speed,
+                      vs.speed)
 
         input_time += vs.length
         output_time += vs.length * vs.speed
 
-    add_frame()
+    add_frame(video_input_time + video_length,
+              output_time +
+              (video_input_time + video_length - input_time) *
+              last_vs.speed,
+              last_vs.speed)
 
     for frame, fps, utc_time in key_frames:
         print("        key_frame {} {{ fps {} timestamp {} }}".format(
@@ -492,6 +541,27 @@ def write_speed_script(f, script, video_speeds):
               file=f)
 
     print("}\n", file=f)
+
+def write_speed_script(f, script, video_speeds):
+    if script.gpx_offset is None:
+        return
+
+    offsets = get_video_gpx_offsets(script)
+    input_time = 0
+
+    for video in script.videos:
+        if video.filename in offsets:
+            write_speed_script_for_video(f,
+                                         script,
+                                         video,
+                                         offsets[video.filename],
+                                         input_time,
+                                         video_speeds)
+
+        if video.end_time:
+            input_time += video.end_time - video.start_time
+        else:
+            input_time += video.length - video.start_time
 
 def write_videos_script(f, videos, video_speeds):
     script_time_re = re.compile(r'\bkey_frame\s+(?P<time>' +

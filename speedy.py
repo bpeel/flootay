@@ -506,7 +506,7 @@ def write_speed_script_for_video(f,
             key_frames.pop()
 
         fps = round(FPS * speed)
-        utc_time = gpx_offset + input_time - video_input_time
+        utc_time = gpx_offset + input_time - video_input_time + video.start_time
 
         key_frames.append((frame, fps, utc_time))
 

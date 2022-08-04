@@ -13,7 +13,8 @@ Script = collections.namedtuple('Script', ['videos',
                                            'svgs',
                                            'gpx_offset',
                                            'slow_times',
-                                           'show_elevation'])
+                                           'show_elevation',
+                                           'sound_args'])
 Video = collections.namedtuple('Video', ['filename',
                                          'start_time',
                                          'end_time',
@@ -82,11 +83,13 @@ def parse_script(infile):
                          r')\s+(?P<end_time>' +
                          TIME_RE.pattern +
                          r')$')
+    sound_args_re = re.compile(r'sound_args\s+(?P<args>.*)')
 
     videos = []
     scores = []
     svgs = []
     slow_times = []
+    sound_args = []
     gpx_offset = None
     show_elevation = False
 
@@ -111,6 +114,11 @@ def parse_script(infile):
 
         if line == "elevation":
             show_elevation = True
+            continue
+
+        md = sound_args_re.match(line)
+        if md:
+            sound_args.extend(shlex.split(md.group('args')))
             continue
 
         md = slow_re.match(line)
@@ -193,7 +201,13 @@ def parse_script(infile):
                             [],
                             []))
 
-    return Script(videos, scores, svgs, gpx_offset, slow_times, show_elevation)
+    return Script(videos,
+                  scores,
+                  svgs,
+                  gpx_offset,
+                  slow_times,
+                  show_elevation,
+                  sound_args)
 
 def get_video_length(filename):
     s = subprocess.check_output(["ffprobe",
@@ -392,7 +406,8 @@ def write_sound_script(f, sound_clips):
 
     print(("#!/bin/bash\n"
            "\n"
-           "exec {}").format(exe),
+           "exec {} {}").format(exe, " ".join(shlex.quote(a)
+                                              for a in script.sound_args)),
           end='',
           file=f)
 

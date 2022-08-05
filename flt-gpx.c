@@ -68,6 +68,11 @@ struct flt_gpx_parser {
         float speed;
         /* The elevation that we found, or a negative number if not found yet */
         float elevation;
+        /* The coordinates that we found. This is always valid when we
+         * are in a trkpt because it is parsed immediately from the
+         * attributes.
+         */
+        float lat, lon;
 
         struct flt_error *error;
 };
@@ -216,6 +221,31 @@ parse_positive_float(struct flt_gpx_parser *parser,
 }
 
 static bool
+parse_float_range(const char *str,
+                  float min, float max,
+                  float *out)
+{
+        char *tail;
+
+        errno = 0;
+        float f = strtof(str, &tail);
+
+        while (is_space(*tail))
+                tail++;
+
+        if (*tail != '\0' ||
+            errno ||
+            f < min ||
+            f > max ||
+            (f != 0.0f && !isnormal(f)))
+                return false;
+
+        *out = f;
+
+        return true;
+}
+
+static bool
 parse_speed(struct flt_gpx_parser *parser)
 {
         if (!parse_positive_float(parser, &parser->speed)) {
@@ -248,9 +278,52 @@ add_point(struct flt_gpx_parser *parser)
                 (parser->points.data + parser->points.length) -
                 1;
 
+        point->lat = parser->lat;
+        point->lon = parser->lon;
         point->time = parser->time;
         point->speed = parser->speed;
         point->elevation = parser->elevation;
+}
+
+static bool
+parse_lat_lon(struct flt_gpx_parser *parser,
+              const XML_Char **atts)
+{
+        bool found_lat = false, found_lon = false;
+
+        for (const XML_Char **a = atts; a[0]; a += 2) {
+                if (!strcmp(a[0], "lat")) {
+                        if (!parse_float_range(a[1],
+                                               -90.0f, /* min */
+                                               90.0f, /* max */
+                                               &parser->lat)) {
+                                report_error(parser, "invalid lat");
+                                return false;
+                        }
+                        found_lat = true;
+                } else if (!strcmp(a[0], "lon")) {
+                        if (!parse_float_range(a[1],
+                                               -180.0f, /* min */
+                                               180.0f, /* max */
+                                               &parser->lon)) {
+                                report_error(parser, "invalid lon");
+                                return false;
+                        }
+                        found_lon = true;
+                }
+       }
+
+        if (!found_lat) {
+                report_error(parser, "missing lat attribute");
+                return false;
+        }
+
+        if (!found_lon) {
+                report_error(parser, "missing lon attribute");
+                return false;
+        }
+
+        return true;
 }
 
 static void
@@ -266,8 +339,13 @@ start_element_cb(void *user_data,
         }
 
         if (parser->trkpt_depth < 0) {
-                if (!strcmp(name, "trkpt"))
+                if (!strcmp(name, "trkpt")) {
                         parser->trkpt_depth = 0;
+
+                        if (!parse_lat_lon(parser, atts))
+                                return;
+                }
+
                 return;
         }
 
@@ -448,6 +526,8 @@ static void
 set_data_from_point(struct flt_gpx_data *data,
                     const struct flt_gpx_point *point)
 {
+        data->lat = point->lat;
+        data->lon = point->lon;
         data->speed = point->speed;
         data->elevation = point->elevation;
 }
@@ -509,6 +589,14 @@ flt_gpx_find_data(const struct flt_gpx_point *points,
 
         double t = ((timestamp - points[min].time) /
                     (double) (points[min + 1].time - points[min].time));
+
+        data->lat = (t *
+                     (points[min + 1].lat - points[min].lat) +
+                     points[min].lat);
+
+        data->lon = (t *
+                     (points[min + 1].lon - points[min].lon) +
+                     points[min].lon);
 
         data->speed = (t *
                        (points[min + 1].speed - points[min].speed) +

@@ -33,6 +33,8 @@ enum flt_gpx_error {
 };
 
 struct flt_gpx_point {
+        float lat, lon;
+
         /* Time since Unix epoch in seconds */
         int64_t time;
         /* Velocity in metres per second at that time */
@@ -42,6 +44,7 @@ struct flt_gpx_point {
 };
 
 struct flt_gpx_data {
+        double lat, lon;
         double speed, elevation;
 };
 

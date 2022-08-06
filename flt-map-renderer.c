@@ -362,7 +362,7 @@ render_tile(cairo_t *cr,
         cairo_pattern_set_matrix(p, &matrix);
 
         cairo_set_source(cr, p);
-        cairo_rectangle(cr, x, y, TILE_SIZE, TILE_SIZE);
+        cairo_rectangle(cr, x - 0.5, y - 0.5, TILE_SIZE + 1.0, TILE_SIZE + 1.0);
         cairo_fill(cr);
 
         cairo_pattern_destroy(p);

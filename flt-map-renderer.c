@@ -369,6 +369,16 @@ flt_map_renderer_render(struct flt_map_renderer *renderer,
                         int map_width, int map_height,
                         struct flt_error **error)
 {
+        bool ret = true;
+
+        cairo_save(cr);
+        cairo_rectangle(cr,
+                        draw_center_x - map_width / 2.0,
+                        draw_center_y - map_height / 2.0,
+                        map_width,
+                        map_height);
+        cairo_clip(cr);
+
         int tile_x, tile_y, pixel_x, pixel_y;
 
         lon_to_x(lon, zoom, &tile_x, &pixel_x);
@@ -391,8 +401,10 @@ flt_map_renderer_render(struct flt_map_renderer *renderer,
                                                             y + tile_y,
                                                             error);
 
-                        if (tile == NULL)
-                                return false;
+                        if (tile == NULL) {
+                                ret = false;
+                                goto out;
+                        }
 
                         render_tile(cr,
                                     tile,
@@ -405,7 +417,10 @@ flt_map_renderer_render(struct flt_map_renderer *renderer,
                 }
         }
 
-        return true;
+out:
+        cairo_restore(cr);
+
+        return ret;
 }
 
 static void

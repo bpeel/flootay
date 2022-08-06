@@ -54,3 +54,13 @@ executable('generate-sound',
             'flt-buffer.c',
             'flt-list.c'],
             dependencies: [m_dep])
+
+executable('test-map-renderer',
+           ['test-map-renderer.c',
+            'flt-util.c',
+            'flt-list.c',
+            'flt-buffer.c',
+            'flt-file-error.c',
+            'flt-error.c',
+            'flt-map-renderer.c'],
+            dependencies: [cairo_dep, m_dep])

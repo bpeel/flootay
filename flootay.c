@@ -12,6 +12,7 @@
 #include "flt-parser.h"
 #include "flt-file-error.h"
 #include "flt-buffer.h"
+#include "flt-map-renderer.h"
 
 #define SCORE_LABEL "SCORE "
 #define SCORE_NAME "LYON"
@@ -21,6 +22,7 @@
 struct render_data {
         struct flt_scene *scene;
         cairo_t *cr;
+        struct flt_map_renderer *map_renderer;
 };
 
 static int
@@ -274,7 +276,47 @@ add_elevation(struct render_data *data,
         cairo_restore(data->cr);
 }
 
-static void
+static bool
+add_map(struct render_data *data,
+        double lat, double lon)
+{
+        if (data->map_renderer == NULL)
+                data->map_renderer = flt_map_renderer_new();
+
+        struct flt_error *error = NULL;
+
+        bool ret = true;
+
+        const float map_size_tile_units = 256.0f;
+        float gap = data->scene->video_height / 15.0f;
+        float map_size = data->scene->video_height / 5.0f;
+        float map_scale = map_size / map_size_tile_units;
+
+        cairo_save(data->cr);
+        cairo_translate(data->cr,
+                        data->scene->video_width - gap - map_size / 2.0,
+                        data->scene->video_height - gap - map_size / 2.0);
+        cairo_scale(data->cr, map_scale, map_scale);
+
+        if (!flt_map_renderer_render(data->map_renderer,
+                                     data->cr,
+                                     17, /* zoom */
+                                     lat, lon,
+                                     0.0, 0.0, /* draw_center_x/y */
+                                     round(map_size_tile_units),
+                                     round(map_size_tile_units),
+                                     &error)) {
+                fprintf(stderr, "%s\n", error->message);
+                flt_error_free(error);
+                ret = false;
+        }
+
+        cairo_restore(data->cr);
+
+        return ret;
+}
+
+static bool
 add_gpx(struct render_data *data,
         const struct flt_scene_gpx *gpx,
         int frame_num,
@@ -290,15 +332,20 @@ add_gpx(struct render_data *data,
                                gpx->n_points,
                                timestamp,
                                &gpx_data))
-                return;
+                return true;
 
         if (gpx->show_speed)
                 add_speed(data, frame_num, gpx_data.speed);
         if (gpx->show_elevation)
                 add_elevation(data, frame_num, gpx_data.elevation);
+
+        if (gpx->show_map && !add_map(data, gpx_data.lat, gpx_data.lon))
+                return false;
+
+        return true;
 }
 
-static void
+static bool
 interpolate_and_add_object(struct render_data *data,
                            int frame_num,
                            const struct flt_scene_object *object)
@@ -310,13 +357,13 @@ interpolate_and_add_object(struct render_data *data,
                         goto found_frame;
         }
 
-        return;
+        return true;
 
 found_frame:
 
         /* Ignore if the end frame is the first frame */
         if (object->key_frames.next == &end_frame->link)
-                return;
+                return true;
 
         const struct flt_scene_key_frame *s =
                 flt_container_of(end_frame->link.prev,
@@ -359,12 +406,15 @@ found_frame:
                                           end_frame);
                 break;
         case FLT_SCENE_OBJECT_TYPE_GPX:
-                add_gpx(data,
-                        (const struct flt_scene_gpx *) object,
-                        frame_num,
-                        (const struct flt_scene_gpx_key_frame *) s);
+                if (!add_gpx(data,
+                             (const struct flt_scene_gpx *) object,
+                             frame_num,
+                             (const struct flt_scene_gpx_key_frame *) s))
+                    return false;
                 break;
         }
+
+        return true;
 }
 
 static void
@@ -535,9 +585,12 @@ main(int argc, char **argv)
                 const struct flt_scene_object *object;
 
                 flt_list_for_each(object, &scene->objects, link) {
-                        interpolate_and_add_object(&data,
-                                                   frame_num,
-                                                   object);
+                        if (!interpolate_and_add_object(&data,
+                                                        frame_num,
+                                                        object)) {
+                                ret = EXIT_FAILURE;
+                                goto render_out;
+                        }
                 }
 
                 cairo_surface_flush(surface);
@@ -545,8 +598,12 @@ main(int argc, char **argv)
                 write_surface(surface);
         }
 
+render_out:
         cairo_surface_destroy(surface);
         cairo_destroy(cr);
+
+        if (data.map_renderer)
+                flt_map_renderer_free(data.map_renderer);
 
 out:
         flt_scene_free(scene);

@@ -18,6 +18,11 @@
 #define ELEVATION_LABEL "ELEVATION"
 #define SCORE_SLIDE_FRAMES 15
 
+struct render_data {
+        struct flt_scene *scene;
+        cairo_t *cr;
+};
+
 static int
 interpolate(float factor, int s, int e)
 {
@@ -45,24 +50,30 @@ fill_rectangle(cairo_t *cr,
 }
 
 static void
-interpolate_and_add_rectangle(const struct flt_scene *scene,
-                              cairo_t *cr,
+interpolate_and_add_rectangle(struct render_data *data,
                               float i,
                               const struct flt_scene_rectangle_key_frame *s,
                               const struct flt_scene_rectangle_key_frame *e)
 {
-        int x1 = clamp(interpolate(i, s->x1, e->x1), 0, scene->video_width);
-        int y1 = clamp(interpolate(i, s->y1, e->y1), 0, scene->video_height);
-        int x2 = clamp(interpolate(i, s->x2, e->x2), x1, scene->video_width);
-        int y2 = clamp(interpolate(i, s->y2, e->y2), y1, scene->video_height);
+        int x1 = clamp(interpolate(i, s->x1, e->x1),
+                       0,
+                       data->scene->video_width);
+        int y1 = clamp(interpolate(i, s->y1, e->y1),
+                       0,
+                       data->scene->video_height);
+        int x2 = clamp(interpolate(i, s->x2, e->x2),
+                       x1,
+                       data->scene->video_width);
+        int y2 = clamp(interpolate(i, s->y2, e->y2),
+                       y1,
+                       data->scene->video_height);
 
-        fill_rectangle(cr, x1, y1, x2, y2);
+        fill_rectangle(data->cr, x1, y1, x2, y2);
 }
 
 static void
-interpolate_and_add_svg(const struct flt_scene *scene,
+interpolate_and_add_svg(struct render_data *data,
                         const struct flt_scene_svg *svg,
-                        cairo_t *cr,
                         float i,
                         const struct flt_scene_svg_key_frame *s,
                         const struct flt_scene_svg_key_frame *e)
@@ -70,67 +81,65 @@ interpolate_and_add_svg(const struct flt_scene *scene,
         int x = interpolate(i, s->x, e->x);
         int y = interpolate(i, s->y, e->y);
 
-        cairo_save(cr);
-        cairo_translate(cr, x, y);
-        rsvg_handle_render_cairo(svg->handle, cr);
-        cairo_restore(cr);
+        cairo_save(data->cr);
+        cairo_translate(data->cr, x, y);
+        rsvg_handle_render_cairo(svg->handle, data->cr);
+        cairo_restore(data->cr);
 }
 
 static void
-render_score_text(const struct flt_scene *scene,
-                  cairo_t *cr,
+render_score_text(struct render_data *data,
                   const char *text)
 {
         double after_x, after_y;
 
-        cairo_save(cr);
-        cairo_set_line_width(cr, scene->video_height / 90.0f);
-        cairo_text_path(cr, text);
-        cairo_get_current_point(cr, &after_x, &after_y);
-        cairo_set_source_rgb(cr, 0.0, 0.0, 0.0);
-        cairo_set_line_join(cr, CAIRO_LINE_JOIN_ROUND);
-        cairo_stroke_preserve(cr);
-        cairo_set_source_rgb(cr, 1.0, 1.0, 1.0);
-        cairo_fill(cr);
-        cairo_restore(cr);
+        cairo_save(data->cr);
+        cairo_set_line_width(data->cr, data->scene->video_height / 90.0f);
+        cairo_text_path(data->cr, text);
+        cairo_get_current_point(data->cr, &after_x, &after_y);
+        cairo_set_source_rgb(data->cr, 0.0, 0.0, 0.0);
+        cairo_set_line_join(data->cr, CAIRO_LINE_JOIN_ROUND);
+        cairo_stroke_preserve(data->cr);
+        cairo_set_source_rgb(data->cr, 1.0, 1.0, 1.0);
+        cairo_fill(data->cr);
+        cairo_restore(data->cr);
 
-        cairo_move_to(cr, after_x, after_y);
+        cairo_move_to(data->cr, after_x, after_y);
 }
 
 static void
-interpolate_and_add_score(const struct flt_scene *scene,
+interpolate_and_add_score(struct render_data *data,
                           const struct flt_scene_score *score,
-                          cairo_t *cr,
                           int frame_num,
                           const struct flt_scene_score_key_frame *s,
                           const struct flt_scene_score_key_frame *e)
 {
-        float gap = scene->video_height / 15.0f;
+        float gap = data->scene->video_height / 15.0f;
 
-        cairo_save(cr);
-        cairo_set_font_size(cr, scene->video_height / 10.0f);
+        cairo_save(data->cr);
+        cairo_set_font_size(data->cr, data->scene->video_height / 10.0f);
 
         cairo_font_extents_t extents;
 
-        cairo_font_extents(cr, &extents);
-        cairo_move_to(cr, gap, extents.height);
+        cairo_font_extents(data->cr, &extents);
+        cairo_move_to(data->cr, gap, extents.height);
 
-        render_score_text(scene, cr, SCORE_LABEL);
+        render_score_text(data, SCORE_LABEL);
 
         struct flt_buffer buf = FLT_BUFFER_STATIC_INIT;
 
         if (s->value != e->value &&
             frame_num >= e->base.num - SCORE_SLIDE_FRAMES) {
                 double score_x, score_y;
-                cairo_get_current_point(cr, &score_x, &score_y);
+                cairo_get_current_point(data->cr, &score_x, &score_y);
 
-                cairo_save(cr);
-                cairo_rectangle(cr,
+                cairo_save(data->cr);
+                cairo_rectangle(data->cr,
                                 0,
                                 score_y - extents.ascent,
-                                scene->video_width,
+                                data->scene->video_width,
                                 extents.ascent + extents.descent);
-                cairo_clip(cr);
+                cairo_clip(data->cr);
 
                 double offset = ((e->base.num - frame_num) * extents.height /
                                  SCORE_SLIDE_FRAMES);
@@ -145,127 +154,129 @@ interpolate_and_add_score(const struct flt_scene *scene,
                         bottom_value = s->value;
                 }
 
-                cairo_move_to(cr, score_x, score_y + extents.height - offset);
+                cairo_move_to(data->cr,
+                              score_x,
+                              score_y + extents.height - offset);
                 flt_buffer_append_printf(&buf, "%i", bottom_value);
-                render_score_text(scene, cr, (const char *) buf.data);
+                render_score_text(data, (const char *) buf.data);
 
-                cairo_move_to(cr, score_x, score_y - offset);
+                cairo_move_to(data->cr, score_x, score_y - offset);
                 flt_buffer_set_length(&buf, 0);
                 flt_buffer_append_printf(&buf, "%i", top_value);
-                render_score_text(scene, cr, (const char *) buf.data);
+                render_score_text(data, (const char *) buf.data);
 
-                cairo_restore(cr);
+                cairo_restore(data->cr);
         } else {
                 flt_buffer_append_printf(&buf, "%i", s->value);
-                render_score_text(scene, cr, (const char *) buf.data);
+                render_score_text(data, (const char *) buf.data);
         }
 
         cairo_text_extents_t text_extents;
 
-        cairo_text_extents(cr, SCORE_NAME, &text_extents);
-        cairo_move_to(cr,
-                      scene->video_width - text_extents.x_advance - gap,
+        cairo_text_extents(data->cr, SCORE_NAME, &text_extents);
+        cairo_move_to(data->cr,
+                      data->scene->video_width - text_extents.x_advance - gap,
                       extents.height);
-        render_score_text(scene, cr, SCORE_NAME);
+        render_score_text(data, SCORE_NAME);
 
-        cairo_restore(cr);
+        cairo_restore(data->cr);
 
         flt_buffer_destroy(&buf);
 }
 
 static void
-add_speed(const struct flt_scene *scene,
-          cairo_t *cr,
+add_speed(struct render_data *data,
           int frame_num,
           double speed_ms)
 {
         int speed_kmh = round(speed_ms * 3600 / 1000);
 
-        float gap = scene->video_height / 15.0f;
+        float gap = data->scene->video_height / 15.0f;
 
-        cairo_save(cr);
+        cairo_save(data->cr);
 
-        cairo_set_font_size(cr, scene->video_height / 12.0f);
+        cairo_set_font_size(data->cr, data->scene->video_height / 12.0f);
 
-        cairo_move_to(cr, gap, scene->video_height - gap);
+        cairo_move_to(data->cr, gap, data->scene->video_height - gap);
 
         struct flt_buffer buf = FLT_BUFFER_STATIC_INIT;
 
         flt_buffer_append_printf(&buf, "%2i", speed_kmh);
 
-        cairo_save(cr);
-        cairo_select_font_face(cr,
+        cairo_save(data->cr);
+        cairo_select_font_face(data->cr,
                                "monospace",
                                CAIRO_FONT_SLANT_NORMAL,
                                CAIRO_FONT_WEIGHT_NORMAL);
 
-        render_score_text(scene, cr, (const char *) buf.data);
+        render_score_text(data, (const char *) buf.data);
 
-        cairo_restore(cr);
+        cairo_restore(data->cr);
 
         flt_buffer_destroy(&buf);
 
-        cairo_set_font_size(cr, scene->video_height / 24.0f);
+        cairo_set_font_size(data->cr, data->scene->video_height / 24.0f);
 
-        render_score_text(scene, cr, " km/h");
+        render_score_text(data, " km/h");
 
-        cairo_restore(cr);
+        cairo_restore(data->cr);
 }
 
 static void
-add_elevation(const struct flt_scene *scene,
-              cairo_t *cr,
+add_elevation(struct render_data *data,
               int frame_num,
               double elevation)
 {
-        float gap = scene->video_height / 15.0f;
+        float gap = data->scene->video_height / 15.0f;
 
-        cairo_save(cr);
+        cairo_save(data->cr);
 
-        cairo_set_font_size(cr, scene->video_height / 12.0f);
+        cairo_set_font_size(data->cr, data->scene->video_height / 12.0f);
 
         struct flt_buffer buf = FLT_BUFFER_STATIC_INIT;
 
         flt_buffer_append_printf(&buf, "%2i", (int) round(elevation));
 
-        cairo_save(cr);
+        cairo_save(data->cr);
 
-        cairo_select_font_face(cr,
+        cairo_select_font_face(data->cr,
                                "monospace",
                                CAIRO_FONT_SLANT_NORMAL,
                                CAIRO_FONT_WEIGHT_NORMAL);
 
         cairo_text_extents_t text_extents;
 
-        cairo_text_extents(cr, (const char *) buf.data, &text_extents);
+        cairo_text_extents(data->cr, (const char *) buf.data, &text_extents);
 
-        cairo_move_to(cr,
-                      scene->video_width - gap - text_extents.x_advance,
-                      scene->video_height - gap);
+        cairo_move_to(data->cr,
+                      data->scene->video_width - gap - text_extents.x_advance,
+                      data->scene->video_height - gap);
 
-        render_score_text(scene, cr, (const char *) buf.data);
+        render_score_text(data, (const char *) buf.data);
 
-        cairo_restore(cr);
+        cairo_restore(data->cr);
 
         flt_buffer_destroy(&buf);
 
-        cairo_set_font_size(cr, scene->video_height / 30.0f);
+        cairo_set_font_size(data->cr, data->scene->video_height / 30.0f);
 
-        cairo_text_extents(cr, ELEVATION_LABEL, &text_extents);
+        cairo_text_extents(data->cr, ELEVATION_LABEL, &text_extents);
 
-        cairo_move_to(cr,
-                      scene->video_width - gap - text_extents.x_advance,
-                      scene->video_height - gap + text_extents.height * 1.3);
+        cairo_move_to(data->cr,
+                      data->scene->video_width - gap - text_extents.x_advance,
+                      data->scene->video_height -
+                      gap +
+                      text_extents.height *
+                      1.3);
 
-        render_score_text(scene, cr, ELEVATION_LABEL);
+        render_score_text(data, ELEVATION_LABEL);
 
-        cairo_restore(cr);
+        cairo_restore(data->cr);
 }
 
 static void
-add_gpx(const struct flt_scene *scene,
+add_gpx(struct render_data *data,
         const struct flt_scene_gpx *gpx,
-        cairo_t *cr,
         int frame_num,
         const struct flt_scene_gpx_key_frame *s)
 {
@@ -273,23 +284,22 @@ add_gpx(const struct flt_scene *scene,
                             (double) s->fps +
                             s->timestamp);
 
-        struct flt_gpx_data data;
+        struct flt_gpx_data gpx_data;
 
         if (!flt_gpx_find_data(gpx->points,
                                gpx->n_points,
                                timestamp,
-                               &data))
+                               &gpx_data))
                 return;
 
         if (gpx->show_speed)
-                add_speed(scene, cr, frame_num, data.speed);
+                add_speed(data, frame_num, gpx_data.speed);
         if (gpx->show_elevation)
-                add_elevation(scene, cr, frame_num, data.elevation);
+                add_elevation(data, frame_num, gpx_data.elevation);
 }
 
 static void
-interpolate_and_add_object(const struct flt_scene *scene,
-                           cairo_t *cr,
+interpolate_and_add_object(struct render_data *data,
                            int frame_num,
                            const struct flt_scene_object *object)
 {
@@ -316,8 +326,7 @@ found_frame:
 
         switch (object->type) {
         case FLT_SCENE_OBJECT_TYPE_RECTANGLE:
-                interpolate_and_add_rectangle(scene,
-                                              cr,
+                interpolate_and_add_rectangle(data,
                                               i,
                                               (const struct
                                                flt_scene_rectangle_key_frame *)
@@ -327,9 +336,8 @@ found_frame:
                                               end_frame);
                 break;
         case FLT_SCENE_OBJECT_TYPE_SVG:
-                interpolate_and_add_svg(scene,
+                interpolate_and_add_svg(data,
                                         (const struct flt_scene_svg *) object,
-                                        cr,
                                         i,
                                         (const struct
                                          flt_scene_svg_key_frame *)
@@ -339,10 +347,9 @@ found_frame:
                                         end_frame);
                 break;
         case FLT_SCENE_OBJECT_TYPE_SCORE:
-                interpolate_and_add_score(scene,
+                interpolate_and_add_score(data,
                                           (const struct flt_scene_score *)
                                           object,
-                                          cr,
                                           frame_num,
                                           (const struct
                                            flt_scene_score_key_frame *)
@@ -352,9 +359,8 @@ found_frame:
                                           end_frame);
                 break;
         case FLT_SCENE_OBJECT_TYPE_GPX:
-                add_gpx(scene,
+                add_gpx(data,
                         (const struct flt_scene_gpx *) object,
-                        cr,
                         frame_num,
                         (const struct flt_scene_gpx_key_frame *) s);
                 break;
@@ -514,6 +520,11 @@ main(int argc, char **argv)
 
         int n_frames = flt_scene_get_n_frames(scene);
 
+        struct render_data data = {
+                .scene = scene,
+                .cr = cr,
+        };
+
         for (int frame_num = 0; frame_num < n_frames; frame_num++) {
                 cairo_save(cr);
                 cairo_set_source_rgba(cr, 0.0, 0.0, 0.0, 0.0);
@@ -524,8 +535,7 @@ main(int argc, char **argv)
                 const struct flt_scene_object *object;
 
                 flt_list_for_each(object, &scene->objects, link) {
-                        interpolate_and_add_object(scene,
-                                                   cr,
+                        interpolate_and_add_object(&data,
                                                    frame_num,
                                                    object);
                 }

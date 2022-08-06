@@ -18,11 +18,13 @@
 #define SCORE_NAME "LYON"
 #define ELEVATION_LABEL "ELEVATION"
 #define SCORE_SLIDE_FRAMES 15
+#define MAP_POINT_SIZE 24.0
 
 struct render_data {
         struct flt_scene *scene;
         cairo_t *cr;
         struct flt_map_renderer *map_renderer;
+        cairo_pattern_t *map_point_pattern;
 };
 
 static int
@@ -283,6 +285,27 @@ add_map(struct render_data *data,
         if (data->map_renderer == NULL)
                 data->map_renderer = flt_map_renderer_new();
 
+        if (data->map_point_pattern == NULL) {
+                cairo_pattern_t *p =
+                        cairo_pattern_create_radial(0.0, 0.0, /* cx0/cy0 */
+                                                    0.0, /* radius0 */
+                                                    0.0, 0.0, /* cx1/cy1 */
+                                                    MAP_POINT_SIZE / 2.0);
+                cairo_pattern_add_color_stop_rgba(p,
+                                                  0.0, /* offset */
+                                                  0.043, 0.0, 1.0, /* rgb */
+                                                  1.0 /* a */);
+                cairo_pattern_add_color_stop_rgba(p,
+                                                  0.6, /* offset */
+                                                  0.043, 0.0, 1.0, /* rgb */
+                                                  1.0 /* a */);
+                cairo_pattern_add_color_stop_rgba(p,
+                                                  1.0, /* offset */
+                                                  0.043, 0.0, 1.0, /* rgb */
+                                                  0.0 /* a */);
+                data->map_point_pattern = p;
+        }
+
         struct flt_error *error = NULL;
 
         bool ret = true;
@@ -310,6 +333,13 @@ add_map(struct render_data *data,
                 flt_error_free(error);
                 ret = false;
         }
+
+        cairo_set_source(data->cr, data->map_point_pattern);
+        cairo_rectangle(data->cr,
+                        -MAP_POINT_SIZE / 2.0, -MAP_POINT_SIZE / 2.0,
+                        MAP_POINT_SIZE,
+                        MAP_POINT_SIZE);
+        cairo_fill(data->cr);
 
         cairo_restore(data->cr);
 
@@ -602,6 +632,8 @@ render_out:
         cairo_surface_destroy(surface);
         cairo_destroy(cr);
 
+        if (data.map_point_pattern)
+                cairo_pattern_destroy(data.map_point_pattern);
         if (data.map_renderer)
                 flt_map_renderer_free(data.map_renderer);
 

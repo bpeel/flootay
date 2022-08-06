@@ -81,6 +81,7 @@ struct flt_scene_gpx {
         struct flt_gpx_point *points;
         bool show_speed;
         bool show_elevation;
+        bool show_map;
 };
 
 struct flt_scene_gpx_key_frame {

@@ -1033,12 +1033,18 @@ gpx_props[] = {
                 FLT_PARSER_VALUE_TYPE_BOOL,
                 FLT_LEXER_KEYWORD_ELEVATION,
         },
+        {
+                offsetof(struct flt_scene_gpx, show_map),
+                FLT_PARSER_VALUE_TYPE_BOOL,
+                FLT_LEXER_KEYWORD_MAP,
+        },
 };
 
 static enum flt_parser_return
 parse_gpx_base(struct flt_parser *parser,
                bool show_speed,
                bool show_elevation,
+               bool show_map,
                struct flt_error **error)
 {
         int gpx_line_num = flt_lexer_get_line_num(parser->lexer);
@@ -1056,6 +1062,7 @@ parse_gpx_base(struct flt_parser *parser,
 
         gpx->show_speed = show_speed;
         gpx->show_elevation = show_elevation;
+        gpx->show_map = show_map;
 
         flt_list_init(&gpx->base.key_frames);
         flt_list_insert(parser->scene->objects.prev, &gpx->base.link);
@@ -1146,6 +1153,7 @@ parse_gpx(struct flt_parser *parser,
         return parse_gpx_base(parser,
                               false, /* show_speed */
                               false, /* show_elevation */
+                              false, /* show_map */
                               error);
 }
 
@@ -1160,6 +1168,7 @@ parse_speed(struct flt_parser *parser,
         return parse_gpx_base(parser,
                               true, /* show_speed */
                               false, /* show_elevation */
+                              false, /* show_map */
                               error);
 }
 
@@ -1174,6 +1183,22 @@ parse_elevation(struct flt_parser *parser,
         return parse_gpx_base(parser,
                               false, /* show_speed */
                               true, /* show_elevation */
+                              false, /* show_map */
+                              error);
+}
+
+static enum flt_parser_return
+parse_map(struct flt_parser *parser,
+          struct flt_error **error)
+{
+        const struct flt_lexer_token *token;
+
+        check_item_keyword(parser, FLT_LEXER_KEYWORD_MAP, error);
+
+        return parse_gpx_base(parser,
+                              false, /* show_speed */
+                              false, /* show_elevation */
+                              true, /* show_map */
                               error);
 }
 
@@ -1216,6 +1241,7 @@ parse_file(struct flt_parser *parser,
                         parse_gpx,
                         parse_speed,
                         parse_elevation,
+                        parse_map,
                 };
 
                 switch (parse_items(parser,

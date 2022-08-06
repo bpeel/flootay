@@ -91,6 +91,7 @@ keywords[] = {
         [FLT_LEXER_KEYWORD_GPX] = "gpx",
         [FLT_LEXER_KEYWORD_SPEED] = "speed",
         [FLT_LEXER_KEYWORD_ELEVATION] = "elevation",
+        [FLT_LEXER_KEYWORD_MAP] = "map",
         [FLT_LEXER_KEYWORD_KEY_FRAME] = "key_frame",
         [FLT_LEXER_KEYWORD_VIDEO_WIDTH] = "video_width",
         [FLT_LEXER_KEYWORD_VIDEO_HEIGHT] = "video_height",

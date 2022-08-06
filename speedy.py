@@ -14,6 +14,7 @@ Script = collections.namedtuple('Script', ['videos',
                                            'gpx_offset',
                                            'slow_times',
                                            'show_elevation',
+                                           'show_map',
                                            'sound_args'])
 Video = collections.namedtuple('Video', ['filename',
                                          'start_time',
@@ -92,6 +93,7 @@ def parse_script(infile):
     sound_args = []
     gpx_offset = None
     show_elevation = False
+    show_map = False
 
     in_script = False
     
@@ -114,6 +116,10 @@ def parse_script(infile):
 
         if line == "elevation":
             show_elevation = True
+            continue
+
+        if line == "map":
+            show_map = True
             continue
 
         md = sound_args_re.match(line)
@@ -207,6 +213,7 @@ def parse_script(infile):
                   gpx_offset,
                   slow_times,
                   show_elevation,
+                  show_map,
                   sound_args)
 
 def get_video_length(filename):
@@ -500,6 +507,8 @@ def write_speed_script_for_video(f,
 
     if script.show_elevation:
         print("        elevation", file=f)
+    if script.show_map:
+        print("        map", file=f)
 
     print("        file \"speed.gpx\"", file=f)
 

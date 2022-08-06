@@ -353,9 +353,19 @@ render_tile(cairo_t *cr,
 {
         cairo_save(cr);
 
-        cairo_set_source_surface(cr, tile->surface, x, y);
+        cairo_matrix_t matrix;
+
+        cairo_matrix_init_translate(&matrix, -x, -y);
+
+        cairo_pattern_t *p = cairo_pattern_create_for_surface(tile->surface);
+        cairo_pattern_set_extend(p, CAIRO_EXTEND_PAD);
+        cairo_pattern_set_matrix(p, &matrix);
+
+        cairo_set_source(cr, p);
         cairo_rectangle(cr, x, y, TILE_SIZE, TILE_SIZE);
         cairo_fill(cr);
+
+        cairo_pattern_destroy(p);
 
         cairo_restore(cr);
 }

@@ -24,7 +24,8 @@ main(int argc, char **argv)
                                            IMAGE_SIZE, IMAGE_SIZE);
         cairo_t *cr = cairo_create(surface);
 
-        struct flt_map_renderer *renderer = flt_map_renderer_new();
+        struct flt_map_renderer *renderer =
+                flt_map_renderer_new(NULL /* map_url_base */);
 
         struct flt_error *error = NULL;
 

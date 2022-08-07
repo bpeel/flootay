@@ -40,9 +40,13 @@
 
 #define TILE_CACHE_DIRECTORY "map-tiles"
 
+#define DEFAULT_MAP_URL_BASE "http://a.tile.thunderforest.com/cycle/"
+
 struct flt_map_renderer {
         struct flt_list tile_cache;
         int n_cached_tiles;
+
+        char *url_base;
 };
 
 struct cached_tile {
@@ -57,11 +61,21 @@ struct flt_error_domain
 flt_map_renderer_error;
 
 struct flt_map_renderer *
-flt_map_renderer_new(void)
+flt_map_renderer_new(const char *url_base)
 {
         struct flt_map_renderer *renderer = flt_calloc(sizeof *renderer);
 
         flt_list_init(&renderer->tile_cache);
+
+        if (url_base == NULL)
+                url_base = DEFAULT_MAP_URL_BASE;
+
+        size_t url_base_length = strlen(url_base);
+
+        while (url_base_length > 0 && url_base[url_base_length - 1] == '/')
+                url_base_length--;
+
+        renderer->url_base = flt_strndup(url_base, url_base_length);
 
         return renderer;
 }
@@ -203,7 +217,8 @@ ensure_tile_cache_directory(struct flt_error **error)
 }
 
 static bool
-download_tile(int zoom,
+download_tile(struct flt_map_renderer *renderer,
+              int zoom,
               int x, int y,
               struct flt_error **error)
 {
@@ -214,8 +229,8 @@ download_tile(int zoom,
         struct flt_buffer url_buf = FLT_BUFFER_STATIC_INIT;
 
         flt_buffer_append_printf(&url_buf,
-                                 "http://a.tile.thunderforest.com/cycle/"
-                                 "%i/%i/%i.png",
+                                 "%s/%i/%i/%i.png",
+                                 renderer->url_base,
                                  zoom,
                                  x, y);
 
@@ -304,7 +319,7 @@ get_tile(struct flt_map_renderer *renderer,
 
                         flt_error_free(tmp_error);
 
-                        if (!download_tile(zoom, x, y, error))
+                        if (!download_tile(renderer, zoom, x, y, error))
                                 return NULL;
 
                         tile = load_tile(renderer, zoom, x, y, error);
@@ -446,6 +461,7 @@ free_tile_cache(struct flt_map_renderer *renderer)
 void
 flt_map_renderer_free(struct flt_map_renderer *renderer)
 {
+        flt_free(renderer->url_base);
         free_tile_cache(renderer);
         flt_free(renderer);
 }

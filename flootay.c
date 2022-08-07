@@ -282,8 +282,10 @@ static bool
 add_map(struct render_data *data,
         double lat, double lon)
 {
-        if (data->map_renderer == NULL)
-                data->map_renderer = flt_map_renderer_new();
+        if (data->map_renderer == NULL) {
+                data->map_renderer =
+                        flt_map_renderer_new(NULL /* map_url_base */);
+        }
 
         if (data->map_point_pattern == NULL) {
                 cairo_pattern_t *p =

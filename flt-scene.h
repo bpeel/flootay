@@ -94,6 +94,8 @@ struct flt_scene {
         int video_width, video_height;
 
         struct flt_list objects;
+
+        char *map_url_base;
 };
 
 struct flt_scene *

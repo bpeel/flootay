@@ -111,5 +111,7 @@ flt_scene_free(struct flt_scene *scene)
 {
         destroy_objects(scene);
 
+        flt_free(scene->map_url_base);
+
         flt_free(scene);
 }

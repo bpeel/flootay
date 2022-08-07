@@ -1216,6 +1216,11 @@ file_props[] = {
                 FLT_LEXER_KEYWORD_VIDEO_HEIGHT,
                 .min_value = 1, .max_value = UINT16_MAX,
         },
+        {
+                offsetof(struct flt_scene, map_url_base),
+                FLT_PARSER_VALUE_TYPE_STRING,
+                FLT_LEXER_KEYWORD_MAP_URL_BASE,
+        },
 };
 
 static bool

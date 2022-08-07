@@ -284,7 +284,7 @@ add_map(struct render_data *data,
 {
         if (data->map_renderer == NULL) {
                 data->map_renderer =
-                        flt_map_renderer_new(NULL /* map_url_base */);
+                        flt_map_renderer_new(data->scene->map_url_base);
         }
 
         if (data->map_point_pattern == NULL) {

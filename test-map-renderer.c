@@ -25,7 +25,8 @@ main(int argc, char **argv)
         cairo_t *cr = cairo_create(surface);
 
         struct flt_map_renderer *renderer =
-                flt_map_renderer_new(NULL /* map_url_base */);
+                flt_map_renderer_new(NULL, /* map_url_base */
+                                     NULL /* api_key */);
 
         struct flt_error *error = NULL;
 

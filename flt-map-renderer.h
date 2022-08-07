@@ -33,9 +33,12 @@ enum flt_map_renderer_error {
 
 struct flt_map_renderer;
 
-/* url_base can be NULL to use the default */
+/* url_base can be NULL to use the default. If api_key is NULL then no
+ * key will be used.
+ */
 struct flt_map_renderer *
-flt_map_renderer_new(const char *url_base);
+flt_map_renderer_new(const char *url_base,
+                     const char *api_key);
 
 bool
 flt_map_renderer_render(struct flt_map_renderer *renderer,

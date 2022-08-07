@@ -47,6 +47,7 @@ struct flt_map_renderer {
         int n_cached_tiles;
 
         char *url_base;
+        char *api_key;
 };
 
 struct cached_tile {
@@ -61,7 +62,8 @@ struct flt_error_domain
 flt_map_renderer_error;
 
 struct flt_map_renderer *
-flt_map_renderer_new(const char *url_base)
+flt_map_renderer_new(const char *url_base,
+                     const char *api_key)
 {
         struct flt_map_renderer *renderer = flt_calloc(sizeof *renderer);
 
@@ -76,6 +78,9 @@ flt_map_renderer_new(const char *url_base)
                 url_base_length--;
 
         renderer->url_base = flt_strndup(url_base, url_base_length);
+
+        if (api_key)
+                renderer->api_key = flt_strdup(api_key);
 
         return renderer;
 }
@@ -233,6 +238,12 @@ download_tile(struct flt_map_renderer *renderer,
                                  renderer->url_base,
                                  zoom,
                                  x, y);
+
+        if (renderer->api_key) {
+                flt_buffer_append_printf(&url_buf,
+                                         "?apikey=%s",
+                                         renderer->api_key);
+        }
 
         char *args[] = {
                 "curl",
@@ -462,6 +473,7 @@ void
 flt_map_renderer_free(struct flt_map_renderer *renderer)
 {
         flt_free(renderer->url_base);
+        flt_free(renderer->api_key);
         free_tile_cache(renderer);
         flt_free(renderer);
 }

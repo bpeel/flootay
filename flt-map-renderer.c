@@ -396,6 +396,53 @@ render_tile(cairo_t *cr,
         cairo_restore(cr);
 }
 
+static void
+set_clip(cairo_t *cr,
+         double draw_center_x, double draw_center_y,
+         int map_width, int map_height)
+{
+        double corner_size = MIN(map_width, map_height) / 6.0;
+
+        cairo_move_to(cr,
+                      draw_center_x - map_width / 2.0,
+                      draw_center_y - map_height / 2.0 + corner_size);
+        cairo_arc(cr,
+                  draw_center_x - map_width / 2.0 + corner_size,
+                  draw_center_y - map_height / 2.0 + corner_size,
+                  corner_size,
+                  M_PI,
+                  1.5 * M_PI);
+        cairo_line_to(cr,
+                      draw_center_x + map_width / 2.0 - corner_size,
+                      draw_center_y - map_height / 2.0);
+        cairo_arc(cr,
+                  draw_center_x + map_width / 2.0 - corner_size,
+                  draw_center_y - map_height / 2.0 + corner_size,
+                  corner_size,
+                  1.5 * M_PI,
+                  2.0 * M_PI);
+        cairo_line_to(cr,
+                      draw_center_x + map_width / 2.0,
+                      draw_center_y + map_height / 2.0 - corner_size);
+        cairo_arc(cr,
+                  draw_center_x + map_width / 2.0 - corner_size,
+                  draw_center_y + map_height / 2.0 - corner_size,
+                  corner_size,
+                  0.0,
+                  0.5 * M_PI);
+        cairo_line_to(cr,
+                      draw_center_x - map_width / 2.0 + corner_size,
+                      draw_center_y + map_height / 2.0);
+        cairo_arc(cr,
+                  draw_center_x - map_width / 2.0 + corner_size,
+                  draw_center_y + map_height / 2.0 - corner_size,
+                  corner_size,
+                  0.5 * M_PI,
+                  M_PI);
+        cairo_close_path(cr);
+        cairo_clip(cr);
+}
+
 bool
 flt_map_renderer_render(struct flt_map_renderer *renderer,
                         cairo_t *cr,
@@ -408,12 +455,8 @@ flt_map_renderer_render(struct flt_map_renderer *renderer,
         bool ret = true;
 
         cairo_save(cr);
-        cairo_rectangle(cr,
-                        draw_center_x - map_width / 2.0,
-                        draw_center_y - map_height / 2.0,
-                        map_width,
-                        map_height);
-        cairo_clip(cr);
+
+        set_clip(cr, draw_center_x, draw_center_y, map_width, map_height);
 
         int tile_x, tile_y, pixel_x, pixel_y;
 

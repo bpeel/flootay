@@ -40,7 +40,7 @@
 
 #define TILE_CACHE_DIRECTORY "map-tiles"
 
-#define DEFAULT_MAP_URL_BASE "http://a.tile.thunderforest.com/cycle/"
+#define DEFAULT_MAP_URL_BASE "https://tile.thunderforest.com/cycle/"
 
 struct flt_map_renderer {
         struct flt_list tile_cache;

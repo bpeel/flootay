@@ -96,6 +96,7 @@ struct flt_scene {
         struct flt_list objects;
 
         char *map_url_base;
+        char *map_api_key;
 };
 
 struct flt_scene *

@@ -1221,6 +1221,11 @@ file_props[] = {
                 FLT_PARSER_VALUE_TYPE_STRING,
                 FLT_LEXER_KEYWORD_MAP_URL_BASE,
         },
+        {
+                offsetof(struct flt_scene, map_api_key),
+                FLT_PARSER_VALUE_TYPE_STRING,
+                FLT_LEXER_KEYWORD_MAP_API_KEY,
+        },
 };
 
 static bool

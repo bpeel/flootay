@@ -55,6 +55,7 @@ enum flt_lexer_keyword {
         FLT_LEXER_KEYWORD_TIMESTAMP,
         FLT_LEXER_KEYWORD_FPS,
         FLT_LEXER_KEYWORD_MAP_URL_BASE,
+        FLT_LEXER_KEYWORD_MAP_API_KEY,
 
         FLT_LEXER_N_KEYWORDS,
 };

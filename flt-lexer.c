@@ -106,6 +106,7 @@ keywords[] = {
         [FLT_LEXER_KEYWORD_TIMESTAMP] = "timestamp",
         [FLT_LEXER_KEYWORD_FPS] = "fps",
         [FLT_LEXER_KEYWORD_MAP_URL_BASE] = "map_url_base",
+        [FLT_LEXER_KEYWORD_MAP_API_KEY] = "map_api_key",
 };
 
 _Static_assert(FLT_N_ELEMENTS(keywords) == FLT_LEXER_N_KEYWORDS,

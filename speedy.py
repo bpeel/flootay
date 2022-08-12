@@ -283,7 +283,7 @@ def get_video_speeds(videos, slow_times):
     video_speeds = []
 
     for t in times:
-        if t[0] < last_time:
+        if last_time > 0 and t[0] <= last_time:
             last_speed = video_speeds[-1]
 
             if last_speed.speed != 1.0:

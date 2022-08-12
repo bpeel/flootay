@@ -499,13 +499,15 @@ def write_svg_script(f, svgs, videos, video_speeds):
               file=f)
 
 def get_video_gpx_offsets(script):
-    raw_footage = list(sorted(set((video.filename, video.length)
-                                  for video in script.videos
-                                  if video.use_gpx)))
+    raw_footage = dict((os.path.basename(video.filename),
+                        video.length)
+                       for video in script.videos
+                       if video.use_gpx)
 
     raw_time = 0
 
-    for filename, length in raw_footage:
+    for filename in sorted(raw_footage.keys()):
+        length = raw_footage[filename]
         if filename == script.gpx_offset[0]:
             offset = script.gpx_offset[1] - raw_time
             break
@@ -517,7 +519,8 @@ def get_video_gpx_offsets(script):
     offsets = {}
     raw_time = 0
 
-    for filename, length in raw_footage:
+    for filename in sorted(raw_footage.keys()):
+        length = raw_footage[filename]
         offsets[filename] = raw_time + offset
         raw_time += length
 
@@ -603,10 +606,11 @@ def write_speed_script(f, script, video_speeds):
 
     for video in script.videos:
         if video.use_gpx:
+            bn = os.path.basename(video.filename)
             write_speed_script_for_video(f,
                                          script,
                                          video,
-                                         offsets[video.filename],
+                                         offsets[bn],
                                          input_time,
                                          video_speeds)
 

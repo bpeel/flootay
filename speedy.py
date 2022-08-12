@@ -208,6 +208,8 @@ def parse_script(infile):
         start_time = md.group('start_time')
         if start_time:
             start_time = decode_time(start_time)
+        else:
+            start_time = 0
 
         end_time = md.group('end_time')
         if end_time:

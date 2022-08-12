@@ -353,6 +353,11 @@ def get_ffmpeg_input_args(video):
                      "1920x1080",
                      "-framerate",
                      "30"])
+    elif re.search(r'\.(?:jpe?g|png)$', video.filename):
+        args.extend(["-framerate", "30", "-loop", "1"])
+
+        if video.end_time is None:
+            raise "Missing end time on infinite image input"
 
     args.extend(["-i", video.filename])
 

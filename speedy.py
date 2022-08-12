@@ -18,6 +18,10 @@ class Video:
         self.script = []
         self.filter = []
 
+        self.is_image = re.search(r'\.(?:jpe?g|png)$', filename) is not None
+
+        self.use_gpx = not filename.startswith("|") and not self.is_image
+
 Script = collections.namedtuple('Script', ['videos',
                                            'scores',
                                            'svgs',
@@ -125,6 +129,10 @@ def parse_script(infile):
 
         if line == "map":
             show_map = True
+            continue
+
+        if line == "no_gpx":
+            videos[-1].use_gpx = False
             continue
 
         md = filter_re.match(line)
@@ -361,7 +369,7 @@ def get_ffmpeg_input_args(video):
                      "1920x1080",
                      "-framerate",
                      "30"])
-    elif re.search(r'\.(?:jpe?g|png)$', video.filename):
+    elif video.is_image:
         args.extend(["-framerate", "30", "-loop", "1"])
 
         if video.end_time is None:
@@ -491,7 +499,7 @@ def write_svg_script(f, svgs, videos, video_speeds):
 def get_video_gpx_offsets(script):
     raw_footage = list(sorted(set((video.filename, video.length)
                                   for video in script.videos
-                                  if not video.filename.startswith("|"))))
+                                  if video.use_gpx)))
 
     raw_time = 0
 
@@ -592,7 +600,7 @@ def write_speed_script(f, script, video_speeds):
     input_time = 0
 
     for video in script.videos:
-        if video.filename in offsets:
+        if video.use_gpx:
             write_speed_script_for_video(f,
                                          script,
                                          video,

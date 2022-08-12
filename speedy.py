@@ -21,7 +21,8 @@ Video = collections.namedtuple('Video', ['filename',
                                          'end_time',
                                          'length',
                                          'sounds',
-                                         'script'])
+                                         'script',
+                                         'filter'])
 Svg = collections.namedtuple('Svg', ['video',
                                      'filename',
                                      'start_time',
@@ -85,6 +86,7 @@ def parse_script(infile):
                          TIME_RE.pattern +
                          r')$')
     sound_args_re = re.compile(r'sound_args\s+(?P<args>.*)')
+    filter_re = re.compile(r'filter\s+(?P<filter>.*)')
 
     videos = []
     scores = []
@@ -120,6 +122,11 @@ def parse_script(infile):
 
         if line == "map":
             show_map = True
+            continue
+
+        md = filter_re.match(line)
+        if md:
+            videos[-1].filter.append(md.group('filter'))
             continue
 
         md = sound_args_re.match(line)
@@ -204,6 +211,7 @@ def parse_script(infile):
                             start_time,
                             end_time,
                             video_length,
+                            [],
                             [],
                             []))
 
@@ -371,7 +379,12 @@ def get_ffmpeg_filter(videos, video_speeds):
 
     for i, video in enumerate(videos):
         if not video.filename.startswith("|"):
-            parts.append("[{}]scale=1920:1080[sv{}];".format(i, i))
+            parts.append("[{}]".format(i))
+
+            if len(video.filter) > 0:
+                parts.append(",".join(video.filter) + ",")
+
+            parts.append("scale=1920:1080[sv{}];".format(i))
 
     for i, video in enumerate(videos):
         parts.append("[")

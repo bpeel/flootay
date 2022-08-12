@@ -8,6 +8,16 @@ import shlex
 import dateutil.parser
 import os
 
+class Video:
+    def __init__(self, filename, start_time, end_time, length):
+        self.filename = filename
+        self.start_time = start_time
+        self.end_time = end_time
+        self.length = length
+        self.sounds = []
+        self.script = []
+        self.filter = []
+
 Script = collections.namedtuple('Script', ['videos',
                                            'scores',
                                            'svgs',
@@ -16,13 +26,6 @@ Script = collections.namedtuple('Script', ['videos',
                                            'show_elevation',
                                            'show_map',
                                            'sound_args'])
-Video = collections.namedtuple('Video', ['filename',
-                                         'start_time',
-                                         'end_time',
-                                         'length',
-                                         'sounds',
-                                         'script',
-                                         'filter'])
 Svg = collections.namedtuple('Svg', ['video',
                                      'filename',
                                      'start_time',
@@ -210,10 +213,7 @@ def parse_script(infile):
         videos.append(Video(filename,
                             start_time,
                             end_time,
-                            video_length,
-                            [],
-                            [],
-                            []))
+                            video_length))
 
     return Script(videos,
                   scores,

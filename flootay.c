@@ -313,7 +313,7 @@ add_map(struct render_data *data,
 
         bool ret = true;
 
-        const float map_size_tile_units = 324.0f;
+        const float map_size_tile_units = 216.0f;
         float gap = data->scene->video_height / 15.0f;
         float map_size = data->scene->video_height * 0.3;
         float map_scale = map_size / map_size_tile_units;

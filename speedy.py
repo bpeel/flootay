@@ -26,7 +26,7 @@ Script = collections.namedtuple('Script', ['videos',
                                            'scores',
                                            'svgs',
                                            'gpx_offset',
-                                           'slow_times',
+                                           'speed_overrides',
                                            'show_elevation',
                                            'show_map',
                                            'sound_args'])
@@ -35,8 +35,11 @@ Svg = collections.namedtuple('Svg', ['video',
                                      'start_time',
                                      'length'])
 Sound = collections.namedtuple('Sound', ['start_time', 'filename', 'length'])
-SlowTime = collections.namedtuple('SlowTime',
-                                  ['filename', 'start_time', 'length'])
+SpeedOverride = collections.namedtuple('SpeedOverride',
+                                       ['filename',
+                                        'start_time',
+                                        'length',
+                                        'speed'])
 # Length is the time in seconds of the source video, ie, not accelerated
 VideoSpeed = collections.namedtuple('VideoSpeed', ['length', 'speed'])
 # Filename can be None if silence should be played
@@ -92,13 +95,19 @@ def parse_script(infile):
                          r')\s+(?P<end_time>' +
                          TIME_RE.pattern +
                          r')$')
+    speed_re = re.compile(r'(?P<speed>[0-9]+(?:\.[0-9]+)?)x\s+'
+                          r'(?P<start_time>' +
+                          TIME_RE.pattern +
+                          r')\s+(?P<end_time>' +
+                          TIME_RE.pattern +
+                          r')$')
     sound_args_re = re.compile(r'sound_args\s+(?P<args>.*)')
     filter_re = re.compile(r'filter\s+(?P<filter>.*)')
 
     videos = []
     scores = []
     svgs = []
-    slow_times = []
+    speed_overrides = []
     sound_args = []
     gpx_offset = None
     show_elevation = False
@@ -149,9 +158,21 @@ def parse_script(infile):
         if md:
             start_time = decode_time(md.group('start_time'))
             end_time = decode_time(md.group('end_time'))
-            slow_times.append(SlowTime(videos[-1].filename,
-                                       start_time,
-                                       end_time - start_time))
+            speed_overrides.append(SpeedOverride(videos[-1].filename,
+                                                 start_time,
+                                                 end_time - start_time,
+                                                 1.0))
+            continue
+
+        md = speed_re.match(line)
+        if md:
+            speed = 1.0 / float(md.group('speed'))
+            start_time = decode_time(md.group('start_time'))
+            end_time = decode_time(md.group('end_time'))
+            speed_overrides.append(SpeedOverride(videos[-1].filename,
+                                                 start_time,
+                                                 end_time - start_time,
+                                                 speed))
             continue
 
         md = gpx_offset_re.match(line)
@@ -229,7 +250,7 @@ def parse_script(infile):
                   scores,
                   svgs,
                   gpx_offset,
-                  slow_times,
+                  speed_overrides,
                   show_elevation,
                   show_map,
                   sound_args)
@@ -290,11 +311,13 @@ def get_output_time(videos, video_speeds, filename, time):
     raise Exception("Couldn’t find output time in {} at {}".format(filename,
                                                                    time))
 
-def get_video_speeds(videos, slow_times):
+def get_video_speeds(videos, speed_overrides):
     total_input_length = get_videos_length(videos)
 
-    times = [[get_input_time(videos, st.filename, st.start_time), st.length]
-             for st in slow_times]
+    times = [[get_input_time(videos, st.filename, st.start_time),
+              st.length,
+              st.speed]
+             for st in speed_overrides]
     times.sort()
 
     last_time = 0
@@ -304,22 +327,22 @@ def get_video_speeds(videos, slow_times):
         if last_time > 0 and t[0] <= last_time:
             last_speed = video_speeds[-1]
 
-            if last_speed.speed != 1.0:
-                raise Exception("Trying to expand sped up sequence, something "
-                                "has gone wrong")
-
             if t[0] + t[1] > last_time:
-                video_speeds[-1] = VideoSpeed(last_speed.length +
-                                              t[0] +
-                                              t[1] -
-                                              last_time,
-                                              1.0)
+                if t[2] == video_speeds[-1].speed:
+                    video_speeds[-1] = VideoSpeed(last_speed.length +
+                                                  t[0] +
+                                                  t[1] -
+                                                  last_time,
+                                                  last_speed.speed)
+                else:
+                    video_speeds.append(VideoSpeed(t[0] + t[1] - last_time,
+                                                   t[2]))
                 last_time = t[0] + t[1]
         else:
             if t[0] > last_time:
                 video_speeds.append(VideoSpeed(t[0] - last_time, SPEED_UP))
 
-            video_speeds.append(VideoSpeed(t[1], 1.0))
+            video_speeds.append(VideoSpeed(t[1], t[2]))
             last_time = t[0] + t[1]
 
     if last_time < total_input_length:
@@ -643,7 +666,7 @@ if len(sys.argv) >= 2:
 else:
     script = parse_script(sys.stdin)
 
-video_speeds = get_video_speeds(script.videos, script.slow_times)
+video_speeds = get_video_speeds(script.videos, script.speed_overrides)
 
 with open("sound.sh", "wt", encoding="utf-8") as f:
     write_sound_script(f, get_sound_clips(script.videos, video_speeds))

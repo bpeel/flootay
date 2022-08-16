@@ -221,7 +221,17 @@ add_ffmpeg_args(const char *source_dir,
         add_arg(args, "[finalv]");
         add_arg(args, "-map");
         add_arg(args, "[finala]");
-        add_arg(args, "film.mp4");
+        add_arg(args, "-c:v");
+        add_arg(args, "prores_ks");
+        add_arg(args, "-profile:v");
+        add_arg(args, "3");
+        add_arg(args, "-vendor");
+        add_arg(args, "apl0");
+        add_arg(args, "-bits_per_mb");
+        add_arg(args, "8000");
+        add_arg(args, "-pix_fmt");
+        add_arg(args, "yuv422p10le");
+        add_arg(args, "film.mov");
 
         char *terminator = NULL;
         flt_buffer_append(args, &terminator, sizeof terminator);

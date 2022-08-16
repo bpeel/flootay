@@ -31,6 +31,10 @@ struct sound {
         char *filename;
 };
 
+struct config {
+        struct flt_list sounds;
+};
+
 struct running_sound {
         struct flt_list link;
         const struct sound *sound;
@@ -39,8 +43,8 @@ struct running_sound {
 };
 
 struct data {
+        const struct config *config;
         size_t samples_written;
-        const struct flt_list *sounds;
         const struct flt_list *next_sound_link;
         struct flt_list running_sounds;
 };
@@ -289,7 +293,7 @@ write_samples(const double samples[CHANNELS])
 static bool
 is_running(const struct data *data)
 {
-        if (data->next_sound_link != data->sounds)
+        if (data->next_sound_link != &data->config->sounds)
                 return true;
 
         if (!flt_list_empty(&data->running_sounds))
@@ -299,12 +303,12 @@ is_running(const struct data *data)
 }
 
 static bool
-write_sounds(const struct flt_list *sounds)
+write_sounds(const struct config *config)
 {
         struct data data = {
                 .samples_written = 0,
-                .next_sound_link = sounds->next,
-                .sounds = sounds,
+                .next_sound_link = config->sounds.next,
+                .config = config,
         };
         bool ret = true;
 
@@ -314,7 +318,7 @@ write_sounds(const struct flt_list *sounds)
                 double current_time = (data.samples_written /
                                        (double) SAMPLE_RATE);
 
-                while (data.next_sound_link != data.sounds) {
+                while (data.next_sound_link != &data.config->sounds) {
                         const struct sound *next_sound =
                                 flt_container_of(data.next_sound_link,
                                                  struct sound,
@@ -335,7 +339,7 @@ write_sounds(const struct flt_list *sounds)
                 double samples[CHANNELS];
 
                 if (!get_samples(&data.running_sounds,
-                                 data.sounds,
+                                 &data.config->sounds,
                                  current_time,
                                  samples) ||
                     !write_samples(samples)) {
@@ -400,7 +404,7 @@ sort_sounds(struct flt_list *sounds)
 }
 
 static bool
-process_options(int argc, char **argv, struct flt_list *sounds)
+process_options(int argc, char **argv, struct config *config)
 {
         struct sound sound_template = default_sound;
 
@@ -447,7 +451,7 @@ process_options(int argc, char **argv, struct flt_list *sounds)
 
                         *sound = sound_template;
 
-                        flt_list_insert(sounds->prev, &sound->link);
+                        flt_list_insert(config->sounds.prev, &sound->link);
 
                         sound->filename = flt_strdup(optarg);
 
@@ -476,26 +480,26 @@ process_options(int argc, char **argv, struct flt_list *sounds)
 int
 main(int argc, char **argv)
 {
-        struct flt_list sounds;
+        struct config config;
 
-        flt_list_init(&sounds);
+        flt_list_init(&config.sounds);
 
         int ret = EXIT_SUCCESS;
 
-        if (!process_options(argc, argv, &sounds)) {
+        if (!process_options(argc, argv, &config)) {
                 ret = EXIT_FAILURE;
                 goto out;
         }
 
-        sort_sounds(&sounds);
+        sort_sounds(&config.sounds);
 
-        if (!write_sounds(&sounds)) {
+        if (!write_sounds(&config)) {
                 ret = EXIT_FAILURE;
                 goto out;
         }
 
 out:
-        free_sounds(&sounds);
+        free_sounds(&config.sounds);
 
         return ret;
 }

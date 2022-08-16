@@ -38,6 +38,13 @@ struct running_sound {
         FILE *f;
 };
 
+struct data {
+        size_t samples_written;
+        const struct flt_list *sounds;
+        const struct flt_list *next_sound_link;
+        struct flt_list running_sounds;
+};
+
 static const struct sound
 default_sound = {
         .start_time = 0.0,
@@ -280,39 +287,55 @@ write_samples(const double samples[CHANNELS])
 }
 
 static bool
+is_running(const struct data *data)
+{
+        if (data->next_sound_link != data->sounds)
+                return true;
+
+        if (!flt_list_empty(&data->running_sounds))
+                return true;
+
+        return false;
+}
+
+static bool
 write_sounds(const struct flt_list *sounds)
 {
-        size_t samples_written = 0;
-        const struct flt_list *next_sound_link = sounds->next;
-        struct flt_list running_sounds;
+        struct data data = {
+                .samples_written = 0,
+                .next_sound_link = sounds->next,
+                .sounds = sounds,
+        };
         bool ret = true;
 
-        flt_list_init(&running_sounds);
+        flt_list_init(&data.running_sounds);
 
-        while (next_sound_link != sounds || !flt_list_empty(&running_sounds)) {
-                double current_time = samples_written / (double) SAMPLE_RATE;
+        while (is_running(&data)) {
+                double current_time = (data.samples_written /
+                                       (double) SAMPLE_RATE);
 
-                while (next_sound_link != sounds) {
+                while (data.next_sound_link != data.sounds) {
                         const struct sound *next_sound =
-                                flt_container_of(next_sound_link,
+                                flt_container_of(data.next_sound_link,
                                                  struct sound,
                                                  link);
 
                         if (next_sound->start_time > current_time)
                                 break;
 
-                        if (!start_sound(&running_sounds, next_sound)) {
+                        if (!start_sound(&data.running_sounds,
+                                         next_sound)) {
                                 ret = false;
                                 goto out;
                         }
 
-                        next_sound_link = next_sound_link->next;
+                        data.next_sound_link = data.next_sound_link->next;
                 }
 
                 double samples[CHANNELS];
 
-                if (!get_samples(&running_sounds,
-                                 sounds,
+                if (!get_samples(&data.running_sounds,
+                                 data.sounds,
                                  current_time,
                                  samples) ||
                     !write_samples(samples)) {
@@ -320,11 +343,11 @@ write_sounds(const struct flt_list *sounds)
                         goto out;
                 }
 
-                samples_written++;
+                data.samples_written++;
         }
 
 out:
-        free_running_sounds(&running_sounds);
+        free_running_sounds(&data.running_sounds);
 
         return ret;
 }

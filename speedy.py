@@ -456,16 +456,17 @@ def get_ffmpeg_args(videos, video_speeds):
     return input_args + ["-filter_complex", filter,
                          "-map", "[outv]"]
 
-def write_sound_script(f, sound_clips):
+def write_sound_script(f, total_video_time, sound_clips):
     dirname = os.path.dirname(sys.argv[0])
     if len(dirname) == 0:
         dirname = "."
     exe = os.path.join(dirname, "build", "generate-sound")
 
+    sound_args = " ".join(shlex.quote(a) for a in script.sound_args)
+
     print(("#!/bin/bash\n"
            "\n"
-           "exec {} {}").format(exe, " ".join(shlex.quote(a)
-                                              for a in script.sound_args)),
+           "exec {} -E {} {}").format(exe, total_video_time, sound_args),
           end='',
           file=f)
 
@@ -667,9 +668,12 @@ else:
     script = parse_script(sys.stdin)
 
 video_speeds = get_video_speeds(script.videos, script.speed_overrides)
+total_video_time = sum(vs.length * vs.speed for vs in video_speeds)
 
 with open("sound.sh", "wt", encoding="utf-8") as f:
-    write_sound_script(f, get_sound_clips(script.videos, video_speeds))
+    write_sound_script(f,
+                       total_video_time,
+                       get_sound_clips(script.videos, video_speeds))
 
 os.chmod("sound.sh", 0o775)
 

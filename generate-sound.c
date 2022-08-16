@@ -7,6 +7,7 @@
 #include <sys/wait.h>
 #include <stdint.h>
 #include <math.h>
+#include <float.h>
 
 #include "flt-buffer.h"
 #include "flt-util.h"
@@ -22,6 +23,7 @@
 
 #define VOLUME_SLIDE_TIME 1.0
 #define QUIET_VOLUME 0.1
+#define MUSIC_FADE_OUT_TIME 3.0
 
 struct sound {
         struct flt_list link;
@@ -33,6 +35,10 @@ struct sound {
 
 struct config {
         struct flt_list sounds;
+        struct flt_list music;
+
+        double music_start_time;
+        double music_end_time;
 };
 
 struct running_sound {
@@ -46,7 +52,9 @@ struct data {
         const struct config *config;
         size_t samples_written;
         const struct flt_list *next_sound_link;
+        const struct flt_list *next_music_link;
         struct flt_list running_sounds;
+        const struct sound *music_sound;
 };
 
 static const struct sound
@@ -119,20 +127,34 @@ get_sound_length(const char *filename,
 }
 
 static double
-get_sound_sample_volume(const struct flt_list *sounds,
-                        const struct sound *sound,
-                        double sample_time)
+get_fade_out_volume(struct data *data,
+                   double sample_time)
+{
+        if (sample_time > data->config->music_end_time - MUSIC_FADE_OUT_TIME) {
+                double volume = (1.0 -
+                                 (sample_time +
+                                  MUSIC_FADE_OUT_TIME -
+                                  data->config->music_end_time) /
+                                 MUSIC_FADE_OUT_TIME);
+
+                return MAX(0.0, volume);
+        }
+
+        return 1.0;
+}
+
+static double
+get_music_volume(struct data *data,
+                 double sample_time)
 {
         double max_volume = 1.0;
 
-        for (const struct sound *s = flt_container_of(sound->link.next,
-                                                      struct sound,
-                                                      link);
-             &s->link != sounds;
-             s = flt_container_of(s->link.next, struct sound, link)) {
-                if (sample_time < s->start_time) {
-                        if (sound->start_time + sound->length > s->start_time &&
-                            sample_time >= s->start_time - VOLUME_SLIDE_TIME) {
+        const struct sound *s;
+
+        flt_list_for_each(s, &data->config->sounds, link) {
+                if (data->config->music_end_time > s->start_time &&
+                    sample_time < s->start_time) {
+                        if (sample_time >= s->start_time - VOLUME_SLIDE_TIME) {
                                 float v = ((1.0 - ((sample_time +
                                                     VOLUME_SLIDE_TIME -
                                                     s->start_time) /
@@ -144,7 +166,8 @@ get_sound_sample_volume(const struct flt_list *sounds,
                                         max_volume = v;
                         }
                 } else if (sample_time >= s->start_time + s->length) {
-                        if (sound->start_time < s->start_time + s->length &&
+                        if (data->config->music_start_time < (s->start_time +
+                                                              s->length) &&
                             sample_time < (s->start_time +
                                            s->length +
                                            VOLUME_SLIDE_TIME)) {
@@ -164,19 +187,27 @@ get_sound_sample_volume(const struct flt_list *sounds,
                 }
         }
 
-        return max_volume * sound->volume;
+        double fade_out_volume = get_fade_out_volume(data, sample_time);
+
+        if (max_volume > fade_out_volume)
+                max_volume = fade_out_volume;
+
+        return max_volume;
 }
 
 static bool
 start_sound(struct flt_list *running_sounds,
-            const struct sound *sound)
+            const struct sound *sound,
+            double length)
 {
         struct running_sound *rs = flt_calloc(sizeof *rs);
 
         rs->sound = sound;
         rs->cp = child_proc_init;
 
-        const char * const ffmpeg_args[] = {
+        struct flt_buffer length_buf = FLT_BUFFER_STATIC_INIT;
+
+        const char *ffmpeg_args[] = {
                 "-i", sound->filename,
                 "-ar", FLT_STRINGIFY(SAMPLE_RATE),
                 "-ac", "2",
@@ -185,14 +216,37 @@ start_sound(struct flt_list *running_sounds,
                 "-hide_banner",
                 "-loglevel", "error",
                 "-nostdin",
-                "-",
+                /* space for three extra args */
+                NULL,
+                NULL,
+                NULL,
+                /* terminator */
                 NULL,
         };
 
-        if (!flt_child_proc_open(NULL, /* source_dir */
-                                 "ffmpeg",
-                                 ffmpeg_args,
-                                 &rs->cp)) {
+        const char **args_end;
+
+        for (args_end = ffmpeg_args; *args_end; args_end++);
+
+        if (length < DBL_MAX) {
+                flt_buffer_append_printf(&length_buf,
+                                         "%f",
+                                         length);
+
+                *(args_end++) = "-to";
+                *(args_end++) = (const char *) length_buf.data;
+        }
+
+        *(args_end++) = "-";
+
+        bool run_ret = flt_child_proc_open(NULL, /* source_dir */
+                                           "ffmpeg",
+                                           ffmpeg_args,
+                                           &rs->cp);
+
+        flt_buffer_destroy(&length_buf);
+
+        if (!run_ret) {
                 free_running_sound(rs);
                 return false;
         }
@@ -236,17 +290,17 @@ read_samples(struct running_sound *rs, double samples[CHANNELS])
 }
 
 static bool
-get_samples(struct flt_list *running_sounds,
-            const struct flt_list *sounds,
-            double current_time,
+get_samples(struct data *data,
             double samples[CHANNELS])
 {
+        double current_time = data->samples_written / (double) SAMPLE_RATE;
+
         struct running_sound *rs, *tmp;
 
         for (int i = 0; i < CHANNELS; i++)
                 samples[i] = 0.0;
 
-        flt_list_for_each_safe(rs, tmp, running_sounds, link) {
+        flt_list_for_each_safe(rs, tmp, &data->running_sounds, link) {
                 double sound_samples[CHANNELS];
 
                 if (!read_samples(rs, sound_samples)) {
@@ -254,14 +308,17 @@ get_samples(struct flt_list *running_sounds,
                         rs->cp = child_proc_init;
                         if (!close_ret)
                                 return false;
+                        if (rs->sound == data->music_sound)
+                                data->music_sound = NULL;
                         flt_list_remove(&rs->link);
                         free_running_sound(rs);
                         continue;
                 }
 
-                double volume = get_sound_sample_volume(sounds,
-                                                        rs->sound,
-                                                        current_time);
+                double volume = rs->sound->volume;
+
+                if (rs->sound == data->music_sound)
+                        volume *= get_music_volume(data, current_time);
 
                 for (int i = 0; i < CHANNELS; i++)
                         samples[i] += sound_samples[i] * volume;
@@ -299,7 +356,88 @@ is_running(const struct data *data)
         if (!flt_list_empty(&data->running_sounds))
                 return true;
 
+        if (!flt_list_empty(&data->config->music) &&
+            data->samples_written / (double) SAMPLE_RATE <
+            data->config->music_end_time)
+                return true;
+
         return false;
+}
+
+static bool
+add_sounds(struct data *data)
+{
+        double current_time = (data->samples_written /
+                               (double) SAMPLE_RATE);
+
+        while (data->next_sound_link != &data->config->sounds) {
+                const struct sound *next_sound =
+                        flt_container_of(data->next_sound_link,
+                                         struct sound,
+                                         link);
+
+                if (next_sound->start_time > current_time)
+                        break;
+
+                if (!start_sound(&data->running_sounds,
+                                 next_sound,
+                                 DBL_MAX /* length */)) {
+                        return false;
+                }
+
+                data->next_sound_link = data->next_sound_link->next;
+        }
+
+        return true;
+}
+
+static bool
+add_music(struct data *data)
+{
+        if (data->music_sound)
+                return true;
+
+        if (flt_list_empty(&data->config->music))
+                return true;
+
+        double current_time = (data->samples_written /
+                               (double) SAMPLE_RATE);
+
+        if (current_time >= data->config->music_end_time ||
+            current_time < data->config->music_start_time)
+                return true;
+
+        const struct sound *next_music =
+                flt_container_of(data->next_music_link,
+                                 struct sound,
+                                 link);
+
+        double length = DBL_MAX;
+
+        if (current_time + next_music->length > data->config->music_end_time) {
+                length = (data->config->music_end_time -
+                          current_time +
+                          /* add a sample to make sure we don’t start
+                           * the next sound just for one sample due to
+                           * rounding errors.
+                           */
+                          1.0 / SAMPLE_RATE);
+        }
+
+        if (!start_sound(&data->running_sounds,
+                         next_music,
+                         length)) {
+                return false;
+        }
+
+        data->music_sound = next_music;
+
+        data->next_music_link = data->next_music_link->next;
+
+        if (data->next_music_link == &data->config->music)
+                data->next_music_link = data->next_music_link->next;
+
+        return true;
 }
 
 static bool
@@ -308,6 +446,7 @@ write_sounds(const struct config *config)
         struct data data = {
                 .samples_written = 0,
                 .next_sound_link = config->sounds.next,
+                .next_music_link = config->music.next,
                 .config = config,
         };
         bool ret = true;
@@ -315,42 +454,27 @@ write_sounds(const struct config *config)
         flt_list_init(&data.running_sounds);
 
         while (is_running(&data)) {
-                double current_time = (data.samples_written /
-                                       (double) SAMPLE_RATE);
+                if (!add_sounds(&data)) {
+                        ret = false;
+                        break;
+                }
 
-                while (data.next_sound_link != &data.config->sounds) {
-                        const struct sound *next_sound =
-                                flt_container_of(data.next_sound_link,
-                                                 struct sound,
-                                                 link);
-
-                        if (next_sound->start_time > current_time)
-                                break;
-
-                        if (!start_sound(&data.running_sounds,
-                                         next_sound)) {
-                                ret = false;
-                                goto out;
-                        }
-
-                        data.next_sound_link = data.next_sound_link->next;
+                if (!add_music(&data)) {
+                        ret = false;
+                        break;
                 }
 
                 double samples[CHANNELS];
 
-                if (!get_samples(&data.running_sounds,
-                                 &data.config->sounds,
-                                 current_time,
-                                 samples) ||
+                if (!get_samples(&data, samples) ||
                     !write_samples(samples)) {
                         ret = false;
-                        goto out;
+                        break;
                 }
 
                 data.samples_written++;
         }
 
-out:
         free_running_sounds(&data.running_sounds);
 
         return ret;
@@ -404,6 +528,21 @@ sort_sounds(struct flt_list *sounds)
 }
 
 static bool
+parse_time(const char *str, double *value)
+{
+        char *tail;
+
+        errno = 0;
+
+        *value = strtod(optarg, &tail);
+
+        return (errno == 0 &&
+                (isnormal(*value) || *value == 0.0) &&
+                *tail == '\0' &&
+                *value >= 0.0);
+}
+
+static bool
 process_options(int argc, char **argv, struct config *config)
 {
         struct sound sound_template = default_sound;
@@ -411,21 +550,28 @@ process_options(int argc, char **argv, struct config *config)
         char *tail;
 
         while (true) {
-                switch (getopt(argc, argv, "-s:v:")) {
+                switch (getopt(argc, argv, "-s:v:m:S:E:")) {
                 case 's':
-                        errno = 0;
-
-                        sound_template.start_time = strtod(optarg, &tail);
-
-                        if (errno ||
-                            (!isnormal(sound_template.start_time) &&
-                             sound_template.start_time != 0.0) ||
-                            *tail ||
-                            sound_template.start_time < 0) {
+                        if (!parse_time(optarg, &sound_template.start_time)) {
                                 fprintf(stderr,
                                         "invalid start_time: %s\n",
                                         optarg);
-                                return false;
+                        }
+                        break;
+
+                case 'S':
+                        if (!parse_time(optarg, &config->music_start_time)) {
+                                fprintf(stderr,
+                                        "invalid music_start_time: %s\n",
+                                        optarg);
+                        }
+                        break;
+
+                case 'E':
+                        if (!parse_time(optarg, &config->music_end_time)) {
+                                fprintf(stderr,
+                                        "invalid music_end_time: %s\n",
+                                        optarg);
                         }
                         break;
 
@@ -445,6 +591,24 @@ process_options(int argc, char **argv, struct config *config)
                                 return false;
                         }
                         break;
+
+                case 'm': {
+                        struct sound *sound = flt_alloc(sizeof *sound);
+
+                        *sound = sound_template;
+
+                        flt_list_insert(config->music.prev, &sound->link);
+
+                        sound->filename = flt_strdup(optarg);
+
+                        if (!get_sound_length(sound->filename,
+                                              &sound->length))
+                                return false;
+
+                        sound_template = default_sound;
+
+                        break;
+                }
 
                 case 1: {
                         struct sound *sound = flt_alloc(sizeof *sound);
@@ -477,12 +641,33 @@ process_options(int argc, char **argv, struct config *config)
         }
 }
 
+static double
+get_sound_end_time(const struct flt_list *sounds)
+{
+        const struct sound *sound;
+
+        double end_time = 0.0;
+
+        flt_list_for_each(sound, sounds, link) {
+                double this_end_time = sound->start_time + sound->length;
+
+                if (this_end_time > end_time)
+                        end_time = this_end_time;
+        }
+
+        return end_time;
+}
+
 int
 main(int argc, char **argv)
 {
-        struct config config;
+        struct config config = {
+                .music_start_time = 0.0,
+                .music_end_time = -1.0,
+        };
 
         flt_list_init(&config.sounds);
+        flt_list_init(&config.music);
 
         int ret = EXIT_SUCCESS;
 
@@ -490,6 +675,9 @@ main(int argc, char **argv)
                 ret = EXIT_FAILURE;
                 goto out;
         }
+
+        if (config.music_end_time < 0.0)
+                config.music_end_time = get_sound_end_time(&config.sounds);
 
         sort_sounds(&config.sounds);
 
@@ -500,6 +688,7 @@ main(int argc, char **argv)
 
 out:
         free_sounds(&config.sounds);
+        free_sounds(&config.music);
 
         return ret;
 }

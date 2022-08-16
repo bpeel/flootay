@@ -70,7 +70,7 @@ flt_list_length(const struct flt_list *list)
 }
 
 int
-flt_list_empty(struct flt_list *list)
+flt_list_empty(const struct flt_list *list)
 {
         return list->next == list;
 }

@@ -151,6 +151,23 @@ add_args(struct flt_buffer *args,
         va_end(ap);
 }
 
+FLT_PRINTF_FORMAT(2, 3) static void
+add_arg_printf(struct flt_buffer *args,
+               const char *format,
+               ...)
+{
+        struct flt_buffer buf = FLT_BUFFER_STATIC_INIT;
+
+        va_list ap;
+        va_start(ap, format);
+
+        flt_buffer_append_vprintf(&buf, format, ap);
+
+        va_end(ap);
+
+        flt_buffer_append(args, &buf.data, sizeof buf.data);
+}
+
 static void
 add_ffmpeg_args(const char *source_dir,
                 struct flt_buffer *args,
@@ -162,8 +179,6 @@ add_ffmpeg_args(const char *source_dir,
         int flootay_input = n_inputs++;
         int sound_input = n_inputs++;
 
-        struct flt_buffer buf = FLT_BUFFER_STATIC_INIT;
-
         add_args(args,
                  "-f", "rawvideo",
                  "-pixel_format", "rgba",
@@ -171,10 +186,7 @@ add_ffmpeg_args(const char *source_dir,
                  "-framerate", "30",
                  "-i",
                  NULL);
-
-        flt_buffer_set_length(&buf, 0);
-        flt_buffer_append_printf(&buf, "pipe:%i", flootay_proc->read_fd);
-        add_arg(args, (const char *) buf.data);
+        add_arg_printf(args, "pipe:%i", flootay_proc->read_fd);
 
         add_args(args,
                  "-ar", "48000",
@@ -183,29 +195,19 @@ add_ffmpeg_args(const char *source_dir,
                  "-c:a", "pcm_s24le",
                  "-i",
                  NULL);
-
-        flt_buffer_set_length(&buf, 0);
-        flt_buffer_append_printf(&buf, "pipe:%i", sound_proc->read_fd);
-        add_arg(args, (const char *) buf.data);
+        add_arg_printf(args, "pipe:%i", sound_proc->read_fd);
 
         add_arg(args, "-filter_complex");
-
-        flt_buffer_set_length(&buf, 0);
-
-        flt_buffer_append_printf(&buf,
-                                 "%s;"
-                                 "[outv][%i]overlay[overoutv]",
-                                 filter_arg,
-                                 flootay_input);
-
-        add_arg(args, (const char *) buf.data);
+        add_arg_printf(args,
+                       "%s;"
+                       "[outv][%i]overlay[overoutv]",
+                       filter_arg,
+                       flootay_input);
 
         add_args(args, "-map", "[overoutv]", NULL);
 
-        flt_buffer_set_length(&buf, 0);
-        flt_buffer_append_printf(&buf, "%i:a", sound_input);
         add_arg(args, "-map");
-        add_arg(args, (const char *) buf.data);
+        add_arg_printf(args, "%i:a", sound_input);
 
         add_args(args,
                  "-c:v", "prores_ks",
@@ -218,8 +220,6 @@ add_ffmpeg_args(const char *source_dir,
 
         char *terminator = NULL;
         flt_buffer_append(args, &terminator, sizeof terminator);
-
-        flt_buffer_destroy(&buf);
 }
 
 static bool

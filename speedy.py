@@ -41,7 +41,7 @@ class Video:
 Script = collections.namedtuple('Script', ['videos',
                                            'scores',
                                            'svgs',
-                                           'gpx_offset',
+                                           'gpx_offsets',
                                            'speed_overrides',
                                            'show_elevation',
                                            'show_map',
@@ -125,7 +125,7 @@ def parse_script(infile):
     svgs = []
     speed_overrides = []
     sound_args = []
-    gpx_offset = None
+    gpx_offsets = {}
     show_elevation = False
     show_map = False
 
@@ -212,9 +212,9 @@ def parse_script(infile):
         md = gpx_offset_re.match(line)
         if md:
             timestamp = dateutil.parser.parse(md.group('utc_time'))
-            gpx_offset = (md.group('filename'),
-                          (timestamp.timestamp() -
-                           decode_time(md.group('video_time'))))
+            offset = (timestamp.timestamp() -
+                      decode_time(md.group('video_time')))
+            gpx_offsets[md.group('filename')] = offset
             continue
 
         md = svg_re.match(line)
@@ -283,7 +283,7 @@ def parse_script(infile):
     return Script(videos,
                   scores,
                   svgs,
-                  gpx_offset,
+                  gpx_offsets,
                   speed_overrides,
                   show_elevation,
                   show_map,
@@ -562,25 +562,26 @@ def get_video_gpx_offsets(script):
                        for video in script.videos
                        if video.use_gpx)
 
-    raw_time = 0
-
-    for filename in sorted(raw_footage.keys()):
-        length = raw_footage[filename]
-        if filename == script.gpx_offset[0]:
-            offset = script.gpx_offset[1] - raw_time
-            break
-        raw_time += length
-    else:
-        raise Exception("Couldn’t find {} in raw footage".
-                        format(script.gpx_offset[0]))
-
+    last_offset = None
     offsets = {}
-    raw_time = 0
 
     for filename in sorted(raw_footage.keys()):
-        length = raw_footage[filename]
-        offsets[filename] = raw_time + offset
-        raw_time += length
+        if filename in script.gpx_offsets:
+            last_offset = script.gpx_offsets[filename]
+
+        if last_offset is not None:
+            offsets[filename] = last_offset
+            last_offset += raw_footage[filename]
+
+    if len(offsets) != len(script.gpx_offsets):
+        raise Exception("At least one gpx_offset couldn’t be found in "
+                        "raw footage")
+
+    for filename in reversed(sorted(raw_footage.keys())):
+        last_offset -= raw_footage[filename]
+
+        if filename not in offsets:
+            offsets[filename] = last_offset
 
     return offsets
 
@@ -656,7 +657,7 @@ def write_speed_script_for_video(f,
     print("}\n", file=f)
 
 def write_speed_script(f, script, video_speeds):
-    if script.gpx_offset is None:
+    if len(script.gpx_offsets) is None:
         return
 
     offsets = get_video_gpx_offsets(script)

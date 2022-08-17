@@ -114,7 +114,7 @@ gpx_offset part1.mp4 11.299 2022-08-11T145400Z
 
 This means that at 11.299 seconds into the video `part1.mp4`, the time and date were the 11th of August 2022 at 14:54 UTC. A good way to work this out could be to film your GPS device at the start of the video and look at the time in a video player. Then you just need to note down the time displayed in the video player and the time displayed on the GPS at that point.
 
-There can only be one `gpx_offset` command in the script. If there are multiple videos, flootay will assume they were filmed sequentially and the filenames sort to chronological order. It works like this because my camera splits the recordings up into 15-minute files, so as long as I have an offset for one of the files it will be able to calculate the offset for the rest of them.
+There can be multiple `gpx_offset` commands in the script. If there are multiple videos, flootay will assume they were filmed sequentially and the filenames sort to chronological order. It works like this because my camera splits the recordings up into 15-minute files, so as long as I have an offset for one of the files it will be able to calculate the offset for the rest of them. If a video doesn’t have its own offset specified then the program will calculate one from a previous video. If no previous video has one it will use one from a subsequent video.
 
 ### Skipping videos
 

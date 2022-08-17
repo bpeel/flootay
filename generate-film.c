@@ -135,6 +135,22 @@ add_arg(struct flt_buffer *args, const char *arg)
         flt_buffer_append(args, &arg_dup, sizeof arg_dup);
 }
 
+FLT_NULL_TERMINATED static void
+add_args(struct flt_buffer *args,
+         ...)
+{
+        va_list ap;
+
+        va_start(ap, args);
+
+        const char *arg;
+
+        while ((arg = va_arg(ap, const char *)))
+                add_arg(args, arg);
+
+        va_end(ap);
+}
+
 static void
 add_ffmpeg_args(const char *source_dir,
                 struct flt_buffer *args,
@@ -148,29 +164,25 @@ add_ffmpeg_args(const char *source_dir,
 
         struct flt_buffer buf = FLT_BUFFER_STATIC_INIT;
 
-        add_arg(args, "-f");
-        add_arg(args, "rawvideo");
-        add_arg(args, "-pixel_format");
-        add_arg(args, "rgba");
-        add_arg(args, "-video_size");
-        add_arg(args, "1920x1080");
-        add_arg(args, "-framerate");
-        add_arg(args, "30");
-        add_arg(args, "-i");
+        add_args(args,
+                 "-f", "rawvideo",
+                 "-pixel_format", "rgba",
+                 "-video_size", "1920x1080",
+                 "-framerate", "30",
+                 "-i",
+                 NULL);
 
         flt_buffer_set_length(&buf, 0);
         flt_buffer_append_printf(&buf, "pipe:%i", flootay_proc->read_fd);
         add_arg(args, (const char *) buf.data);
 
-        add_arg(args, "-ar");
-        add_arg(args, "48000");
-        add_arg(args, "-ac");
-        add_arg(args, "2");
-        add_arg(args, "-f");
-        add_arg(args, "s24le");
-        add_arg(args, "-c:a");
-        add_arg(args, "pcm_s24le");
-        add_arg(args, "-i");
+        add_args(args,
+                 "-ar", "48000",
+                 "-ac", "2",
+                 "-f", "s24le",
+                 "-c:a", "pcm_s24le",
+                 "-i",
+                 NULL);
 
         flt_buffer_set_length(&buf, 0);
         flt_buffer_append_printf(&buf, "pipe:%i", sound_proc->read_fd);
@@ -188,25 +200,21 @@ add_ffmpeg_args(const char *source_dir,
 
         add_arg(args, (const char *) buf.data);
 
-        add_arg(args, "-map");
-        add_arg(args, "[overoutv]");
+        add_args(args, "-map", "[overoutv]", NULL);
 
         flt_buffer_set_length(&buf, 0);
         flt_buffer_append_printf(&buf, "%i:a", sound_input);
         add_arg(args, "-map");
         add_arg(args, (const char *) buf.data);
 
-        add_arg(args, "-c:v");
-        add_arg(args, "prores_ks");
-        add_arg(args, "-profile:v");
-        add_arg(args, "3");
-        add_arg(args, "-vendor");
-        add_arg(args, "apl0");
-        add_arg(args, "-bits_per_mb");
-        add_arg(args, "8000");
-        add_arg(args, "-pix_fmt");
-        add_arg(args, "yuv422p10le");
-        add_arg(args, "film.mov");
+        add_args(args,
+                 "-c:v", "prores_ks",
+                 "-profile:v", "3",
+                 "-vendor", "apl0",
+                 "-bits_per_mb", "8000",
+                 "-pix_fmt", "yuv422p10le",
+                 "film.mov",
+                 NULL);
 
         char *terminator = NULL;
         flt_buffer_append(args, &terminator, sizeof terminator);

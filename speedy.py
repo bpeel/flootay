@@ -132,6 +132,24 @@ def parse_script(infile):
         if len(line) <= 0 or line[0] == '#':
             continue
 
+        if line == "logo":
+            video_filename = ("|" +
+                              os.path.join(os.path.dirname(sys.argv[0]),
+                                           "build",
+                                           "generate-logo"))
+            video = Video(video_filename, 0, 3, 3)
+            videos.append(video)
+            sound_filename = os.path.join(os.path.dirname(sys.argv[0]),
+                                          "logo-sound.flac")
+            video.sounds.append(Sound(0,
+                                      sound_filename,
+                                      get_video_length(sound_filename)))
+            speed_overrides.append(SpeedOverride(video_filename,
+                                                 0, # start_time
+                                                 3, # end_time
+                                                 1.0))
+            continue
+
         if line == "elevation":
             show_elevation = True
             continue

@@ -140,36 +140,13 @@ add_ffmpeg_args(const char *source_dir,
                 struct flt_buffer *args,
                 int n_inputs,
                 const char *filter_arg,
-                struct flt_child_proc *logo_proc,
                 struct flt_child_proc *flootay_proc,
                 struct flt_child_proc *sound_proc)
 {
-        int logo_input = n_inputs++;
-        int logo_sound_input = n_inputs++;
         int flootay_input = n_inputs++;
         int sound_input = n_inputs++;
 
-        add_arg(args, "-f");
-        add_arg(args, "rawvideo");
-        add_arg(args, "-pixel_format");
-        add_arg(args, "rgb32");
-        add_arg(args, "-video_size");
-        add_arg(args, "1920x1080");
-        add_arg(args, "-framerate");
-        add_arg(args, "30");
-        add_arg(args, "-i");
-
         struct flt_buffer buf = FLT_BUFFER_STATIC_INIT;
-
-        flt_buffer_append_printf(&buf, "pipe:%i", logo_proc->read_fd);
-
-        add_arg(args, (const char *) buf.data);
-
-        add_arg(args, "-i");
-
-        char *logo_sound_file =
-                flt_strconcat(source_dir, "/logo-sound.flac", NULL);
-        flt_buffer_append(args, &logo_sound_file, sizeof logo_sound_file);
 
         add_arg(args, "-f");
         add_arg(args, "rawvideo");
@@ -205,22 +182,20 @@ add_ffmpeg_args(const char *source_dir,
 
         flt_buffer_append_printf(&buf,
                                  "%s;"
-                                 "[outv][%i]overlay[overoutv];"
-                                 "[%i:v][%i:a]"
-                                 "[overoutv][%i:a]concat=n=2:v=1:a=1"
-                                 "[finalv][finala]",
+                                 "[outv][%i]overlay[overoutv]",
                                  filter_arg,
-                                 flootay_input,
-                                 logo_input,
-                                 logo_sound_input,
-                                 sound_input);
+                                 flootay_input);
 
         add_arg(args, (const char *) buf.data);
 
         add_arg(args, "-map");
-        add_arg(args, "[finalv]");
+        add_arg(args, "[overoutv]");
+
+        flt_buffer_set_length(&buf, 0);
+        flt_buffer_append_printf(&buf, "%i:a", sound_input);
         add_arg(args, "-map");
-        add_arg(args, "[finala]");
+        add_arg(args, (const char *) buf.data);
+
         add_arg(args, "-c:v");
         add_arg(args, "prores_ks");
         add_arg(args, "-profile:v");
@@ -356,7 +331,6 @@ main(int argc, char **argv)
 
         flt_list_init(&proc_inputs);
 
-        struct flt_child_proc *logo_proc = add_child_proc(&proc_inputs);
         struct flt_child_proc *flootay_proc = add_child_proc(&proc_inputs);
         struct flt_child_proc *sound_proc = add_child_proc(&proc_inputs);
 
@@ -366,16 +340,6 @@ main(int argc, char **argv)
                              &args,
                              &n_inputs,
                              &filter_arg)) {
-                ret = EXIT_FAILURE;
-                goto out;
-        }
-
-        static const char * const logo_args[] = { NULL };
-
-        if (!flt_child_proc_open(source_dir,
-                                 "build/generate-logo",
-                                 logo_args,
-                                 logo_proc)) {
                 ret = EXIT_FAILURE;
                 goto out;
         }
@@ -409,7 +373,6 @@ main(int argc, char **argv)
                         &args,
                         n_inputs,
                         filter_arg,
-                        logo_proc,
                         flootay_proc,
                         sound_proc);
 

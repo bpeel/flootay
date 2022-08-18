@@ -810,6 +810,40 @@ generate_images(const struct config *config,
 }
 
 static bool
+parse_time(const char *time_str, double *value_out)
+{
+        char *tail;
+
+        errno = 0;
+        double value = strtod(time_str, &tail);
+
+        if (errno || (!isnormal(value) && value != 0.0) || value < 0.0)
+                goto error;
+
+        if (*tail == ':') {
+                double seconds = strtod(tail + 1, &tail);
+
+                if (errno ||
+                    (!isnormal(value) && value != 0.0) ||
+                    value < 0.0 ||
+                    *tail)
+                        goto error;
+
+                value = value * 60.0 + seconds;
+        } else if (*tail != '\0') {
+                goto error;
+        }
+
+        *value_out = value;
+
+        return true;
+
+error:
+        fprintf(stderr, "invalid time value: %s\n", time_str);
+        return false;
+}
+
+static bool
 parse_args(int argc, char **argv, struct config *config)
 {
         if (argc != 5) {
@@ -820,8 +854,12 @@ parse_args(int argc, char **argv, struct config *config)
         }
 
         config->video_filename = argv[1];
-        config->start_time = strtod(argv[2], NULL);
-        config->end_time = strtod(argv[3], NULL);
+
+        if (!parse_time(argv[2], &config->start_time))
+                return false;
+        if (!parse_time(argv[3], &config->end_time))
+                return false;
+
         config->fps = strtoul(argv[4], NULL, 10);
 
         return true;

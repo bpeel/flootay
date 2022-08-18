@@ -299,9 +299,9 @@ unmap_box(struct data *data, SDL_Rect *box)
 }
 
 static void
-copy_box_to_clipboard(struct data *data)
+get_key_frame_line(struct data *data, int frame_num, struct flt_buffer *buf)
 {
-        const SDL_Rect *box = &data->frame_data[data->current_image_num].box;
+        const SDL_Rect *box = &data->frame_data[frame_num].box;
         int x1 = box->x;
         int y1 = box->y;
         int x2 = box->x + box->w;
@@ -319,20 +319,57 @@ copy_box_to_clipboard(struct data *data)
                 y2 = t;
         }
 
-        char buf[800];
+        flt_buffer_append_printf(buf,
+                                 "        key_frame %f { "
+                                 "x1 %i "
+                                 "y1 %i "
+                                 "x2 %i "
+                                 "y2 %i "
+                                 "}",
+                                 data->config.start_time +
+                                 frame_num /
+                                 (double) data->config.fps,
+                                 x1, y1, x2, y2);
+}
 
-        snprintf(buf, sizeof buf,
-                 "        key_frame %f { x1 %i y1 %i x2 %i y2 %i }",
-                 data->config.start_time +
-                 data->current_image_num /
-                 (double) data->config.fps,
-                 x1, y1, x2, y2);
+static void
+copy_box_to_clipboard(struct data *data)
+{
+        struct flt_buffer buf = FLT_BUFFER_STATIC_INIT;
 
-        buf[sizeof buf - 1] = '\0';
+        get_key_frame_line(data, data->current_image_num, &buf);
 
-        printf("%s\n", buf);
+        printf("%s\n", (const char *) buf.data);
 
-        SDL_SetClipboardText(buf);
+        SDL_SetClipboardText((const char *) buf.data);
+
+        flt_buffer_destroy(&buf);
+}
+
+static void
+write_rectangle(struct data *data)
+{
+        struct flt_buffer buf = FLT_BUFFER_STATIC_INIT;
+
+        flt_buffer_append_string(&buf, "rectangle {\n");
+
+        for (int i = 0; i < data->n_images; i++) {
+                const struct frame_data *frame = data->frame_data + i;
+
+                if (!frame->has_box)
+                        continue;
+
+                get_key_frame_line(data, i, &buf);
+
+                flt_buffer_append_c(&buf, '\n');
+        }
+
+        flt_buffer_append_string(&buf, "}\n");
+
+        fputs((const char *) buf.data, stdout);
+        SDL_SetClipboardText((const char *) buf.data);
+
+        flt_buffer_destroy(&buf);
 }
 
 static void
@@ -432,6 +469,10 @@ handle_key_event(struct data *data,
                 break;
         case SDLK_RIGHT:
                 move_box(data, 1, 0);
+                break;
+
+        case SDLK_w:
+                write_rectangle(data);
                 break;
         }
 }
@@ -826,6 +867,8 @@ main(int argc, char **argv)
         set_image(&data, 0);
 
         run_main_loop(&data);
+
+        write_rectangle(&data);
 
 out:
         free_image(&data);

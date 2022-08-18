@@ -500,6 +500,7 @@ def get_ffmpeg_command(videos, video_speeds):
     next_input += 1
     input_args.extend(["-ar", "48000",
                        "-ac", "2",
+                       "-channel_layout", "stereo",
                        "-f", "s24le",
                        "-c:a", "pcm_s24le",
                        "-i", "|./sound.sh"])

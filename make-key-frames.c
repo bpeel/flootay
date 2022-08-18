@@ -33,6 +33,12 @@
 
 #include "flt-buffer.h"
 
+struct config {
+        const char *video_filename;
+        double start_time, end_time;
+        int fps;
+};
+
 struct data {
         bool should_quit;
 
@@ -41,6 +47,8 @@ struct data {
         SDL_Renderer *renderer;
 
         int n_images;
+
+        struct config config;
 
         int current_image_num;
         SDL_Surface *current_image;
@@ -55,12 +63,6 @@ struct data {
         SDL_Rect box;
 
         bool redraw_queued;
-};
-
-struct config {
-        const char *video_filename;
-        double start_time, end_time;
-        int fps;
 };
 
 #define IMAGES_DIR "key-frames-tmp"
@@ -286,9 +288,14 @@ copy_box_to_clipboard(struct data *data)
         char buf[800];
 
         snprintf(buf, sizeof buf,
-                 "%i, %i, %i, %i",
-                 x1, y1,
-                 x2, y2);
+                 "        key_frame %f { x1 %i y1 %i x2 %i y2 %i }",
+                 data->config.start_time +
+                 data->current_image_num /
+                 (double) data->config.fps,
+                 x1 * IMAGE_SCALE,
+                 y1 * IMAGE_SCALE,
+                 x2 * IMAGE_SCALE,
+                 y2 * IMAGE_SCALE);
 
         buf[sizeof buf - 1] = '\0';
 
@@ -625,18 +632,16 @@ parse_args(int argc, char **argv, struct config *config)
 int
 main(int argc, char **argv)
 {
-        struct config config;
-
-        if (!parse_args(argc, argv, &config))
-                return EXIT_FAILURE;
-
         struct data data = {
                 .current_image_num = -1,
                 .redraw_queued = true,
                 .layout_dirty = true,
         };
 
-        if (!generate_images(&config, &data.n_images)) {
+        if (!parse_args(argc, argv, &data.config))
+                return EXIT_FAILURE;
+
+        if (!generate_images(&data.config, &data.n_images)) {
                 return EXIT_FAILURE;
         }
 

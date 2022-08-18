@@ -20,9 +20,18 @@
 #include <stdint.h>
 #include <stdlib.h>
 #include <string.h>
+#include <errno.h>
 #include <stdbool.h>
+#include <unistd.h>
+#include <time.h>
+#include <sys/stat.h>
+#include <sys/wait.h>
+#include <sys/types.h>
+#include <dirent.h>
 #include <SDL_image.h>
 #include <SDL.h>
+
+#include "flt-buffer.h"
 
 struct data {
         bool should_quit;
@@ -32,7 +41,6 @@ struct data {
         SDL_Renderer *renderer;
 
         int n_images;
-        const char * const *image_names;
 
         int current_image_num;
         SDL_Surface *current_image;
@@ -49,6 +57,19 @@ struct data {
         bool redraw_queued;
 };
 
+struct config {
+        const char *video_filename;
+        double start_time, end_time;
+        int fps;
+};
+
+#define IMAGES_DIR "key-frames-tmp"
+#define VIDEO_WIDTH 1920
+#define VIDEO_HEIGHT 1080
+#define IMAGE_SCALE 2
+#define DISPLAY_WIDTH (VIDEO_WIDTH / IMAGE_SCALE)
+#define DISPLAY_HEIGHT (VIDEO_HEIGHT / IMAGE_SCALE)
+
 static bool
 init_sdl(struct data *data)
 {
@@ -62,7 +83,7 @@ init_sdl(struct data *data)
         data->window = SDL_CreateWindow("make-key-frames",
                                         SDL_WINDOWPOS_UNDEFINED,
                                         SDL_WINDOWPOS_UNDEFINED,
-                                        1080, 788, /* width/height */
+                                        DISPLAY_WIDTH, DISPLAY_HEIGHT,
                                         SDL_WINDOW_RESIZABLE);
 
         if (data->window == NULL) {
@@ -121,6 +142,30 @@ free_image(struct data *data)
         data->current_image_num = -1;
 }
 
+static SDL_Surface *
+load_image(int image_num)
+{
+        struct flt_buffer buf = FLT_BUFFER_STATIC_INIT;
+
+        flt_buffer_append_printf(&buf,
+                                 "%s/%03i.png",
+                                 IMAGES_DIR,
+                                 image_num + 1);
+
+        SDL_Surface *surface = IMG_Load((const char *) buf.data);
+
+        if (surface == NULL) {
+                fprintf(stderr,
+                        "%s: %s\n",
+                        (const char *) buf.data,
+                        IMG_GetError());
+        }
+
+        flt_buffer_destroy(&buf);
+
+        return surface;
+}
+
 static void
 set_image(struct data *data, int image_num)
 {
@@ -135,16 +180,10 @@ set_image(struct data *data, int image_num)
         if (image_num == -1)
                 return;
 
-        data->current_image = IMG_Load(data->image_names[image_num]);
+        data->current_image = load_image(image_num);
 
-        if (data->current_image == NULL) {
-                fprintf(stderr,
-                        "%s: %s\n",
-                        data->image_names[image_num],
-                        IMG_GetError());
-                free_image(data);
+        if (data->current_image == NULL)
                 return;
-        }
 
         data->current_texture =
                 SDL_CreateTextureFromSurface(data->renderer,
@@ -152,8 +191,7 @@ set_image(struct data *data, int image_num)
 
         if (data->current_texture == NULL) {
                 fprintf(stderr,
-                        "Error creating texture: %s: %s\n",
-                        data->image_names[image_num],
+                        "Error creating texture: %s\n",
                         SDL_GetError());
                 free_image(data);
                 return;
@@ -410,16 +448,197 @@ run_main_loop(struct data *data)
         }
 }
 
+static bool
+ensure_images_dir(void)
+{
+        if (mkdir(IMAGES_DIR, 0777) == -1 && errno != EEXIST) {
+                fprintf(stderr,
+                        "error creating %s: %s\n",
+                        IMAGES_DIR,
+                        strerror(errno));
+                return false;
+        }
+
+        return true;
+}
+
+static bool
+run_ffmpeg(const struct config *config)
+{
+        pid_t pid = fork();
+
+        if (pid == -1) {
+                fprintf(stderr, "fork failed: %s\n", strerror(errno));
+                return false;
+        }
+
+        if (pid == 0) {
+                struct flt_buffer start_time = FLT_BUFFER_STATIC_INIT;
+
+                flt_buffer_append_printf(&start_time, "%f", config->start_time);
+
+                struct flt_buffer end_time = FLT_BUFFER_STATIC_INIT;
+
+                flt_buffer_append_printf(&end_time, "%f", config->end_time);
+
+                struct flt_buffer filter = FLT_BUFFER_STATIC_INIT;
+
+                flt_buffer_append_printf(&filter,
+                                         "fps=%i,"
+                                         "scale=%i:%i,"
+                                         "drawtext=fontfile=Arial.ttf:"
+                                         "text='%%{expr\\:t+%f}':"
+                                         "fontsize=%i:"
+                                         "bordercolor=white:"
+                                         "borderw=%i:"
+                                         "y=%i",
+                                         config->fps,
+                                         DISPLAY_WIDTH,
+                                         DISPLAY_HEIGHT,
+                                         config->start_time,
+                                         DISPLAY_HEIGHT / 5,
+                                         DISPLAY_HEIGHT / 180,
+                                         DISPLAY_HEIGHT / 180);
+
+                const char *args[] = {
+                        "ffmpeg",
+                        "-ss", (const char *) start_time.data,
+                        "-to", (const char *) end_time.data,
+                        "-i", config->video_filename,
+                        "-vf", (const char *) filter.data,
+                        IMAGES_DIR "/%03d.png",
+                        NULL
+                };
+
+                execvp(args[0], (char **) args);
+
+                fprintf(stderr,
+                        "exec failed: %s: %s\n",
+                        args[0],
+                        strerror(errno));
+
+                exit(EXIT_FAILURE);
+
+                return false;
+        }
+
+        int status = EXIT_FAILURE;
+
+        if (waitpid(pid, &status, 0 /* options */) == -1 ||
+            !WIFEXITED(status) ||
+            WEXITSTATUS(status) != EXIT_SUCCESS) {
+                fprintf(stderr, "ffmpeg failed\n");
+                return false;
+        } else {
+                return true;
+        }
+}
+
+static bool
+count_images(time_t min_time,
+             int *n_images_out)
+{
+        DIR *d = opendir(IMAGES_DIR);
+
+        if (d == NULL) {
+                fprintf(stderr,
+                        "%s: %s\n",
+                        IMAGES_DIR,
+                        strerror(errno));
+                return false;
+        }
+
+        bool ret = true;
+        int n_images = 0;
+        struct dirent *e;
+
+        struct flt_buffer buf = FLT_BUFFER_STATIC_INIT;
+
+        while ((e = readdir(d))) {
+                if (e->d_name[0] == '.')
+                        continue;
+
+                flt_buffer_set_length(&buf, 0);
+                flt_buffer_append_string(&buf, IMAGES_DIR);
+                flt_buffer_append_c(&buf, '/');
+                flt_buffer_append_string(&buf, e->d_name);
+
+                struct stat statbuf;
+
+                if (stat((const char *) buf.data, &statbuf) == -1) {
+                        fprintf(stderr,
+                                "%s: %s\n",
+                                (const char *) buf.data,
+                                strerror(errno));
+                        ret = false;
+                        break;
+                }
+
+                if (statbuf.st_mtime >= min_time)
+                        n_images++;
+        }
+
+        flt_buffer_destroy(&buf);
+
+        if (ret)
+                *n_images_out = n_images;
+
+        return ret;
+}
+
+static bool
+generate_images(const struct config *config,
+                int *n_images_out)
+{
+        if (!ensure_images_dir())
+                return false;
+
+        time_t ffmpeg_run_time = time(NULL);
+
+        if (!run_ffmpeg(config))
+                return false;
+
+        if (!count_images(ffmpeg_run_time, n_images_out))
+                return false;
+
+        return true;
+}
+
+static bool
+parse_args(int argc, char **argv, struct config *config)
+{
+        if (argc != 5) {
+                fprintf(stderr,
+                        "usage: make-key-frames "
+                        "<video> <start_time> <end_time> <fps>\n");
+                return false;
+        }
+
+        config->video_filename = argv[1];
+        config->start_time = strtod(argv[2], NULL);
+        config->end_time = strtod(argv[3], NULL);
+        config->fps = strtoul(argv[4], NULL, 10);
+
+        return true;
+}
+
 int
 main(int argc, char **argv)
 {
+        struct config config;
+
+        if (!parse_args(argc, argv, &config))
+                return EXIT_FAILURE;
+
         struct data data = {
-                .n_images = argc - 1,
-                .image_names = (const char *const *) argv + 1,
                 .current_image_num = -1,
                 .redraw_queued = true,
                 .layout_dirty = true,
         };
+
+        if (!generate_images(&config, &data.n_images)) {
+                return EXIT_FAILURE;
+        }
 
         int ret = EXIT_SUCCESS;
 

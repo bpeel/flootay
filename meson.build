@@ -38,7 +38,9 @@ executable('generate-logo',
            dependencies: [m_dep, cairo_dep, rsvg_dep, expat_dep])
 
 executable('make-key-frames',
-           ['make-key-frames.c'],
+           ['make-key-frames.c',
+            'flt-buffer.c',
+            'flt-util.c'],
            dependencies: [sdl_dep, sdl_image_dep])
 
 executable('generate-film',

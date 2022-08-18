@@ -485,10 +485,21 @@ def get_ffmpeg_filter(videos, video_speeds):
 def get_ffmpeg_args(videos, video_speeds):
     input_args = sum((get_ffmpeg_input_args(video) for video in videos), [])
 
-    filter = (get_ffmpeg_filter(videos, video_speeds))
+    next_input = len(videos)
+
+    flootay_input = next_input
+    next_input += 1
+    input_args.extend(["-f", "rawvideo",
+                       "-pixel_format", "rgba",
+                       "-video_size", "1920x1080",
+                       "-framerate", "30",
+                       "-i", "|./scores.flt"])
+
+    filter = (get_ffmpeg_filter(videos, video_speeds) + ";" +
+              "[outv][{}]overlay[overoutv]".format(flootay_input))
 
     return input_args + ["-filter_complex", filter,
-                         "-map", "[outv]"]
+                         "-map", "[overoutv]"]
 
 def write_sound_script(f, total_video_time, sound_clips):
     dirname = os.path.dirname(sys.argv[0])
@@ -713,9 +724,15 @@ with open("sound.sh", "wt", encoding="utf-8") as f:
 os.chmod("sound.sh", 0o775)
 
 with open("scores.flt", "wt", encoding="utf-8") as f:
+    print("#!{}".format(os.path.join(os.path.dirname(sys.argv[0]),
+                                     "build",
+                                     "flootay")),
+          file=f)
     write_score_script(f, script.scores, script.videos, video_speeds)
     write_svg_script(f, script.svgs, script.videos, video_speeds)
     write_speed_script(f, script, video_speeds)
     write_videos_script(f, script.videos, video_speeds)
+
+os.chmod("scores.flt", 0o775)
 
 print("\n".join(get_ffmpeg_args(script.videos, video_speeds)))

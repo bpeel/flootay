@@ -191,20 +191,9 @@ add_ffmpeg_args(const char *source_dir,
                 struct flt_buffer *args,
                 int n_inputs,
                 const char *filter_arg,
-                struct flt_child_proc *flootay_proc,
                 struct flt_child_proc *sound_proc)
 {
-        int flootay_input = n_inputs++;
         int sound_input = n_inputs++;
-
-        add_args(args,
-                 "-f", "rawvideo",
-                 "-pixel_format", "rgba",
-                 "-video_size", "1920x1080",
-                 "-framerate", "30",
-                 "-i",
-                 NULL);
-        add_arg_printf(args, "pipe:%i", flootay_proc->read_fd);
 
         add_args(args,
                  "-ar", "48000",
@@ -215,12 +204,7 @@ add_ffmpeg_args(const char *source_dir,
                  NULL);
         add_arg_printf(args, "pipe:%i", sound_proc->read_fd);
 
-        add_arg(args, "-filter_complex");
-        add_arg_printf(args,
-                       "%s;"
-                       "[outv][%i]overlay[overoutv]",
-                       filter_arg,
-                       flootay_input);
+        add_args(args, "-filter_complex", filter_arg, NULL);
 
         add_args(args, "-map", "[overoutv]", NULL);
 
@@ -357,7 +341,6 @@ main(int argc, char **argv)
 
         flt_list_init(&proc_inputs);
 
-        struct flt_child_proc *flootay_proc = add_child_proc(&proc_inputs);
         struct flt_child_proc *sound_proc = add_child_proc(&proc_inputs);
 
         if (!get_speedy_args(source_dir,
@@ -366,19 +349,6 @@ main(int argc, char **argv)
                              &args,
                              &n_inputs,
                              &filter_arg)) {
-                ret = EXIT_FAILURE;
-                goto out;
-        }
-
-        const char * const flootay_args[] = {
-                "scores.flt",
-                NULL
-        };
-
-        if (!flt_child_proc_open(source_dir,
-                                 "build/flootay",
-                                 flootay_args,
-                                 flootay_proc)) {
                 ret = EXIT_FAILURE;
                 goto out;
         }
@@ -399,7 +369,6 @@ main(int argc, char **argv)
                         &args,
                         n_inputs,
                         filter_arg,
-                        flootay_proc,
                         sound_proc);
 
         if (!run_ffmpeg(&args, &proc_inputs))

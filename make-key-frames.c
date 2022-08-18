@@ -900,21 +900,48 @@ error:
 static bool
 parse_args(int argc, char **argv, struct config *config)
 {
-        if (argc != 5) {
-                fprintf(stderr,
-                        "usage: make-key-frames "
-                        "<video> <start_time> <end_time> <fps>\n");
-                return false;
+        while (true) {
+                switch (getopt(argc, argv, "-s:e:r:")) {
+                case 's':
+                        if (!parse_time(optarg, &config->start_time))
+                                return false;
+                        break;
+                case 'e':
+                        if (!parse_time(optarg, &config->end_time))
+                                return false;
+                        break;
+                case 'r':
+                        config->fps = strtoul(optarg, NULL, 10);
+
+                        if (config->fps <= 0 || config->fps >= 1000) {
+                                fprintf(stderr,
+                                        "invalid FPS: %s\n",
+                                        optarg);
+                                return false;
+                        }
+                        break;
+
+                case 1:
+                        config->video_filename = optarg;
+                        break;
+
+                case -1:
+                        goto done;
+
+                default:
+                        return false;
+                }
         }
 
-        config->video_filename = argv[1];
-
-        if (!parse_time(argv[2], &config->start_time))
+done:
+        if (config->start_time < 0.0 ||
+            config->end_time < 0.0 ||
+            config->video_filename == NULL) {
+                fprintf(stderr,
+                        "usage: make-key-frames -s <start_time> -e <end_time> "
+                        "[-r <fps>] <video>\n");
                 return false;
-        if (!parse_time(argv[3], &config->end_time))
-                return false;
-
-        config->fps = strtoul(argv[4], NULL, 10);
+        }
 
         return true;
 }
@@ -926,6 +953,12 @@ main(int argc, char **argv)
                 .current_image_num = -1,
                 .redraw_queued = true,
                 .layout_dirty = true,
+
+                .config = {
+                        .fps = 10,
+                        .start_time = -1.0,
+                        .end_time = -1.0,
+                },
         };
 
         if (!parse_args(argc, argv, &data.config))

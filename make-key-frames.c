@@ -39,6 +39,11 @@ struct config {
         int fps;
 };
 
+struct frame_data {
+        bool has_box;
+        SDL_Rect box;
+};
+
 struct data {
         bool should_quit;
 
@@ -54,13 +59,14 @@ struct data {
         SDL_Surface *current_image;
         SDL_Texture *current_texture;
 
+        bool drawing_box;
+
+        struct frame_data *frame_data;
+
         int fb_width, fb_height;
         int tex_width, tex_height;
         SDL_Rect tex_draw_rect;
         bool layout_dirty;
-
-        bool has_box;
-        SDL_Rect box;
 
         bool redraw_queued;
 };
@@ -71,6 +77,10 @@ struct data {
 #define IMAGE_SCALE 2
 #define DISPLAY_WIDTH (VIDEO_WIDTH / IMAGE_SCALE)
 #define DISPLAY_HEIGHT (VIDEO_HEIGHT / IMAGE_SCALE)
+/* Number of previous boxes to show */
+#define N_PREVIOUS_BOXES 5
+#define MIN_ALPHA 10
+#define MAX_ALPHA 128
 
 static bool
 init_sdl(struct data *data)
@@ -265,10 +275,11 @@ map_coords(struct data *data,
 static void
 copy_box_to_clipboard(struct data *data)
 {
-        int x1 = data->box.x;
-        int y1 = data->box.y;
-        int x2 = data->box.x + data->box.w;
-        int y2 = data->box.y + data->box.h;
+        const SDL_Rect *box = &data->frame_data[data->current_image_num].box;
+        int x1 = box->x;
+        int y1 = box->y;
+        int x2 = box->x + box->w;
+        int y2 = box->y + box->h;
 
         map_coords(data, &x1, &y1);
         map_coords(data, &x2, &y2);
@@ -329,22 +340,27 @@ handle_mouse_button(struct data *data,
                 return;
 
         if (event->state == SDL_PRESSED) {
-                if (data->has_box || data->current_texture == NULL)
+                if (data->drawing_box || data->current_texture == NULL)
                         return;
 
-                data->has_box = true;
-                data->box.x = event->x;
-                data->box.y = event->y;
-                data->box.w = 0;
-                data->box.h = 0;
+                data->drawing_box = true;
+
+                struct frame_data *frame_data =
+                        data->frame_data + data->current_image_num;
+
+                frame_data->has_box = true;
+                frame_data->box.x = event->x;
+                frame_data->box.y = event->y;
+                frame_data->box.w = 0;
+                frame_data->box.h = 0;
         } else {
-                if (!data->has_box)
+                if (!data->drawing_box)
                         return;
 
                 if (data->current_texture)
                         copy_box_to_clipboard(data);
 
-                data->has_box = false;
+                data->drawing_box = false;
                 data->redraw_queued = true;
         }
 }
@@ -353,11 +369,13 @@ static void
 handle_mouse_motion(struct data *data,
                     const SDL_MouseMotionEvent *event)
 {
-        if (!data->has_box)
+        if (!data->drawing_box)
                 return;
 
-        data->box.w = event->x - data->box.x;
-        data->box.h = event->y - data->box.y;
+        SDL_Rect *box = &data->frame_data[data->current_image_num].box;
+
+        box->w = event->x - box->x;
+        box->h = event->y - box->y;
 
         data->redraw_queued = true;
 }
@@ -413,12 +431,37 @@ paint_texture(struct data *data)
 }
 
 static void
-paint_box(struct data *data)
+paint_boxes(struct data *data)
 {
-        SDL_SetRenderDrawColor(data->renderer, 0, 0, 128, 128);
-        SDL_SetRenderDrawBlendMode(data->renderer, SDL_BLENDMODE_BLEND);
-        SDL_RenderFillRects(data->renderer, &data->box, 1);
-        SDL_SetRenderDrawBlendMode(data->renderer, SDL_BLENDMODE_NONE);
+        for (int i = MAX(0, data->current_image_num - N_PREVIOUS_BOXES);
+             i <= data->current_image_num;
+             i++) {
+                const struct frame_data *frame_data = data->frame_data + i;
+
+                if (!frame_data->has_box)
+                        continue;
+
+                int alpha = ((N_PREVIOUS_BOXES + i - data->current_image_num) *
+                             (MAX_ALPHA - MIN_ALPHA) /
+                             N_PREVIOUS_BOXES +
+                             MIN_ALPHA);
+
+                if (i == data->current_image_num) {
+                        SDL_SetRenderDrawColor(data->renderer,
+                                               128, 0, 0,
+                                               alpha);
+                } else {
+                        SDL_SetRenderDrawColor(data->renderer,
+                                               0, 0, 128,
+                                               alpha);
+                }
+
+                SDL_SetRenderDrawBlendMode(data->renderer, SDL_BLENDMODE_BLEND);
+
+                SDL_RenderFillRects(data->renderer, &frame_data->box, 1);
+
+                SDL_SetRenderDrawBlendMode(data->renderer, SDL_BLENDMODE_NONE);
+        }
 }
 
 static void
@@ -432,8 +475,7 @@ paint(struct data *data)
         if (data->current_texture)
                 paint_texture(data);
 
-        if (data->has_box)
-                paint_box(data);
+        paint_boxes(data);
 
         SDL_RenderPresent(data->renderer);
 }
@@ -645,6 +687,14 @@ main(int argc, char **argv)
                 return EXIT_FAILURE;
         }
 
+        if (data.n_images <= 0) {
+                fprintf(stderr, "no images were found\n");
+                return EXIT_FAILURE;
+        }
+
+        data.frame_data = flt_calloc(data.n_images *
+                                     sizeof (struct frame_data));
+
         int ret = EXIT_SUCCESS;
 
         if (data.n_images <= 0) {
@@ -665,6 +715,8 @@ main(int argc, char **argv)
 out:
         free_image(&data);
         destroy_sdl(&data);
+
+        flt_free(data.frame_data);
 
         return ret;
 }

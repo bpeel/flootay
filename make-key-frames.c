@@ -316,6 +316,19 @@ copy_box_to_clipboard(struct data *data)
 }
 
 static void
+delete_box(struct data *data)
+{
+        struct frame_data *frame_data =
+                data->frame_data + data->current_image_num;
+
+        if (!frame_data->has_box)
+                return;
+
+        frame_data->has_box = false;
+        data->redraw_queued = true;
+}
+
+static void
 handle_key_event(struct data *data,
                  const SDL_KeyboardEvent *event)
 {
@@ -328,6 +341,10 @@ handle_key_event(struct data *data,
         case SDLK_PAGEDOWN:
                 if (data->current_image_num + 1 < data->n_images)
                         set_image(data, data->current_image_num + 1);
+                break;
+
+        case SDLK_d:
+                delete_box(data);
                 break;
         }
 }

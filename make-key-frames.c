@@ -37,6 +37,7 @@ struct config {
         const char *video_filename;
         double start_time, end_time;
         int fps;
+        int default_box_width, default_box_height;
 };
 
 struct frame_data {
@@ -81,8 +82,6 @@ struct data {
 #define N_PREVIOUS_BOXES 5
 #define MIN_ALPHA 10
 #define MAX_ALPHA 128
-#define DEFAULT_BOX_WIDTH 200
-#define DEFAULT_BOX_HEIGHT 66
 
 static bool
 init_sdl(struct data *data)
@@ -408,10 +407,12 @@ ensure_box(struct data *data)
         }
 
         /* Make up a box */
-        frame_data->box.x = VIDEO_WIDTH / 2 - DEFAULT_BOX_WIDTH / 2;
-        frame_data->box.y = VIDEO_HEIGHT / 2 - DEFAULT_BOX_HEIGHT / 2;
-        frame_data->box.w = DEFAULT_BOX_WIDTH;
-        frame_data->box.h = DEFAULT_BOX_HEIGHT;
+        frame_data->box.x = (VIDEO_WIDTH / 2 -
+                             data->config.default_box_width / 2);
+        frame_data->box.y = (VIDEO_HEIGHT / 2 -
+                             data->config.default_box_height / 2);
+        frame_data->box.w = data->config.default_box_width;
+        frame_data->box.h = data->config.default_box_height;
         frame_data->has_box = true;
 }
 
@@ -901,7 +902,7 @@ static bool
 parse_args(int argc, char **argv, struct config *config)
 {
         while (true) {
-                switch (getopt(argc, argv, "-s:e:r:")) {
+                switch (getopt(argc, argv, "-s:e:r:w:h:")) {
                 case 's':
                         if (!parse_time(optarg, &config->start_time))
                                 return false;
@@ -919,6 +920,14 @@ parse_args(int argc, char **argv, struct config *config)
                                         optarg);
                                 return false;
                         }
+                        break;
+
+                case 'w':
+                        config->default_box_width = strtoul(optarg, NULL, 10);
+                        break;
+
+                case 'h':
+                        config->default_box_height = strtoul(optarg, NULL, 10);
                         break;
 
                 case 1:
@@ -958,6 +967,8 @@ main(int argc, char **argv)
                         .fps = 10,
                         .start_time = -1.0,
                         .end_time = -1.0,
+                        .default_box_width = 200,
+                        .default_box_height = 66,
                 },
         };
 

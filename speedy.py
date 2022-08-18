@@ -657,7 +657,7 @@ def write_speed_script_for_video(f,
     print("}\n", file=f)
 
 def write_speed_script(f, script, video_speeds):
-    if len(script.gpx_offsets) is None:
+    if len(script.gpx_offsets) == 0:
         return
 
     offsets = get_video_gpx_offsets(script)

@@ -567,6 +567,23 @@ handle_mouse_motion(struct data *data,
 }
 
 static void
+handle_mouse_wheel(struct data *data,
+                    const SDL_MouseWheelEvent *event)
+{
+        int image = data->current_image_num - event->y;
+
+        if (image < 0)
+                image = 0;
+        else if (image >= data->n_images)
+                image = data->n_images - 1;
+
+        if (image == data->current_image_num)
+                return;
+
+        set_image(data, image);
+}
+
+static void
 handle_event(struct data *data,
              const SDL_Event *event)
 {
@@ -597,6 +614,10 @@ handle_event(struct data *data,
 
         case SDL_MOUSEMOTION:
                 handle_mouse_motion(data, &event->motion);
+                break;
+
+        case SDL_MOUSEWHEEL:
+                handle_mouse_wheel(data, &event->wheel);
                 break;
 
         case SDL_QUIT:

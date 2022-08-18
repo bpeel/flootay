@@ -266,10 +266,34 @@ map_coords(struct data *data,
 
         *x = ((*x - data->tex_draw_rect.x) *
               data->tex_width /
-              data->tex_draw_rect.w);
+              data->tex_draw_rect.w *
+              IMAGE_SCALE);
         *y = ((*y - data->tex_draw_rect.y) *
               data->tex_height /
-              data->tex_draw_rect.h);
+              data->tex_draw_rect.h *
+              IMAGE_SCALE);
+}
+
+static void
+unmap_coords(struct data *data,
+             int *x, int *y)
+{
+        ensure_layout(data);
+
+        *x = *x * data->tex_draw_rect.w / VIDEO_WIDTH + data->tex_draw_rect.x;
+        *y = *y * data->tex_draw_rect.h / VIDEO_HEIGHT + data->tex_draw_rect.y;
+}
+
+static void
+unmap_box(struct data *data, SDL_Rect *box)
+{
+        int x2 = box->x + box->w;
+        int y2 = box->y + box->h;
+
+        unmap_coords(data, &box->x, &box->y);
+        unmap_coords(data, &x2, &y2);
+        box->w = x2 - box->x;
+        box->h = y2 - box->y;
 }
 
 static void
@@ -280,9 +304,6 @@ copy_box_to_clipboard(struct data *data)
         int y1 = box->y;
         int x2 = box->x + box->w;
         int y2 = box->y + box->h;
-
-        map_coords(data, &x1, &y1);
-        map_coords(data, &x2, &y2);
 
         if (x1 > x2) {
                 int t = x1;
@@ -303,10 +324,7 @@ copy_box_to_clipboard(struct data *data)
                  data->config.start_time +
                  data->current_image_num /
                  (double) data->config.fps,
-                 x1 * IMAGE_SCALE,
-                 y1 * IMAGE_SCALE,
-                 x2 * IMAGE_SCALE,
-                 y2 * IMAGE_SCALE);
+                 x1, y1, x2, y2);
 
         buf[sizeof buf - 1] = '\0';
 
@@ -365,9 +383,13 @@ handle_mouse_button(struct data *data,
                 struct frame_data *frame_data =
                         data->frame_data + data->current_image_num;
 
+                int x = event->x, y = event->y;
+
+                map_coords(data, &x, &y);
+
                 frame_data->has_box = true;
-                frame_data->box.x = event->x;
-                frame_data->box.y = event->y;
+                frame_data->box.x = x;
+                frame_data->box.y = y;
                 frame_data->box.w = 0;
                 frame_data->box.h = 0;
         } else {
@@ -391,8 +413,12 @@ handle_mouse_motion(struct data *data,
 
         SDL_Rect *box = &data->frame_data[data->current_image_num].box;
 
-        box->w = event->x - box->x;
-        box->h = event->y - box->y;
+        int x = event->x, y = event->y;
+
+        map_coords(data, &x, &y);
+
+        box->w = x - box->x;
+        box->h = y - box->y;
 
         data->redraw_queued = true;
 }
@@ -475,7 +501,10 @@ paint_boxes(struct data *data)
 
                 SDL_SetRenderDrawBlendMode(data->renderer, SDL_BLENDMODE_BLEND);
 
-                SDL_RenderFillRects(data->renderer, &frame_data->box, 1);
+                SDL_Rect box = frame_data->box;
+                unmap_box(data, &box);
+
+                SDL_RenderFillRects(data->renderer, &box, 1);
 
                 SDL_SetRenderDrawBlendMode(data->renderer, SDL_BLENDMODE_NONE);
         }

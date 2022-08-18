@@ -188,6 +188,8 @@ This adds a rectangle for about 1 second starting from 1:58.46 in the input vide
 
 The times in the script file are the times in the source video. Note that in real flootay language these times need to be frame numbers, but the program that reads the video script will automatically convert these for you.
 
+You can use the [make key frames](#make-key-frames) program to help pick the key frame numbers.
+
 ### Draw an SVG
 
 You can render an SVG like this:
@@ -221,4 +223,37 @@ svg {
 
 That will make the happy face slide across the screen from 30,20 to 100,90. This can be a nice way to cover up faces in the video.
 
+## Make key frames
+
+The `make-key-frames` program can be used to help write the key frames for the flootay language. If you want to cover up a licence plate that appears in a section of a video, run the program like this:
+
+```
+make-key-frames -s <start-time> -e <end-time> <video-file>
+```
+
+This will use ffmpeg to generate a bunch of snapshots of the video and then open a hacky UI. You can scroll through the snapshots using the mouse wheel or the page up/down keys.
+
+When you want to add a key frame for a snapshot, just drag with the left mouse button to draw it. The box will for this snapshot will be shown in red. The program will also display the box for the last 5 snapshots in blue. If you make a mistake you can just redraw the box or press `d` to delete it.
+
+You can also click with the right mouse button to reposition the box so that it is centred where you clicked. If you do this before drawing a box, it will make a box that has the same size as a previous snapshot. This is useful if you want to avoid changing the box size and just want to animate the movement.
+
+You can also move the box around with the cursor keys to avoid changing its size. If you hold down shift or alt at the same time then the distance the box is moved will be different.
+
+When you are finished drawing the key frames, press `w`. This will copy the description of the key frames into the clipboard. You can then paste this into your script file.
+
+### Snapshot rate
+
+By default the program will generate 10 snapshots per second of video. If your box moves more smoothly or more jaggedly then you can change the number of snapshots per second with the `-r` option on the command line.
+
+### SVGs
+
+When creating the key frames to position an SVG, you only need the x and y position of the topleft of the box without the size. If you press `shift+w`, the program will copy a definition of the key frames to the clipboard that is suitable for defining an SVG.
+
+In order to help position the SVG, you can use the right mouse button to just click where you want the center of the SVG to be. However for this to work, you first need to tell the program the size of the SVG so that it can calculate the topleft position. You can do this on the command line with the `-w` and `-h` options:
+
+```
+make-key-frames -w <svg-width> -h <svg-height> …
+```
+
+That way when you right click it will draw a box with the size of the SVG.
 

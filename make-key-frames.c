@@ -81,6 +81,8 @@ struct data {
 #define N_PREVIOUS_BOXES 5
 #define MIN_ALPHA 10
 #define MAX_ALPHA 128
+#define DEFAULT_BOX_WIDTH 200
+#define DEFAULT_BOX_HEIGHT 66
 
 static bool
 init_sdl(struct data *data)
@@ -347,6 +349,60 @@ delete_box(struct data *data)
 }
 
 static void
+ensure_box(struct data *data)
+{
+        struct frame_data *frame_data =
+                data->frame_data + data->current_image_num;
+
+        if (frame_data->has_box)
+                return;
+
+        /* Try to copy the box from a previous frame */
+        for (int i = data->current_image_num - 1; i >= 0; i--) {
+                const struct frame_data *other_frame = data->frame_data + i;
+
+                if (!other_frame->has_box)
+                        continue;
+
+                frame_data->box = other_frame->box;
+                frame_data->has_box = true;
+
+                return;
+        }
+
+        /* Make up a box */
+        frame_data->box.x = VIDEO_WIDTH / 2 - DEFAULT_BOX_WIDTH / 2;
+        frame_data->box.y = VIDEO_HEIGHT / 2 - DEFAULT_BOX_HEIGHT / 2;
+        frame_data->box.w = DEFAULT_BOX_WIDTH;
+        frame_data->box.h = DEFAULT_BOX_HEIGHT;
+        frame_data->has_box = true;
+}
+
+static void
+move_box(struct data *data, int x, int y)
+{
+        ensure_box(data);
+
+        struct frame_data *frame_data =
+                data->frame_data + data->current_image_num;
+
+        SDL_Keymod mods = SDL_GetModState();
+        int offset;
+
+        if ((mods & KMOD_SHIFT))
+                offset = 100;
+        else if ((mods & KMOD_ALT))
+                offset = 1;
+        else
+                offset = 10;
+
+        frame_data->box.x += offset * x;
+        frame_data->box.y += offset * y;
+
+        data->redraw_queued = true;
+}
+
+static void
 handle_key_event(struct data *data,
                  const SDL_KeyboardEvent *event)
 {
@@ -363,6 +419,19 @@ handle_key_event(struct data *data,
 
         case SDLK_d:
                 delete_box(data);
+                break;
+
+        case SDLK_UP:
+                move_box(data, 0, -1);
+                break;
+        case SDLK_DOWN:
+                move_box(data, 0, 1);
+                break;
+        case SDLK_LEFT:
+                move_box(data, -1, 0);
+                break;
+        case SDLK_RIGHT:
+                move_box(data, 1, 0);
                 break;
         }
 }

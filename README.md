@@ -11,6 +11,13 @@ sudo dnf install meson ninja-build SDL2{,_image}-devel cairo-devel \
                  librsvg2-devel expat-devel
 ```
 
+Or on Ubuntu:
+
+```bash
+sudo apt install gcc ninja-build meson git libsdl2{-image,}-dev \
+                 libcairo2-dev librsvg2-dev libexpat1-dev
+```
+
 In order to run the tools you will also need to [install ffmpeg](https://computingforgeeks.com/how-to-install-ffmpeg-on-fedora/). On Fedora this will involve enabling the RPM fusion repository in order to get the various codecs.
 
 You can then build the tools like this:

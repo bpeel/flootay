@@ -85,9 +85,7 @@ static bool
 get_speedy_args(const char *source_dir,
                 const char *speedy_file,
                 struct flt_list *proc_inputs,
-                struct flt_buffer *buf,
-                int *n_inputs,
-                char **filter_arg_out)
+                struct flt_buffer *buf)
 {
         const char * const proc_args[] = {
                 (char *) speedy_file,
@@ -102,10 +100,7 @@ get_speedy_args(const char *source_dir,
                 return false;
 
         const char *end;
-        bool had_filter_arg = false;
-        bool had_filter_value = false;
         bool is_input = false;
-        *n_inputs = 0;
 
         bool ret = true;
 
@@ -118,30 +113,15 @@ get_speedy_args(const char *source_dir,
                                 break;
                         }
                         is_input = false;
-                } else if (had_filter_arg) {
-                        *filter_arg_out = arg;
-                        had_filter_value = true;
-                        break;
-                } else if (!strcmp(arg, "-filter_complex")) {
-                        flt_free(arg);
-                        had_filter_arg = true;
                 } else {
-                        if (!strcmp(arg, "-i")) {
+                        if (!strcmp(arg, "-i"))
                                 is_input = true;
-                                (*n_inputs)++;
-                        }
 
                         flt_buffer_append(buf, &arg, sizeof arg);
                 }
         }
 
         flt_free(output);
-
-        if (ret && (!had_filter_arg || !had_filter_value)) {
-                fprintf(stderr,
-                        "missing -filter_complex argument from speedy\n");
-                ret = false;
-        }
 
         return ret;
 }
@@ -169,48 +149,10 @@ add_args(struct flt_buffer *args,
         va_end(ap);
 }
 
-FLT_PRINTF_FORMAT(2, 3) static void
-add_arg_printf(struct flt_buffer *args,
-               const char *format,
-               ...)
-{
-        struct flt_buffer buf = FLT_BUFFER_STATIC_INIT;
-
-        va_list ap;
-        va_start(ap, format);
-
-        flt_buffer_append_vprintf(&buf, format, ap);
-
-        va_end(ap);
-
-        flt_buffer_append(args, &buf.data, sizeof buf.data);
-}
-
 static void
 add_ffmpeg_args(const char *source_dir,
-                struct flt_buffer *args,
-                int n_inputs,
-                const char *filter_arg,
-                struct flt_child_proc *sound_proc)
+                struct flt_buffer *args)
 {
-        int sound_input = n_inputs++;
-
-        add_args(args,
-                 "-ar", "48000",
-                 "-ac", "2",
-                 "-f", "s24le",
-                 "-c:a", "pcm_s24le",
-                 "-i",
-                 NULL);
-        add_arg_printf(args, "pipe:%i", sound_proc->read_fd);
-
-        add_args(args, "-filter_complex", filter_arg, NULL);
-
-        add_args(args, "-map", "[overoutv]", NULL);
-
-        add_arg(args, "-map");
-        add_arg_printf(args, "%i:a", sound_input);
-
         add_args(args,
                  "-c:v", "prores_ks",
                  "-profile:v", "3",
@@ -328,8 +270,6 @@ main(int argc, char **argv)
         const char *speedy_file = argv[1];
 
         struct flt_buffer args = FLT_BUFFER_STATIC_INIT;
-        char *filter_arg = NULL;
-        int n_inputs;
 
         char *source_dir = get_source_dir(argv[0]);
 
@@ -341,35 +281,15 @@ main(int argc, char **argv)
 
         flt_list_init(&proc_inputs);
 
-        struct flt_child_proc *sound_proc = add_child_proc(&proc_inputs);
-
         if (!get_speedy_args(source_dir,
                              speedy_file,
                              &proc_inputs,
-                             &args,
-                             &n_inputs,
-                             &filter_arg)) {
+                             &args)) {
                 ret = EXIT_FAILURE;
                 goto out;
         }
 
-        static const char * const sound_args[] = {
-                NULL,
-        };
-
-        if (!flt_child_proc_open(NULL, /* source_dir */
-                                 "./sound.sh",
-                                 sound_args,
-                                 sound_proc)) {
-                ret = EXIT_FAILURE;
-                goto out;
-        }
-
-        add_ffmpeg_args(source_dir,
-                        &args,
-                        n_inputs,
-                        filter_arg,
-                        sound_proc);
+        add_ffmpeg_args(source_dir, &args);
 
         if (!run_ffmpeg(&args, &proc_inputs))
                 ret = EXIT_FAILURE;
@@ -379,7 +299,6 @@ out:
                 ret = EXIT_FAILURE;
 
         free_args(&args);
-        flt_free(filter_arg);
 
         flt_free(source_dir);
 

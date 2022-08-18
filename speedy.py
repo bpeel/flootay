@@ -495,11 +495,20 @@ def get_ffmpeg_args(videos, video_speeds):
                        "-framerate", "30",
                        "-i", "|./scores.flt"])
 
+    sound_input = next_input
+    next_input += 1
+    input_args.extend(["-ar", "48000",
+                       "-ac", "2",
+                       "-f", "s24le",
+                       "-c:a", "pcm_s24le",
+                       "-i", "|./sound.sh"])
+
     filter = (get_ffmpeg_filter(videos, video_speeds) + ";" +
               "[outv][{}]overlay[overoutv]".format(flootay_input))
 
     return input_args + ["-filter_complex", filter,
-                         "-map", "[overoutv]"]
+                         "-map", "[overoutv]",
+                         "-map", "{}:a".format(sound_input)]
 
 def write_sound_script(f, total_video_time, sound_clips):
     dirname = os.path.dirname(sys.argv[0])

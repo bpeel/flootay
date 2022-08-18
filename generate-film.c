@@ -133,39 +133,6 @@ add_arg(struct flt_buffer *args, const char *arg)
         flt_buffer_append(args, &arg_dup, sizeof arg_dup);
 }
 
-FLT_NULL_TERMINATED static void
-add_args(struct flt_buffer *args,
-         ...)
-{
-        va_list ap;
-
-        va_start(ap, args);
-
-        const char *arg;
-
-        while ((arg = va_arg(ap, const char *)))
-                add_arg(args, arg);
-
-        va_end(ap);
-}
-
-static void
-add_ffmpeg_args(const char *source_dir,
-                struct flt_buffer *args)
-{
-        add_args(args,
-                 "-c:v", "prores_ks",
-                 "-profile:v", "3",
-                 "-vendor", "apl0",
-                 "-bits_per_mb", "8000",
-                 "-pix_fmt", "yuv422p10le",
-                 "film.mov",
-                 NULL);
-
-        char *terminator = NULL;
-        flt_buffer_append(args, &terminator, sizeof terminator);
-}
-
 static bool
 run_ffmpeg(struct flt_buffer *args,
            struct flt_list *proc_inputs)
@@ -289,7 +256,8 @@ main(int argc, char **argv)
                 goto out;
         }
 
-        add_ffmpeg_args(source_dir, &args);
+        char *terminator = NULL;
+        flt_buffer_append(&args, &terminator, sizeof terminator);
 
         if (!run_ffmpeg(&args, &proc_inputs))
                 ret = EXIT_FAILURE;

@@ -121,16 +121,12 @@ get_speedy_args(const char *source_dir,
                 }
         }
 
+        char *terminator = NULL;
+        flt_buffer_append(buf, &terminator, sizeof terminator);
+
         flt_free(output);
 
         return ret;
-}
-
-static void
-add_arg(struct flt_buffer *args, const char *arg)
-{
-        char *arg_dup = flt_strdup(arg);
-        flt_buffer_append(args, &arg_dup, sizeof arg_dup);
 }
 
 static bool
@@ -242,8 +238,6 @@ main(int argc, char **argv)
 
         int ret = EXIT_SUCCESS;
 
-        add_arg(&args, "ffmpeg");
-
         struct flt_list proc_inputs;
 
         flt_list_init(&proc_inputs);
@@ -255,9 +249,6 @@ main(int argc, char **argv)
                 ret = EXIT_FAILURE;
                 goto out;
         }
-
-        char *terminator = NULL;
-        flt_buffer_append(&args, &terminator, sizeof terminator);
 
         if (!run_ffmpeg(&args, &proc_inputs))
                 ret = EXIT_FAILURE;

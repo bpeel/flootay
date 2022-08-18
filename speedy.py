@@ -482,8 +482,9 @@ def get_ffmpeg_filter(videos, video_speeds):
 
     return "".join(parts)
 
-def get_ffmpeg_args(videos, video_speeds):
-    input_args = sum((get_ffmpeg_input_args(video) for video in videos), [])
+def get_ffmpeg_command(videos, video_speeds):
+    input_args = (["ffmpeg"] +
+                  sum((get_ffmpeg_input_args(video) for video in videos), []))
 
     next_input = len(videos)
 
@@ -750,4 +751,4 @@ with open("scores.flt", "wt", encoding="utf-8") as f:
 
 os.chmod("scores.flt", 0o775)
 
-print("\n".join(get_ffmpeg_args(script.videos, video_speeds)))
+print("\n".join(get_ffmpeg_command(script.videos, video_speeds)))

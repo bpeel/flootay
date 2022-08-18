@@ -478,12 +478,9 @@ handle_key_event(struct data *data,
 }
 
 static void
-handle_mouse_button(struct data *data,
-                    const SDL_MouseButtonEvent *event)
+handle_drag_button(struct data *data,
+                   const SDL_MouseButtonEvent *event)
 {
-        if (event->button != 1)
-                return;
-
         if (event->state == SDL_PRESSED) {
                 if (data->drawing_box || data->current_texture == NULL)
                         return;
@@ -511,6 +508,42 @@ handle_mouse_button(struct data *data,
 
                 data->drawing_box = false;
                 data->redraw_queued = true;
+        }
+}
+
+static void
+handle_center_button(struct data *data,
+                     const SDL_MouseButtonEvent *event)
+{
+        if (event->state != SDL_PRESSED || data->current_texture == NULL)
+                return;
+
+        ensure_box(data);
+
+        struct frame_data *frame = data->frame_data + data->current_image_num;
+
+        int x = event->x, y = event->y;
+        map_coords(data, &x, &y);
+
+        frame->box.x = x - frame->box.w / 2;
+        frame->box.y = y - frame->box.h / 2;
+
+        data->redraw_queued = true;
+
+        copy_box_to_clipboard(data);
+}
+
+static void
+handle_mouse_button(struct data *data,
+                    const SDL_MouseButtonEvent *event)
+{
+        switch (event->button) {
+        case 1:
+                handle_drag_button(data, event);
+                break;
+        case 3:
+                handle_center_button(data, event);
+                break;
         }
 }
 

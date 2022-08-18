@@ -494,7 +494,7 @@ def get_ffmpeg_command(videos, video_speeds):
                        "-pixel_format", "rgba",
                        "-video_size", "1920x1080",
                        "-framerate", "30",
-                       "-i", "|./scores.flt"])
+                       "-i", "|./overlay.flt"])
 
     sound_input = next_input
     next_input += 1
@@ -739,7 +739,7 @@ with open("sound.sh", "wt", encoding="utf-8") as f:
 
 os.chmod("sound.sh", 0o775)
 
-with open("scores.flt", "wt", encoding="utf-8") as f:
+with open("overlay.flt", "wt", encoding="utf-8") as f:
     print("#!{}".format(os.path.join(os.path.dirname(sys.argv[0]),
                                      "build",
                                      "flootay")),
@@ -749,6 +749,6 @@ with open("scores.flt", "wt", encoding="utf-8") as f:
     write_speed_script(f, script, video_speeds)
     write_videos_script(f, script.videos, video_speeds)
 
-os.chmod("scores.flt", 0o775)
+os.chmod("overlay.flt", 0o775)
 
 print("\n".join(get_ffmpeg_command(script.videos, video_speeds)))

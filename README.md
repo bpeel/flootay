@@ -173,7 +173,7 @@ The above example runs the builtin logo generation program. There is also a shor
 
 ## Flootay language
 
-The overlay in the video is generated from a separate text file description in the “flootay language”. This is automatically generated from the script file and saved to a file calles `scores.flt`. You can embed extra goodies in this file by writing them in the source script in a section that starts with `{{` and ends with `}}`.
+The overlay in the video is generated from a separate text file description in the “flootay language”. This is automatically generated from the script file and saved to a file calles `overlay.flt`. You can embed extra goodies in this file by writing them in the source script in a section that starts with `{{` and ends with `}}`.
 
 ### Draw a rectangle
 

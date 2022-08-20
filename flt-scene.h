@@ -29,6 +29,7 @@ enum flt_scene_object_type {
         FLT_SCENE_OBJECT_TYPE_SVG,
         FLT_SCENE_OBJECT_TYPE_SCORE,
         FLT_SCENE_OBJECT_TYPE_GPX,
+        FLT_SCENE_OBJECT_TYPE_CURVE,
 };
 
 struct flt_scene_object {
@@ -88,6 +89,22 @@ struct flt_scene_gpx_key_frame {
         struct flt_scene_key_frame base;
         double timestamp;
         int fps;
+};
+
+struct flt_scene_point {
+        double x, y;
+};
+
+struct flt_scene_curve {
+        struct flt_scene_object base;
+        double r, g, b;
+};
+
+struct flt_scene_curve_key_frame {
+        struct flt_scene_key_frame base;
+        double t;
+        struct flt_scene_point points[4];
+        double stroke_width;
 };
 
 struct flt_scene {

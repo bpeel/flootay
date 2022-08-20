@@ -19,6 +19,7 @@
 #include "flt-parser.h"
 
 #include <limits.h>
+#include <float.h>
 #include <string.h>
 
 #include "flt-lexer.h"
@@ -912,7 +913,7 @@ gpx_key_frame_props[] = {
                 offsetof(struct flt_scene_gpx_key_frame, timestamp),
                 FLT_PARSER_VALUE_TYPE_DOUBLE,
                 FLT_LEXER_KEYWORD_TIMESTAMP,
-                .min_value = 0, .max_value = INT_MAX,
+                .min_double_value = 0.0, .max_double_value = DBL_MAX,
         },
         {
                 offsetof(struct flt_scene_gpx_key_frame, fps),

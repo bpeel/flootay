@@ -64,7 +64,7 @@ struct flt_parser_property {
                         long min_value, max_value;
                 };
                 struct {
-                        long min_double_value, max_double_value;
+                        double min_double_value, max_double_value;
                 };
         };
 };

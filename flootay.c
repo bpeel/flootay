@@ -51,6 +51,12 @@ interpolate(float factor, int s, int e)
         return roundf(s + factor * (e - s));
 }
 
+static double
+interpolate_double(double factor, double s, double e)
+{
+        return s + factor * (e - s);
+}
+
 static int
 clamp(int value, int min, int max)
 {
@@ -396,6 +402,88 @@ add_gpx(struct render_data *data,
         return true;
 }
 
+static void
+clip_curve_axis(double t,
+                const double points[4],
+                double sub_points[4])
+{
+        double t2 = t * t;
+        double t3 = t2 * t;
+        double rt = 1.0 - t;
+        double rt2 = rt * rt;
+        double rt3 = rt2 * rt;
+
+        /* One control point */
+        sub_points[0] = points[0];
+        /* Two control points */
+        sub_points[1] = rt * points[0] + t * points[1];
+        /* Three control points */
+        sub_points[2] = (rt2 * points[0] +
+                         2.0 * rt * t * points[1] +
+                         t2 * points[2]);
+        /* Four control points */
+        sub_points[3] = (rt3 * points[0] +
+                         3.0 * rt2 * t * points[1] +
+                         3.0 * rt * t2 * points[2] +
+                         t3 * points[3]);
+}
+
+static void
+interpolate_and_add_curve(struct render_data *data,
+                          const struct flt_scene_curve *curve,
+                          float i,
+                          const struct flt_scene_curve_key_frame *s,
+                          const struct flt_scene_curve_key_frame *e)
+{
+        double t = interpolate_double(i, s->t, e->t);
+
+        if (t <= 0.0)
+                return;
+
+        double x_points[4], y_points[4];
+
+        for (int p = 0; p < FLT_N_ELEMENTS(x_points); p++) {
+                x_points[p] = interpolate_double(i,
+                                                 s->points[p].x,
+                                                 e->points[p].x);
+                y_points[p] = interpolate_double(i,
+                                                 s->points[p].y,
+                                                 e->points[p].y);
+        }
+
+        double sub_x_points[4], sub_y_points[4];
+
+        if (t >= 1.0) {
+                memcpy(sub_x_points, x_points, sizeof x_points);
+                memcpy(sub_y_points, y_points, sizeof y_points);
+        } else {
+                clip_curve_axis(t, x_points, sub_x_points);
+                clip_curve_axis(t, y_points, sub_y_points);
+        }
+
+        cairo_save(data->cr);
+
+        cairo_set_antialias(data->cr, CAIRO_ANTIALIAS_BEST);
+        cairo_set_source_rgb(data->cr,
+                             curve->r,
+                             curve->g,
+                             curve->b);
+        cairo_set_line_width(data->cr,
+                             interpolate_double(i,
+                                                s->stroke_width,
+                                                e->stroke_width));
+        cairo_set_line_cap(data->cr, CAIRO_LINE_CAP_ROUND);
+
+        cairo_move_to(data->cr, sub_x_points[0], sub_y_points[0]);
+        cairo_curve_to(data->cr,
+                       sub_x_points[1], sub_y_points[1],
+                       sub_x_points[2], sub_y_points[2],
+                       sub_x_points[3], sub_y_points[3]);
+        cairo_stroke(data->cr);
+
+        cairo_restore(data->cr);
+}
+
 static bool
 interpolate_and_add_object(struct render_data *data,
                            int frame_num,
@@ -462,6 +550,18 @@ found_frame:
                              frame_num,
                              (const struct flt_scene_gpx_key_frame *) s))
                     return false;
+                break;
+        case FLT_SCENE_OBJECT_TYPE_CURVE:
+                interpolate_and_add_curve(data,
+                                          (const struct flt_scene_curve *)
+                                          object,
+                                          i,
+                                          (const struct
+                                           flt_scene_curve_key_frame *)
+                                          s,
+                                          (const struct
+                                           flt_scene_curve_key_frame *)
+                                          end_frame);
                 break;
         }
 

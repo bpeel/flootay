@@ -25,18 +25,24 @@ import dateutil.parser
 import os
 
 class Video:
-    def __init__(self, filename, start_time, end_time, length):
+    def __init__(self, filename, start_time, end_time):
         self.filename = filename
         self.start_time = start_time
         self.end_time = end_time
-        self.length = length
         self.sounds = []
         self.script = []
         self.filter = []
 
         self.is_image = re.search(r'\.(?:jpe?g|png)$', filename) is not None
 
-        self.use_gpx = not filename.startswith("|") and not self.is_image
+        is_proc = filename.startswith("|")
+
+        self.use_gpx = not is_proc and not self.is_image
+
+        if is_proc or self.is_image:
+            self.length = end_time - start_time
+        else:
+            self.length = get_video_length(filename)
 
 Script = collections.namedtuple('Script', ['videos',
                                            'scores',
@@ -153,7 +159,7 @@ def parse_script(infile):
                               os.path.join(os.path.dirname(sys.argv[0]),
                                            "build",
                                            "generate-logo"))
-            video = Video(video_filename, 0, 3, 3)
+            video = Video(video_filename, 0, 3)
             videos.append(video)
             sound_filename = os.path.join(os.path.dirname(sys.argv[0]),
                                           "logo-sound.flac")
@@ -270,15 +276,9 @@ def parse_script(infile):
         if end_time:
             end_time = decode_time(end_time)
 
-        if filename.startswith('|'):
-            video_length = end_time - start_time
-        else:
-            video_length = get_video_length(filename)
-
         videos.append(Video(filename,
                             start_time,
-                            end_time,
-                            video_length))
+                            end_time))
 
     return Script(videos,
                   scores,

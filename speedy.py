@@ -25,22 +25,23 @@ import dateutil.parser
 import os
 
 class Video:
-    def __init__(self, filename, start_time, end_time):
-        self.filename = filename
+    def __init__(self, raw_video, start_time, end_time):
+        self.raw_video = raw_video
         self.start_time = start_time
         self.end_time = end_time
         self.sounds = []
         self.script = []
         self.filter = []
 
+class RawVideo:
+    def __init__(self, filename, length=None):
+        self.filename = filename
         self.is_image = re.search(r'\.(?:jpe?g|png)$', filename) is not None
+        self.is_proc = filename.startswith("|")
+        self.use_gpx = not self.is_proc and not self.is_image
 
-        is_proc = filename.startswith("|")
-
-        self.use_gpx = not is_proc and not self.is_image
-
-        if is_proc or self.is_image:
-            self.length = end_time - start_time
+        if self.is_proc or self.is_image:
+            self.length = self
         else:
             self.length = get_video_length(filename)
 
@@ -60,7 +61,7 @@ Svg = collections.namedtuple('Svg', ['video',
                                      'length'])
 Sound = collections.namedtuple('Sound', ['start_time', 'filename', 'length'])
 SpeedOverride = collections.namedtuple('SpeedOverride',
-                                       ['filename',
+                                       ['raw_video',
                                         'start_time',
                                         'length',
                                         'speed'])
@@ -131,6 +132,7 @@ def parse_script(infile):
 
     output_width = 1920
     output_height = 1080
+    raw_videos = {}
     videos = []
     scores = []
     svgs = []
@@ -141,6 +143,14 @@ def parse_script(infile):
     show_map = False
 
     in_script = False
+
+    def get_raw_video(filename, length):
+        try:
+            return raw_videos[filename]
+        except KeyError:
+            raw_video = RawVideo(filename, length)
+            raw_videos[filename] = raw_video
+            return raw_video
     
     for line_num, line in enumerate(infile):
         line = line.strip()
@@ -164,14 +174,15 @@ def parse_script(infile):
                               os.path.join(os.path.dirname(sys.argv[0]),
                                            "build",
                                            "generate-logo"))
-            video = Video(video_filename, 0, 3)
+            raw_video = get_raw_video(video_filename, 3)
+            video = Video(raw_video, 0, 3)
             videos.append(video)
             sound_filename = os.path.join(os.path.dirname(sys.argv[0]),
                                           "logo-sound.flac")
             video.sounds.append(Sound(0,
                                       sound_filename,
                                       get_video_length(sound_filename)))
-            speed_overrides.append(SpeedOverride(video_filename,
+            speed_overrides.append(SpeedOverride(raw_video,
                                                  0, # start_time
                                                  3, # end_time
                                                  1.0))
@@ -186,7 +197,7 @@ def parse_script(infile):
             continue
 
         if line == "no_gpx":
-            videos[-1].use_gpx = False
+            videos[-1].raw_video.use_gpx = False
             continue
 
         md = output_size_re.match(line)
@@ -209,7 +220,7 @@ def parse_script(infile):
         if md:
             start_time = decode_time(md.group('start_time'))
             end_time = decode_time(md.group('end_time'))
-            speed_overrides.append(SpeedOverride(videos[-1].filename,
+            speed_overrides.append(SpeedOverride(videos[-1].raw_video,
                                                  start_time,
                                                  end_time - start_time,
                                                  1.0))
@@ -220,7 +231,7 @@ def parse_script(infile):
             speed = 1.0 / float(md.group('speed'))
             start_time = decode_time(md.group('start_time'))
             end_time = decode_time(md.group('end_time'))
-            speed_overrides.append(SpeedOverride(videos[-1].filename,
+            speed_overrides.append(SpeedOverride(videos[-1].raw_video,
                                                  start_time,
                                                  end_time - start_time,
                                                  speed))
@@ -286,10 +297,13 @@ def parse_script(infile):
         end_time = md.group('end_time')
         if end_time:
             end_time = decode_time(end_time)
+            potential_raw_length = end_time - start_time
+        else:
+            potential_raw_length = None
 
-        videos.append(Video(filename,
-                            start_time,
-                            end_time))
+        raw_video = get_raw_video(filename, potential_raw_length)
+
+        videos.append(Video(raw_video, start_time, end_time))
 
     return Script(output_width,
                   output_height,
@@ -315,7 +329,7 @@ def get_videos_length(videos):
 
     for video in videos:
         if video.end_time is None:
-            length = video.length - video.start_time
+            length = video.raw_video.length - video.start_time
         else:
             length = video.end_time - video.start_time
 
@@ -323,26 +337,27 @@ def get_videos_length(videos):
 
     return total_length
 
-def get_input_time(videos, filename, t):
+def get_input_time(videos, raw_video, t):
     total_time = 0
 
     for video in videos:
         if video.end_time is None:
-            end_time = video.length
+            end_time = video.raw_video.length
         else:
             end_time = video.end_time
 
-        if (filename == video.filename and
+        if (raw_video == video.raw_video and
             t >= video.start_time and
             t < end_time):
             return total_time + t - video.start_time
 
         total_time += end_time - video.start_time
 
-    raise Exception("Couldn’t find input time in {} at {}".format(filename, t))
+    raise Exception("Couldn’t find input time in {} at {}".
+                    format(raw_video.filename, t))
 
-def get_output_time(videos, video_speeds, filename, time):
-    input_time = get_input_time(videos, filename, time)
+def get_output_time(videos, video_speeds, raw_video, time):
+    input_time = get_input_time(videos, raw_video, time)
     total_input_time = 0
     total_output_time = 0
 
@@ -355,13 +370,13 @@ def get_output_time(videos, video_speeds, filename, time):
         total_input_time += vs.length
         total_output_time += vs.length * vs.speed
 
-    raise Exception("Couldn’t find output time in {} at {}".format(filename,
-                                                                   time))
+    raise Exception("Couldn’t find output time in {} at {}".
+                    format(raw_video.filename, time))
 
 def get_video_speeds(videos, speed_overrides):
     total_input_length = get_videos_length(videos)
 
-    times = [[get_input_time(videos, st.filename, st.start_time),
+    times = [[get_input_time(videos, st.raw_video, st.start_time),
               st.length,
               st.speed]
              for st in speed_overrides]
@@ -406,7 +421,7 @@ def get_sound_clips(videos, video_speeds):
         for sound in video.sounds:
             sound_clip_pos = get_output_time(videos,
                                              video_speeds,
-                                             video.filename,
+                                             video.raw_video,
                                              sound.start_time)
 
             if sound_clip_pos < sound_pos:
@@ -432,7 +447,7 @@ def get_ffmpeg_input_args(script, video):
     if video.end_time is not None:
         args.extend(["-to", str(video.end_time)])
 
-    if video.filename.startswith("|"):
+    if video.raw_video.is_proc:
         args.extend(["-f",
                      "rawvideo",
                      "-pixel_format",
@@ -441,13 +456,13 @@ def get_ffmpeg_input_args(script, video):
                      "{}x{}".format(script.width, script.height),
                      "-framerate",
                      "30"])
-    elif video.is_image:
+    elif video.raw_video.is_image:
         args.extend(["-framerate", "30", "-loop", "1"])
 
         if video.end_time is None:
             raise "Missing end time on infinite image input"
 
-    args.extend(["-i", video.filename])
+    args.extend(["-i", video.raw_video.filename])
 
     return args
 
@@ -458,7 +473,7 @@ def get_ffmpeg_filter(script, video_speeds):
     parts = []
 
     for i, video in enumerate(script.videos):
-        if not video.filename.startswith("|"):
+        if not video.raw_video.is_proc:
             parts.append("[{}]".format(i))
 
             if len(video.filter) > 0:
@@ -470,7 +485,7 @@ def get_ffmpeg_filter(script, video_speeds):
 
     for i, video in enumerate(script.videos):
         parts.append("[")
-        if not video.filename.startswith("|"):
+        if not video.raw_video.is_proc:
             parts.append("sv")
         parts.append("{}]".format(i))
 
@@ -573,7 +588,7 @@ def write_score_script(f, scores, videos, video_speeds):
         value += score.diff
         time = get_output_time(videos,
                                video_speeds,
-                               score.video.filename,
+                               score.video.raw_video,
                                score.time)
         print("        key_frame {} {{ v {} }}".format(round(time * FPS),
                                                        value),
@@ -590,7 +605,7 @@ def write_svg_script(f, svgs, videos, video_speeds):
     for svg in svgs:
         start_time = get_output_time(videos,
                                      video_speeds,
-                                     svg.video.filename,
+                                     svg.video.raw_video,
                                      svg.start_time)
 
         print(("svg {{\n"
@@ -603,10 +618,10 @@ def write_svg_script(f, svgs, videos, video_speeds):
               file=f)
 
 def get_video_gpx_offsets(script):
-    raw_footage = dict((os.path.basename(video.filename),
-                        video.length)
+    raw_footage = dict((os.path.basename(video.raw_video.filename),
+                        video.raw_video.length)
                        for video in script.videos
-                       if video.use_gpx)
+                       if video.raw_video.use_gpx)
 
     last_offset = None
     offsets = {}
@@ -638,7 +653,7 @@ def write_speed_script_for_video(f,
                                  video_input_time,
                                  video_speeds):
     print(("# {}\n"
-           "speed {{").format(video.filename),
+           "speed {{").format(video.raw_video.filename),
           file=f)
 
     if script.show_elevation:
@@ -710,8 +725,8 @@ def write_speed_script(f, script, video_speeds):
     input_time = 0
 
     for video in script.videos:
-        if video.use_gpx:
-            bn = os.path.basename(video.filename)
+        if video.raw_video.use_gpx:
+            bn = os.path.basename(video.raw_video.filename)
             write_speed_script_for_video(f,
                                          script,
                                          video,
@@ -735,7 +750,7 @@ def write_videos_script(f, videos, video_speeds):
 
         def replace_video_time(md):
             t = decode_time(md.group('time'))
-            ot = get_output_time(videos, video_speeds, video.filename, t)
+            ot = get_output_time(videos, video_speeds, video.raw_video, t)
             return (md.group(0)[:(md.start('time') - md.start(0))] +
                     str(round(ot * FPS)))
 

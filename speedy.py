@@ -580,6 +580,7 @@ def get_ffmpeg_command(script, video_speeds):
                          "-vendor", "apl0",
                          "-bits_per_mb", "8000",
                          "-pix_fmt", "yuv422p10le",
+                         "-r", "30",
                          "film.mov"]
 
 def write_sound_script(f, total_video_time, sound_clips):

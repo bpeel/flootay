@@ -494,20 +494,29 @@ def get_ffmpeg_filter(script, video_speeds):
 
     parts = []
 
+    has_filter = [False] * len(script.videos)
+
     for i, video in enumerate(script.videos):
-        if not video.raw_video.is_proc:
-            parts.append("[{}]".format(i))
+        video_parts = []
 
-            if len(video.filter) > 0:
-                parts.append(",".join(video.filter) + ",")
+        if len(video.filter):
+            video_parts.extend(video.filter)
 
-            parts.append("scale={}:{}[sv{}];".format(script.width,
-                                                     script.height,
-                                                     i))
+        if (video.raw_video.width is not None and
+            (video.raw_video.width != script.width or
+             video.raw_video.height != script.height)):
+            video_parts.append("scale={}:{}".format(script.width,
+                                                    script.height))
+
+        if len(video_parts) <= 0:
+            continue
+
+        parts.append("[{}]{}[sv{}];".format(i, ",".join(video_parts), i))
+        has_filter[i] = True
 
     for i, video in enumerate(script.videos):
         parts.append("[")
-        if not video.raw_video.is_proc:
+        if has_filter[i]:
             parts.append("sv")
         parts.append("{}]".format(i))
 

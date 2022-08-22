@@ -23,6 +23,8 @@ import subprocess
 import shlex
 import dateutil.parser
 import os
+import json
+import io
 
 class Video:
     def __init__(self, raw_video, start_time, end_time):
@@ -40,10 +42,19 @@ class RawVideo:
         self.is_proc = filename.startswith("|")
         self.use_gpx = not self.is_proc and not self.is_image
 
+        self.width = None
+        self.height = None
+
         if self.is_proc or self.is_image:
             self.length = self
         else:
-            self.length = get_video_length(filename)
+            self.video_info = get_video_info(filename)
+            self.length = float(self.video_info['format']['duration'])
+            for stream in self.video_info['streams']:
+                if 'width' in stream:
+                    self.width = int(stream['width'])
+                    self.height = int(stream['height'])
+                    break
 
 Script = collections.namedtuple('Script', ['width',
                                            'height',
@@ -181,7 +192,7 @@ def parse_script(infile):
                                           "logo-sound.flac")
             video.sounds.append(Sound(0,
                                       sound_filename,
-                                      get_video_length(sound_filename)))
+                                      get_sound_length(sound_filename)))
             speed_overrides.append(SpeedOverride(raw_video,
                                                  0, # start_time
                                                  3, # end_time
@@ -316,7 +327,18 @@ def parse_script(infile):
                   show_map,
                   sound_args)
 
-def get_video_length(filename):
+def get_video_info(filename):
+    with subprocess.Popen(["ffprobe",
+                           "-i", filename,
+                           "-show_entries", "format=duration:stream",
+                           "-v", "quiet",
+                           "-of", "json"],
+                          stdout=subprocess.PIPE) as p:
+        info = json.load(p.stdout)
+
+    return info
+
+def get_sound_length(filename):
     s = subprocess.check_output(["ffprobe",
                                  "-i", filename,
                                  "-show_entries", "format=duration",
@@ -670,7 +692,7 @@ def write_speed_script_for_video(f,
     if video.end_time:
         video_length = video.end_time - video.start_time
     else:
-        video_length = video.length - video.start_time
+        video_length = video.raw_video.length - video.start_time
 
     def add_frame(input_time, output_time, speed):
         frame = round(output_time * FPS)
@@ -737,7 +759,7 @@ def write_speed_script(f, script, video_speeds):
         if video.end_time:
             input_time += video.end_time - video.start_time
         else:
-            input_time += video.length - video.start_time
+            input_time += video.raw_video.length - video.start_time
 
 def write_videos_script(f, videos, video_speeds):
     script_time_re = re.compile(r'\bkey_frame\s+(?P<time>' +

@@ -44,7 +44,9 @@ class Video:
         else:
             self.length = get_video_length(filename)
 
-Script = collections.namedtuple('Script', ['videos',
+Script = collections.namedtuple('Script', ['width',
+                                           'height',
+                                           'videos',
                                            'scores',
                                            'svgs',
                                            'gpx_offsets',
@@ -125,7 +127,10 @@ def parse_script(infile):
                           r')$')
     sound_args_re = re.compile(r'sound_args\s+(?P<args>.*)')
     filter_re = re.compile(r'filter\s+(?P<filter>.*)')
+    output_size_re = re.compile(r'output_size\s+([0-9]+)x([0-9]+)$')
 
+    output_width = 1920
+    output_height = 1080
     videos = []
     scores = []
     svgs = []
@@ -182,6 +187,12 @@ def parse_script(infile):
 
         if line == "no_gpx":
             videos[-1].use_gpx = False
+            continue
+
+        md = output_size_re.match(line)
+        if md:
+            output_width = int(md.group(1))
+            output_height = int(md.group(2))
             continue
 
         md = filter_re.match(line)
@@ -280,7 +291,9 @@ def parse_script(infile):
                             start_time,
                             end_time))
 
-    return Script(videos,
+    return Script(output_width,
+                  output_height,
+                  videos,
                   scores,
                   svgs,
                   gpx_offsets,
@@ -410,7 +423,7 @@ def get_sound_clips(videos, video_speeds):
 
     return sound_clips
 
-def get_ffmpeg_input_args(video):
+def get_ffmpeg_input_args(script, video):
     args = []
 
     if video.start_time > 0:
@@ -425,7 +438,7 @@ def get_ffmpeg_input_args(video):
                      "-pixel_format",
                      "rgb32",
                      "-video_size",
-                     "1920x1080",
+                     "{}x{}".format(script.width, script.height),
                      "-framerate",
                      "30"])
     elif video.is_image:
@@ -438,28 +451,30 @@ def get_ffmpeg_input_args(video):
 
     return args
 
-def get_ffmpeg_filter(videos, video_speeds):
+def get_ffmpeg_filter(script, video_speeds):
     input_time = 0
     output_time = 0
 
     parts = []
 
-    for i, video in enumerate(videos):
+    for i, video in enumerate(script.videos):
         if not video.filename.startswith("|"):
             parts.append("[{}]".format(i))
 
             if len(video.filter) > 0:
                 parts.append(",".join(video.filter) + ",")
 
-            parts.append("scale=1920:1080[sv{}];".format(i))
+            parts.append("scale={}:{}[sv{}];".format(script.width,
+                                                     script.height,
+                                                     i))
 
-    for i, video in enumerate(videos):
+    for i, video in enumerate(script.videos):
         parts.append("[")
         if not video.filename.startswith("|"):
             parts.append("sv")
         parts.append("{}]".format(i))
 
-    parts.extend(["concat=n={}:v=1:a=0[ccv];".format(len(videos)),
+    parts.extend(["concat=n={}:v=1:a=0[ccv];".format(len(script.videos)),
                   "[ccv]setpts='"])
 
     for i, vs in enumerate(video_speeds):
@@ -482,17 +497,20 @@ def get_ffmpeg_filter(videos, video_speeds):
 
     return "".join(parts)
 
-def get_ffmpeg_command(videos, video_speeds):
+def get_ffmpeg_command(script, video_speeds):
     input_args = (["ffmpeg"] +
-                  sum((get_ffmpeg_input_args(video) for video in videos), []))
+                  sum((get_ffmpeg_input_args(script, video)
+                       for video in script.videos),
+                      []))
 
-    next_input = len(videos)
+    next_input = len(script.videos)
 
     flootay_input = next_input
     next_input += 1
     input_args.extend(["-f", "rawvideo",
                        "-pixel_format", "rgba",
-                       "-video_size", "1920x1080",
+                       "-video_size", "{}x{}".format(script.width,
+                                                     script.height),
                        "-framerate", "30",
                        "-i", "|./overlay.flt"])
 
@@ -505,7 +523,7 @@ def get_ffmpeg_command(videos, video_speeds):
                        "-c:a", "pcm_s24le",
                        "-i", "|./sound.sh"])
 
-    filter = (get_ffmpeg_filter(videos, video_speeds) + ";" +
+    filter = (get_ffmpeg_filter(script, video_speeds) + ";" +
               "[outv][{}]overlay[overoutv]".format(flootay_input))
 
     return input_args + ["-filter_complex", filter,
@@ -741,9 +759,13 @@ with open("sound.sh", "wt", encoding="utf-8") as f:
 os.chmod("sound.sh", 0o775)
 
 with open("overlay.flt", "wt", encoding="utf-8") as f:
-    print("#!{}".format(os.path.join(os.path.dirname(sys.argv[0]),
-                                     "build",
-                                     "flootay")),
+    print(("#!{}\n"
+           "\n"
+           "video_width {}\n"
+           "video_height {}").format(os.path.join(os.path.dirname(sys.argv[0]),
+                                                  "build",
+                                                  "flootay"),
+                                     script.width, script.height),
           file=f)
     write_score_script(f, script.scores, script.videos, video_speeds)
     write_svg_script(f, script.svgs, script.videos, video_speeds)
@@ -752,4 +774,4 @@ with open("overlay.flt", "wt", encoding="utf-8") as f:
 
 os.chmod("overlay.flt", 0o775)
 
-print("\n".join(get_ffmpeg_command(script.videos, video_speeds)))
+print("\n".join(get_ffmpeg_command(script, video_speeds)))

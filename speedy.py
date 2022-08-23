@@ -666,16 +666,18 @@ def get_video_gpx_offsets(script):
 
     last_offset = None
     offsets = {}
+    found_count = 0
 
     for filename in sorted(raw_footage.keys()):
         if filename in script.gpx_offsets:
             last_offset = script.gpx_offsets[filename]
+            found_count += 1
 
         if last_offset is not None:
             offsets[filename] = last_offset
             last_offset += raw_footage[filename]
 
-    if len(offsets) != len(script.gpx_offsets):
+    if found_count != len(script.gpx_offsets):
         raise Exception("At least one gpx_offset couldn’t be found in "
                         "raw footage")
 

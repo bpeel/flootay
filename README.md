@@ -50,7 +50,13 @@ The video will be written to `film.mov`. It will have a resolution of 1920x1080.
 
 ## Speed
 
-By default flootay will speed up all of the videos by three times. You can slow down portions of the video to normal speed with a command like this after the video that you want to slow down.
+By default flootay will speed up all of the videos by three times. You can change the default speed by putting a line like this anywhere in the script:
+
+```
+default_speed 2.5
+```
+
+You can slow down portions of the video to normal speed with a command like this after the video that you want to slow down.
 
 ```
 part1.mp4

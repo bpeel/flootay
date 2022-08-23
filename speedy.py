@@ -65,7 +65,8 @@ Script = collections.namedtuple('Script', ['width',
                                            'speed_overrides',
                                            'show_elevation',
                                            'show_map',
-                                           'sound_args'])
+                                           'sound_args',
+                                           'default_speed'])
 Svg = collections.namedtuple('Svg', ['video',
                                      'filename',
                                      'start_time',
@@ -83,8 +84,6 @@ SoundClip = collections.namedtuple('SoundClip', ['filename', 'length'])
 ScoreDiff = collections.namedtuple('ScoreDiff', ['video', 'time', 'diff'])
 
 TIME_RE = re.compile(r'(?:([0-9]+):)?([0-9]+)(\.[0-9]+)?')
-
-SPEED_UP = 1.0 / 3.0
 
 FPS = 30
 
@@ -140,6 +139,8 @@ def parse_script(infile):
     sound_args_re = re.compile(r'sound_args\s+(?P<args>.*)')
     filter_re = re.compile(r'filter\s+(?P<filter>.*)')
     output_size_re = re.compile(r'output_size\s+([0-9]+)x([0-9]+)$')
+    default_speed_re = re.compile(r'default_speed\s+'
+                                  r'(?P<speed>[0-9]+(?:\.[0-9]+)?)x?$')
 
     output_width = 1920
     output_height = 1080
@@ -152,6 +153,7 @@ def parse_script(infile):
     gpx_offsets = {}
     show_elevation = False
     show_map = False
+    default_speed = 1.0 / 3.0
 
     in_script = False
 
@@ -248,6 +250,11 @@ def parse_script(infile):
                                                  speed))
             continue
 
+        md = default_speed_re.match(line)
+        if md:
+            default_speed = 1.0 / float(md.group('speed'))
+            continue
+
         md = gpx_offset_re.match(line)
         if md:
             timestamp = dateutil.parser.parse(md.group('utc_time'))
@@ -325,7 +332,8 @@ def parse_script(infile):
                   speed_overrides,
                   show_elevation,
                   show_map,
-                  sound_args)
+                  sound_args,
+                  default_speed)
 
 def get_video_info(filename):
     with subprocess.Popen(["ffprobe",
@@ -424,14 +432,15 @@ def get_video_speeds(videos, speed_overrides):
                 last_time = t[0] + t[1]
         else:
             if t[0] > last_time:
-                video_speeds.append(VideoSpeed(t[0] - last_time, SPEED_UP))
+                video_speeds.append(VideoSpeed(t[0] - last_time,
+                                               script.default_speed))
 
             video_speeds.append(VideoSpeed(t[1], t[2]))
             last_time = t[0] + t[1]
 
     if last_time < total_input_length:
         video_speeds.append(VideoSpeed(total_input_length - last_time,
-                                       SPEED_UP))
+                                       script.default_speed))
 
     return video_speeds
 

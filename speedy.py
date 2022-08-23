@@ -295,7 +295,7 @@ def parse_script(infile):
 
             start_time = decode_time(md.group('time'))
             filename = md.group('filename')
-            length = get_video_length(filename)
+            length = get_sound_length(filename)
 
             sound = Sound(start_time, filename, length)
             videos[-1].sounds.append(sound)

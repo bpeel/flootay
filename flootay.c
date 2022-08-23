@@ -568,7 +568,7 @@ found_frame:
         return true;
 }
 
-static void
+static bool
 write_surface(cairo_surface_t *surface)
 {
         int width = cairo_image_surface_get_width(surface);
@@ -601,8 +601,17 @@ write_surface(cairo_surface_t *surface)
                         *(out_pix++) = a;
                 }
 
-                fwrite(data, 1, width * 4, stdout);
+                size_t wrote = fwrite(data, 1, width * 4, stdout);
+
+                if (wrote != width * 4) {
+                        fprintf(stderr,
+                                "error writing frame: %s\n",
+                                strerror(errno));
+                        return false;
+                }
         }
+
+        return true;
 }
 
 struct stdio_source {
@@ -746,7 +755,10 @@ main(int argc, char **argv)
 
                 cairo_surface_flush(surface);
 
-                write_surface(surface);
+                if (!write_surface(surface)) {
+                        ret = EXIT_FAILURE;
+                        goto render_out;
+                }
         }
 
 render_out:

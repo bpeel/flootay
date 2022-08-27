@@ -50,10 +50,9 @@ add_child_proc(struct flt_list *list)
 }
 
 static bool
-add_input_arg(const char *source_dir,
-              struct flt_list *proc_inputs,
+add_input_arg(struct flt_list *proc_inputs,
               struct flt_buffer *buf,
-              char *arg)
+              const char *arg)
 {
         bool ret = true;
 
@@ -67,48 +66,34 @@ add_input_arg(const char *source_dir,
                                           proc_args,
                                           cp);
 
-                flt_free(arg);
-
                 struct flt_buffer str_buf = FLT_BUFFER_STATIC_INIT;
 
                 flt_buffer_append_printf(&str_buf, "pipe:%i", cp->read_fd);
 
-                arg = (char *) str_buf.data;
+                flt_buffer_append(buf, &str_buf.data, sizeof str_buf.data);
+        } else {
+                char *arg_copy = flt_strdup(arg);
+                flt_buffer_append(buf, &arg_copy, sizeof arg_copy);
         }
-
-        flt_buffer_append(buf, &arg, sizeof arg);
 
         return ret;
 }
 
 static bool
-get_speedy_args(const char *source_dir,
-                const char *speedy_file,
+get_speedy_args(int argc,
+                char * const *argv,
                 struct flt_list *proc_inputs,
                 struct flt_buffer *buf)
 {
-        const char * const proc_args[] = {
-                (char *) speedy_file,
-                NULL,
-        };
-
-        char *output = flt_child_proc_get_output(source_dir,
-                                                 "speedy.py",
-                                                 proc_args);
-
-        if (output == NULL)
-                return false;
-
-        const char *end;
         bool is_input = false;
 
         bool ret = true;
 
-        for (const char *p = output; (end = strchr(p, '\n')); p = end + 1) {
-                char *arg = flt_strndup(p, end - p);
+        for (int i = 0; i < argc; i++) {
+                const char *arg = argv[i];
 
                 if (is_input) {
-                        if (!add_input_arg(source_dir, proc_inputs, buf, arg)) {
+                        if (!add_input_arg(proc_inputs, buf, arg)) {
                                 ret = false;
                                 break;
                         }
@@ -117,14 +102,13 @@ get_speedy_args(const char *source_dir,
                         if (!strcmp(arg, "-i"))
                                 is_input = true;
 
-                        flt_buffer_append(buf, &arg, sizeof arg);
+                        char *arg_copy = flt_strdup(arg);
+                        flt_buffer_append(buf, &arg_copy, sizeof arg_copy);
                 }
         }
 
         char *terminator = NULL;
         flt_buffer_append(buf, &terminator, sizeof terminator);
-
-        flt_free(output);
 
         return ret;
 }
@@ -186,25 +170,6 @@ free_args(struct flt_buffer *buf)
         flt_buffer_destroy(buf);
 }
 
-static char *
-get_source_dir(const char *exe)
-{
-        const char *end = strrchr(exe, '/');
-
-        if (end == NULL)
-                return flt_strdup(".");
-
-        static const char build_end[] = "/build";
-
-        if (end - exe >= sizeof build_end &&
-            !memcmp(build_end,
-                    end - (sizeof build_end) + 1,
-                    (sizeof build_end) - 1))
-                end -= (sizeof build_end) - 1;
-
-        return flt_strndup(exe, end - exe);
-}
-
 static bool
 close_proc_inputs(struct flt_list *list)
 {
@@ -224,17 +189,13 @@ close_proc_inputs(struct flt_list *list)
 int
 main(int argc, char **argv)
 {
-        if (argc != 2) {
+        if (argc < 2) {
                 fprintf(stderr,
-                        "usage: generate-film <speedy-file>\n");
+                        "usage: run-ffmpeg <exe> [args]…\n");
                 return EXIT_FAILURE;
         }
 
-        const char *speedy_file = argv[1];
-
         struct flt_buffer args = FLT_BUFFER_STATIC_INIT;
-
-        char *source_dir = get_source_dir(argv[0]);
 
         int ret = EXIT_SUCCESS;
 
@@ -242,8 +203,7 @@ main(int argc, char **argv)
 
         flt_list_init(&proc_inputs);
 
-        if (!get_speedy_args(source_dir,
-                             speedy_file,
+        if (!get_speedy_args(argc - 1, argv + 1,
                              &proc_inputs,
                              &args)) {
                 ret = EXIT_FAILURE;
@@ -258,8 +218,6 @@ out:
                 ret = EXIT_FAILURE;
 
         free_args(&args);
-
-        flt_free(source_dir);
 
         return ret;
 }

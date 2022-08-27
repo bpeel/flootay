@@ -43,8 +43,8 @@ executable('make-key-frames',
             'flt-util.c'],
            dependencies: [sdl_dep, sdl_image_dep])
 
-executable('generate-film',
-           ['generate-film.c',
+executable('run-ffmpeg',
+           ['run-ffmpeg.c',
             'flt-list.c',
             'flt-util.c',
             'flt-child-proc.c',

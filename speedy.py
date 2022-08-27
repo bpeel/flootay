@@ -832,4 +832,8 @@ with open("overlay.flt", "wt", encoding="utf-8") as f:
 
 os.chmod("overlay.flt", 0o775)
 
-print("\n".join(get_ffmpeg_command(script, video_speeds)))
+print(os.path.join(os.path.dirname(sys.argv[0]),
+                   "build",
+                   "run-ffmpeg"),
+      " ".join(shlex.quote(arg)
+               for arg in get_ffmpeg_command(script, video_speeds)))

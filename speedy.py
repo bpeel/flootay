@@ -84,6 +84,10 @@ SoundClip = collections.namedtuple('SoundClip', ['filename', 'length'])
 ScoreDiff = collections.namedtuple('ScoreDiff', ['video', 'time', 'diff'])
 
 TIME_RE = re.compile(r'(?:([0-9]+):)?([0-9]+)(\.[0-9]+)?')
+GOPRO_FILENAME_RE = re.compile(r'(?P<camera_type>G[HX])'
+                               r'(?P<chapter>[0-9]{2})'
+                               r'(?P<file_number>[0-9]{4})\.mp4\Z',
+                               flags=re.I)
 
 FPS = 30
 
@@ -658,17 +662,32 @@ def write_svg_script(f, svgs, videos, video_speeds):
                               round((start_time + svg.length) * FPS)),
               file=f)
 
+def filename_sort_key(filename):
+    # GoPro using an annoying filename system where the chapter
+    # appears before the file number so the order is all wrong when
+    # sorted. This changes the order to make it sortable
+    md = GOPRO_FILENAME_RE.match(filename)
+
+    if md is None:
+        return filename
+
+    return (md.group('camera_type').upper() +
+            md.group('file_number') +
+            md.group('chapter') +
+            '.mp4')
+
 def get_video_gpx_offsets(script):
     raw_footage = dict((os.path.basename(video.raw_video.filename),
                         video.raw_video.length)
                        for video in script.videos
                        if video.raw_video.use_gpx)
+    sorted_filenames = list(sorted(raw_footage.keys(), key=filename_sort_key))
 
     last_offset = None
     offsets = {}
     found_count = 0
 
-    for filename in sorted(raw_footage.keys()):
+    for filename in sorted_filenames:
         if filename in script.gpx_offsets:
             last_offset = script.gpx_offsets[filename]
             found_count += 1
@@ -681,7 +700,7 @@ def get_video_gpx_offsets(script):
         raise Exception("At least one gpx_offset couldn’t be found in "
                         "raw footage")
 
-    for filename in reversed(sorted(raw_footage.keys())):
+    for filename in reversed(sorted_filenames):
         last_offset -= raw_footage[filename]
 
         if filename not in offsets:

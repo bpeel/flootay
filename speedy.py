@@ -588,13 +588,8 @@ def get_ffmpeg_command(script, video_speeds):
     return input_args + ["-filter_complex", filter,
                          "-map", "[overoutv]",
                          "-map", "{}:a".format(sound_input),
-                         "-c:v", "prores_ks",
-                         "-profile:v", "3",
-                         "-vendor", "apl0",
-                         "-bits_per_mb", "8000",
-                         "-pix_fmt", "yuv422p10le",
                          "-r", "30",
-                         "film.mov"]
+                         "film.mp4"]
 
 def write_sound_script(f, total_video_time, sound_clips):
     dirname = os.path.dirname(sys.argv[0])

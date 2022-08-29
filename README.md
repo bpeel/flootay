@@ -46,7 +46,7 @@ If you save this into a file called `my-video.script` you could then generate th
 ../flootay/speedy.py my-video.script | bash
 ```
 
-The video will be written to `film.mov`. It will have a resolution of 1920x1080. Note that it is assumed that all of the input videos have an aspect ratio of 16:9. The videos will be scaled to 1920x1080. The output video will be compressed with the ProRES codec on a high quality setting. This will make the file very large but it is supposed to be a good format to upload to YouTube so that it won’t get too garbled when YouTube reencodes it.
+The video will be written to `film.mp4`. It will have a resolution of 1920x1080. Note that it is assumed that all of the input videos have an aspect ratio of 16:9. The videos will be scaled to 1920x1080.
 
 ## Speed
 

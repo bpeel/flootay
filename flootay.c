@@ -35,7 +35,7 @@
 #define SCORE_LABEL "SCORE "
 #define SCORE_NAME "LYON"
 #define ELEVATION_LABEL "ELEVATION"
-#define SCORE_SLIDE_FRAMES 15
+#define SCORE_SLIDE_TIME 15
 #define MAP_POINT_SIZE 24.0
 
 struct render_data {
@@ -46,7 +46,7 @@ struct render_data {
 };
 
 static int
-interpolate(float factor, int s, int e)
+interpolate(double factor, int s, int e)
 {
         return roundf(s + factor * (e - s));
 }
@@ -79,7 +79,7 @@ fill_rectangle(cairo_t *cr,
 
 static void
 interpolate_and_add_rectangle(struct render_data *data,
-                              float i,
+                              double i,
                               const struct flt_scene_rectangle_key_frame *s,
                               const struct flt_scene_rectangle_key_frame *e)
 {
@@ -102,7 +102,7 @@ interpolate_and_add_rectangle(struct render_data *data,
 static void
 interpolate_and_add_svg(struct render_data *data,
                         const struct flt_scene_svg *svg,
-                        float i,
+                        double i,
                         const struct flt_scene_svg_key_frame *s,
                         const struct flt_scene_svg_key_frame *e)
 {
@@ -138,7 +138,7 @@ render_score_text(struct render_data *data,
 static void
 interpolate_and_add_score(struct render_data *data,
                           const struct flt_scene_score *score,
-                          int frame_num,
+                          double timestamp,
                           const struct flt_scene_score_key_frame *s,
                           const struct flt_scene_score_key_frame *e)
 {
@@ -157,7 +157,7 @@ interpolate_and_add_score(struct render_data *data,
         struct flt_buffer buf = FLT_BUFFER_STATIC_INIT;
 
         if (s->value != e->value &&
-            frame_num >= e->base.num - SCORE_SLIDE_FRAMES) {
+            timestamp >= e->base.timestamp - SCORE_SLIDE_TIME) {
                 double score_x, score_y;
                 cairo_get_current_point(data->cr, &score_x, &score_y);
 
@@ -169,8 +169,9 @@ interpolate_and_add_score(struct render_data *data,
                                 extents.ascent + extents.descent);
                 cairo_clip(data->cr);
 
-                double offset = ((e->base.num - frame_num) * extents.height /
-                                 SCORE_SLIDE_FRAMES);
+                double offset = ((e->base.timestamp - timestamp) *
+                                 extents.height /
+                                 SCORE_SLIDE_TIME);
                 int top_value, bottom_value;
 
                 if (e->value > s->value) {
@@ -374,7 +375,7 @@ add_map(struct render_data *data,
 static bool
 interpolate_and_add_gpx(struct render_data *data,
                         const struct flt_scene_gpx *gpx,
-                        float i,
+                        double i,
                         const struct flt_scene_gpx_key_frame *s,
                         const struct flt_scene_gpx_key_frame *e)
 {
@@ -428,7 +429,7 @@ clip_curve_axis(double t,
 static void
 interpolate_and_add_curve(struct render_data *data,
                           const struct flt_scene_curve *curve,
-                          float i,
+                          double i,
                           const struct flt_scene_curve_key_frame *s,
                           const struct flt_scene_curve_key_frame *e)
 {
@@ -483,13 +484,13 @@ interpolate_and_add_curve(struct render_data *data,
 
 static bool
 interpolate_and_add_object(struct render_data *data,
-                           int frame_num,
+                           double timestamp,
                            const struct flt_scene_object *object)
 {
         const struct flt_scene_key_frame *end_frame;
 
         flt_list_for_each(end_frame, &object->key_frames, link) {
-                if (end_frame->num > frame_num)
+                if (end_frame->timestamp > timestamp)
                         goto found_frame;
         }
 
@@ -505,7 +506,8 @@ found_frame:
                 flt_container_of(end_frame->link.prev,
                                  struct flt_scene_key_frame,
                                  link);
-        float i = (frame_num - s->num) / (float) (end_frame->num - s->num);
+        double i = ((timestamp - s->timestamp) /
+                    (end_frame->timestamp - s->timestamp));
 
         switch (object->type) {
         case FLT_SCENE_OBJECT_TYPE_RECTANGLE:
@@ -533,7 +535,7 @@ found_frame:
                 interpolate_and_add_score(data,
                                           (const struct flt_scene_score *)
                                           object,
-                                          frame_num,
+                                          timestamp,
                                           (const struct
                                            flt_scene_score_key_frame *)
                                           s,
@@ -730,7 +732,7 @@ main(int argc, char **argv)
                                            scene->video_height);
         cairo_t *cr = cairo_create(surface);
 
-        int n_frames = flt_scene_get_n_frames(scene);
+        int n_frames = ceil(flt_scene_get_max_timestamp(scene)) + 1;
 
         struct render_data data = {
                 .scene = scene,

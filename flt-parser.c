@@ -377,10 +377,10 @@ parse_base_key_frame_default(struct flt_parser *parser,
 
         check_item_keyword(parser, FLT_LEXER_KEYWORD_KEY_FRAME, error);
 
-        require_token(parser,
-                      FLT_LEXER_TOKEN_TYPE_NUMBER,
-                      "Frame number expected",
-                      error);
+        double timestamp;
+
+        if (!parse_double_token(parser, &timestamp, error))
+                return FLT_PARSER_RETURN_ERROR;
 
         struct flt_scene_object *object =
                 flt_container_of(parser->scene->objects.prev,
@@ -390,7 +390,7 @@ parse_base_key_frame_default(struct flt_parser *parser,
         struct flt_scene_key_frame *key_frame =
                 flt_alloc(struct_size);
 
-        int last_frame_num = -1;
+        double last_timestamp = -DBL_MIN;
 
         if (flt_list_empty(&object->key_frames)) {
                 if (default_value)
@@ -405,19 +405,19 @@ parse_base_key_frame_default(struct flt_parser *parser,
 
                 memcpy(key_frame, last_key_frame, struct_size);
 
-                last_frame_num = last_key_frame->num;
+                last_timestamp = last_key_frame->timestamp;
         }
 
         flt_list_insert(object->key_frames.prev, &key_frame->link);
 
-        if (token->number_value <= last_frame_num) {
+        if (timestamp <= last_timestamp) {
                 set_error(parser,
                           error,
                           "frame numbers out of order");
                 return FLT_PARSER_RETURN_ERROR;
         }
 
-        key_frame->num = token->number_value;
+        key_frame->timestamp = timestamp;
 
         require_token(parser,
                       FLT_LEXER_TOKEN_TYPE_OPEN_BRACKET,

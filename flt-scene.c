@@ -87,10 +87,10 @@ flt_scene_new(void)
         return scene;
 }
 
-int
-flt_scene_get_n_frames(const struct flt_scene *scene)
+double
+flt_scene_get_max_timestamp(const struct flt_scene *scene)
 {
-        int max_frame = 0;
+        double max_timestamp = 0.0;
 
         const struct flt_scene_object *rect;
 
@@ -100,11 +100,11 @@ flt_scene_get_n_frames(const struct flt_scene *scene)
                                          struct flt_scene_key_frame,
                                          link);
 
-                if (last_frame->num > max_frame)
-                        max_frame = last_frame->num;
+                if (last_frame->timestamp > max_timestamp)
+                        max_timestamp = last_frame->timestamp;
         }
 
-        return max_frame + 1;
+        return max_timestamp;
 }
 
 void

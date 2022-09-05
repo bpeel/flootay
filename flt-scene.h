@@ -42,7 +42,7 @@ struct flt_scene_object {
 
 struct flt_scene_key_frame {
         struct flt_list link;
-        int num;
+        double timestamp;
 };
 
 struct flt_scene_rectangle {
@@ -118,8 +118,8 @@ struct flt_scene {
 struct flt_scene *
 flt_scene_new(void);
 
-int
-flt_scene_get_n_frames(const struct flt_scene *scene);
+double
+flt_scene_get_max_timestamp(const struct flt_scene *scene);
 
 void
 flt_scene_free(struct flt_scene *scene);

@@ -23,6 +23,7 @@
 #include <stdbool.h>
 
 #include "flt-scene.h"
+#include "flt-error.h"
 
 struct flt_renderer;
 
@@ -32,7 +33,8 @@ flt_renderer_new(struct flt_scene *scene);
 bool
 flt_renderer_render(struct flt_renderer *renderer,
                     cairo_t *cr,
-                    double timestamp);
+                    double timestamp,
+                    struct flt_error **error);
 
 void
 flt_renderer_free(struct flt_renderer *renderer);

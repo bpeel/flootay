@@ -309,7 +309,8 @@ add_elevation(struct flt_renderer *renderer,
 static bool
 add_map(struct flt_renderer *renderer,
         cairo_t *cr,
-        double lat, double lon)
+        double lat, double lon,
+        struct flt_error **error)
 {
         if (renderer->map_renderer == NULL) {
                 renderer->map_renderer =
@@ -338,8 +339,6 @@ add_map(struct flt_renderer *renderer,
                 renderer->map_point_pattern = p;
         }
 
-        struct flt_error *error = NULL;
-
         bool ret = true;
 
         const float map_size_tile_units = 216.0f;
@@ -360,11 +359,8 @@ add_map(struct flt_renderer *renderer,
                                      0.0, 0.0, /* draw_center_x/y */
                                      round(map_size_tile_units),
                                      round(map_size_tile_units),
-                                     &error)) {
-                fprintf(stderr, "%s\n", error->message);
-                flt_error_free(error);
+                                     error))
                 ret = false;
-        }
 
         cairo_set_source(cr, renderer->map_point_pattern);
         cairo_rectangle(cr,
@@ -384,7 +380,8 @@ interpolate_and_add_gpx(struct flt_renderer *renderer,
                         const struct flt_scene_gpx *gpx,
                         double i,
                         const struct flt_scene_gpx_key_frame *s,
-                        const struct flt_scene_gpx_key_frame *e)
+                        const struct flt_scene_gpx_key_frame *e,
+                        struct flt_error **error)
 {
         double timestamp = interpolate_double(i, s->timestamp, e->timestamp);
 
@@ -401,7 +398,8 @@ interpolate_and_add_gpx(struct flt_renderer *renderer,
         if (gpx->show_elevation)
                 add_elevation(renderer, cr, gpx_data.elevation);
 
-        if (gpx->show_map && !add_map(renderer, cr, gpx_data.lat, gpx_data.lon))
+        if (gpx->show_map &&
+            !add_map(renderer, cr, gpx_data.lat, gpx_data.lon, error))
                 return false;
 
         return true;
@@ -494,7 +492,8 @@ static bool
 interpolate_and_add_object(struct flt_renderer *renderer,
                            cairo_t *cr,
                            double timestamp,
-                           const struct flt_scene_object *object)
+                           const struct flt_scene_object *object,
+                           struct flt_error **error)
 {
         const struct flt_scene_key_frame *end_frame;
 
@@ -565,7 +564,8 @@ found_frame:
                                               flt_scene_gpx_key_frame *) s,
                                              (const struct
                                               flt_scene_gpx_key_frame *)
-                                             end_frame))
+                                             end_frame,
+                                             error))
                         return false;
                 break;
         case FLT_SCENE_OBJECT_TYPE_CURVE:
@@ -599,7 +599,8 @@ flt_renderer_new(struct flt_scene *scene)
 bool
 flt_renderer_render(struct flt_renderer *renderer,
                     cairo_t *cr,
-                    double timestamp)
+                    double timestamp,
+                    struct flt_error **error)
 {
         cairo_save(cr);
         cairo_set_source_rgba(cr, 0.0, 0.0, 0.0, 0.0);
@@ -613,7 +614,8 @@ flt_renderer_render(struct flt_renderer *renderer,
                 if (!interpolate_and_add_object(renderer,
                                                 cr,
                                                 timestamp,
-                                                object))
+                                                object,
+                                                error))
                         return false;
         }
 

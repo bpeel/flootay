@@ -195,9 +195,14 @@ main(int argc, char **argv)
         struct flt_renderer *renderer = flt_renderer_new(scene);
 
         for (int frame_num = 0; frame_num < n_frames; frame_num++) {
+                struct flt_error *error = NULL;
+
                 if (!flt_renderer_render(renderer,
                                          cr,
-                                         frame_num / (double) FPS)) {
+                                         frame_num / (double) FPS,
+                                         &error)) {
+                        fprintf(stderr, "%s\n", error->message);
+                        flt_error_free(error);
                         ret = EXIT_FAILURE;
                         goto render_out;
                 }

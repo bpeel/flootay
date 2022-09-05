@@ -172,6 +172,39 @@ set_multiple_property_values_error(struct flt_parser *parser,
                   prop_name);
 }
 
+static bool
+parse_double_token(struct flt_parser *parser,
+                   double *value_out,
+                   struct flt_error **error)
+{
+        const struct flt_lexer_token *token =
+                flt_lexer_get_token(parser->lexer, error);
+
+        if (token == NULL)
+                return false;
+
+        double value;
+
+        switch (token->type) {
+        case FLT_LEXER_TOKEN_TYPE_NUMBER:
+                value = token->number_value;
+                break;
+        case FLT_LEXER_TOKEN_TYPE_FLOAT:
+                value = (token->number_value +
+                         token->fraction / (double) FLT_LEXER_FRACTION_RANGE);
+                break;
+        default:
+                set_error(parser,
+                          error,
+                          "Expected floating-point number");
+                return false;
+        }
+
+        *value_out = value;
+
+        return true;
+}
+
 static enum flt_parser_return
 parse_string_property(struct flt_parser *parser,
                       const struct flt_parser_property *prop,
@@ -237,27 +270,10 @@ parse_double_property(struct flt_parser *parser,
 
         check_item_keyword(parser, prop->prop_keyword, error);
 
-        token = flt_lexer_get_token(parser->lexer, error);
-
-        if (token == NULL)
-                return FLT_PARSER_RETURN_ERROR;
-
         double value;
 
-        switch (token->type) {
-        case FLT_LEXER_TOKEN_TYPE_NUMBER:
-                value = token->number_value;
-                break;
-        case FLT_LEXER_TOKEN_TYPE_FLOAT:
-                value = (token->number_value +
-                         token->fraction / (double) FLT_LEXER_FRACTION_RANGE);
-                break;
-        default:
-                set_error(parser,
-                          error,
-                          "Expected floating-point number");
+        if (!parse_double_token(parser, &value, error))
                 return FLT_PARSER_RETURN_ERROR;
-        }
 
         if (value < prop->min_double_value || value > prop->max_double_value) {
                 set_error(parser,

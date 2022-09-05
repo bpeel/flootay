@@ -23,6 +23,7 @@
 #include <string.h>
 #include <errno.h>
 #include <stdlib.h>
+#include <limits.h>
 
 #include "flt-buffer.h"
 #include "flt-utf8.h"
@@ -393,13 +394,37 @@ parse_number(struct flt_lexer *lexer,
 
         token->number_value = strtol(str, &tail, 10);
 
-        if (errno || (*tail && *tail != '.')) {
+        if (errno) {
                 set_error(lexer,
                           error,
                           FLT_LEXER_ERROR_INVALID_NUMBER,
                           "Invalid number “%s”",
                           str);
                 return false;
+        }
+
+        while (*tail == ':') {
+                const char *sub_part_start = tail + 1;
+                unsigned long sub_part = strtoul(sub_part_start, &tail, 10);
+
+                if (errno ||
+                    tail == sub_part_start ||
+                    labs(token->number_value) > LONG_MAX / 60 ||
+                    LONG_MAX - labs(token->number_value) * 60 < sub_part) {
+                        set_error(lexer,
+                                  error,
+                                  FLT_LEXER_ERROR_INVALID_NUMBER,
+                                  "Invalid number “%s”",
+                                  str);
+                        return false;
+                }
+
+                token->number_value *= 60;
+
+                if (token->number_value >= 0)
+                        token->number_value += sub_part;
+                else
+                        token->number_value -= (signed long) sub_part;
         }
 
         if (*tail == '.') {
@@ -426,8 +451,15 @@ parse_number(struct flt_lexer *lexer,
 
                 token->type = FLT_LEXER_TOKEN_TYPE_FLOAT;
                 token->fraction = fraction;
-        } else {
+        } else if (*tail == '\0') {
                 token->type = FLT_LEXER_TOKEN_TYPE_NUMBER;
+        } else {
+                set_error(lexer,
+                          error,
+                          FLT_LEXER_ERROR_INVALID_NUMBER,
+                          "Invalid number “%s”",
+                          str);
+                return false;
         }
 
         return true;
@@ -512,6 +544,7 @@ flt_lexer_get_token(struct flt_lexer *lexer,
                         if ((ch >= '0' && ch <= '9') ||
                             (ch >= 'a' && ch <= 'z') ||
                             (ch >= 'A' && ch <= 'Z') ||
+                            ch == ':' ||
                             ch == '.' ||
                             ch >= 0x80 ||
                             (buf->length == 0 && ch == '-')) {

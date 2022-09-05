@@ -67,3 +67,14 @@ executable('test-map-renderer',
             'flt-error.c',
             'flt-map-renderer.c'],
             dependencies: [cairo_dep, m_dep])
+
+test_lexer_src = [
+        'flt-util.c',
+        'flt-error.c',
+        'flt-buffer.c',
+        'test-lexer.c',
+        'flt-utf8.c',
+        'flt-lexer.c',
+]
+test_lexer = executable('test-lexer', test_lexer_src)
+test('lexer', test_lexer)

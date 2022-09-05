@@ -51,6 +51,7 @@ destroy_object(struct flt_scene_object *object)
         switch (object->type) {
         case FLT_SCENE_OBJECT_TYPE_RECTANGLE:
         case FLT_SCENE_OBJECT_TYPE_SCORE:
+        case FLT_SCENE_OBJECT_TYPE_CURVE:
                 break;
         case FLT_SCENE_OBJECT_TYPE_GPX:
                 destroy_gpx((struct flt_scene_gpx *) object);

@@ -236,15 +236,28 @@ parse_double_property(struct flt_parser *parser,
         const struct flt_lexer_token *token;
 
         check_item_keyword(parser, prop->prop_keyword, error);
-        require_token(parser,
-                      FLT_LEXER_TOKEN_TYPE_FLOAT,
-                      "Expected floating-point number",
-                      error);
 
-        double *field = (double *) (((uint8_t *) object) + prop->offset);
+        token = flt_lexer_get_token(parser->lexer, error);
 
-        double value = (token->number_value +
-                        token->fraction / (double) FLT_LEXER_FRACTION_RANGE);
+        if (token == NULL)
+                return FLT_PARSER_RETURN_ERROR;
+
+        double value;
+
+        switch (token->type) {
+        case FLT_LEXER_TOKEN_TYPE_NUMBER:
+                value = token->number_value;
+                break;
+        case FLT_LEXER_TOKEN_TYPE_FLOAT:
+                value = (token->number_value +
+                         token->fraction / (double) FLT_LEXER_FRACTION_RANGE);
+                break;
+        default:
+                set_error(parser,
+                          error,
+                          "Expected floating-point number");
+                return FLT_PARSER_RETURN_ERROR;
+        }
 
         if (value < prop->min_double_value || value > prop->max_double_value) {
                 set_error(parser,
@@ -252,6 +265,8 @@ parse_double_property(struct flt_parser *parser,
                           "Number is out of range");
                 return FLT_PARSER_RETURN_ERROR;
         }
+
+        double *field = (double *) (((uint8_t *) object) + prop->offset);
 
         *field = value;
 

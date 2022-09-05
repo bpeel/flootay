@@ -86,7 +86,7 @@ start_element_cb(void *user_data,
                  const XML_Char **atts)
 {
         char **ids = user_data;
-        const char *id, *label;
+        const char *id = NULL, *label = NULL;
 
         if (strcmp(name, "g"))
                 return;

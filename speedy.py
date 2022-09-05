@@ -737,10 +737,9 @@ def write_speed_script_for_video(f,
         if len(key_frames) > 0 and frame == key_frames[-1][0]:
             key_frames.pop()
 
-        fps = round(FPS * speed)
         utc_time = gpx_offset + input_time - video_input_time + video.start_time
 
-        key_frames.append((frame, fps, utc_time))
+        key_frames.append((frame, utc_time))
 
     last_vs = None
 
@@ -765,10 +764,9 @@ def write_speed_script_for_video(f,
               last_vs.speed,
               last_vs.speed)
 
-    for frame, fps, utc_time in key_frames:
-        print("        key_frame {} {{ fps {} timestamp {} }}".format(
+    for frame, utc_time in key_frames:
+        print("        key_frame {} {{ timestamp {} }}".format(
             frame,
-            fps,
             utc_time),
               file=f)
 

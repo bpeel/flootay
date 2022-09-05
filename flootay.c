@@ -214,7 +214,6 @@ interpolate_and_add_score(struct render_data *data,
 
 static void
 add_speed(struct render_data *data,
-          int frame_num,
           double speed_ms)
 {
         int speed_kmh = round(speed_ms * 3600 / 1000);
@@ -252,7 +251,6 @@ add_speed(struct render_data *data,
 
 static void
 add_elevation(struct render_data *data,
-              int frame_num,
               double elevation)
 {
         float gap = data->scene->video_height / 15.0f;
@@ -374,14 +372,13 @@ add_map(struct render_data *data,
 }
 
 static bool
-add_gpx(struct render_data *data,
-        const struct flt_scene_gpx *gpx,
-        int frame_num,
-        const struct flt_scene_gpx_key_frame *s)
+interpolate_and_add_gpx(struct render_data *data,
+                        const struct flt_scene_gpx *gpx,
+                        float i,
+                        const struct flt_scene_gpx_key_frame *s,
+                        const struct flt_scene_gpx_key_frame *e)
 {
-        double timestamp = ((frame_num - s->base.num) /
-                            (double) s->fps +
-                            s->timestamp);
+        double timestamp = interpolate_double(i, s->timestamp, e->timestamp);
 
         struct flt_gpx_data gpx_data;
 
@@ -392,9 +389,9 @@ add_gpx(struct render_data *data,
                 return true;
 
         if (gpx->show_speed)
-                add_speed(data, frame_num, gpx_data.speed);
+                add_speed(data, gpx_data.speed);
         if (gpx->show_elevation)
-                add_elevation(data, frame_num, gpx_data.elevation);
+                add_elevation(data, gpx_data.elevation);
 
         if (gpx->show_map && !add_map(data, gpx_data.lat, gpx_data.lon))
                 return false;
@@ -545,11 +542,16 @@ found_frame:
                                           end_frame);
                 break;
         case FLT_SCENE_OBJECT_TYPE_GPX:
-                if (!add_gpx(data,
-                             (const struct flt_scene_gpx *) object,
-                             frame_num,
-                             (const struct flt_scene_gpx_key_frame *) s))
-                    return false;
+                if (!interpolate_and_add_gpx(data,
+                                             (const struct flt_scene_gpx *)
+                                             object,
+                                             i,
+                                             (const struct
+                                              flt_scene_gpx_key_frame *) s,
+                                             (const struct
+                                              flt_scene_gpx_key_frame *)
+                                             end_frame))
+                        return false;
                 break;
         case FLT_SCENE_OBJECT_TYPE_CURVE:
                 interpolate_and_add_curve(data,

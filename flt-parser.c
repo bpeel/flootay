@@ -915,18 +915,6 @@ gpx_key_frame_props[] = {
                 FLT_LEXER_KEYWORD_TIMESTAMP,
                 .min_double_value = 0.0, .max_double_value = DBL_MAX,
         },
-        {
-                offsetof(struct flt_scene_gpx_key_frame, fps),
-                FLT_PARSER_VALUE_TYPE_INT,
-                FLT_LEXER_KEYWORD_FPS,
-                .min_value = 1, .max_value = 1000,
-        },
-};
-
-static const struct flt_scene_gpx_key_frame
-default_gpx_key_frame = {
-        .fps = 30,
-        .timestamp = 0,
 };
 
 static enum flt_parser_return
@@ -939,11 +927,10 @@ parse_gpx_key_frame(struct flt_parser *parser,
                 sizeof (struct flt_scene_gpx_key_frame);
 
         enum flt_parser_return base_ret =
-                parse_base_key_frame_default(parser,
-                                             struct_size,
-                                             &default_gpx_key_frame,
-                                             &base_key_frame,
-                                             error);
+                parse_base_key_frame(parser,
+                                     struct_size,
+                                     &base_key_frame,
+                                     error);
 
         if (base_ret != FLT_PARSER_RETURN_OK)
                 return base_ret;

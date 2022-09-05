@@ -88,7 +88,6 @@ struct flt_scene_gpx {
 struct flt_scene_gpx_key_frame {
         struct flt_scene_key_frame base;
         double timestamp;
-        int fps;
 };
 
 struct flt_scene_point {

@@ -35,8 +35,9 @@
 #define SCORE_LABEL "SCORE "
 #define SCORE_NAME "LYON"
 #define ELEVATION_LABEL "ELEVATION"
-#define SCORE_SLIDE_TIME 15
+#define SCORE_SLIDE_TIME 0.5
 #define MAP_POINT_SIZE 24.0
+#define FPS 30
 
 struct render_data {
         struct flt_scene *scene;
@@ -732,7 +733,7 @@ main(int argc, char **argv)
                                            scene->video_height);
         cairo_t *cr = cairo_create(surface);
 
-        int n_frames = ceil(flt_scene_get_max_timestamp(scene)) + 1;
+        int n_frames = ceil(flt_scene_get_max_timestamp(scene) * FPS) + 1;
 
         struct render_data data = {
                 .scene = scene,
@@ -750,7 +751,8 @@ main(int argc, char **argv)
 
                 flt_list_for_each(object, &scene->objects, link) {
                         if (!interpolate_and_add_object(&data,
-                                                        frame_num,
+                                                        frame_num /
+                                                        (double) FPS,
                                                         object)) {
                                 ret = EXIT_FAILURE;
                                 goto render_out;

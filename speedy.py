@@ -630,14 +630,12 @@ def write_score_script(f, scores, videos, video_speeds):
                                video_speeds,
                                score.video.raw_video,
                                score.time)
-        print("        key_frame {} {{ v {} }}".format(round(time * FPS),
-                                                       value),
+        print("        key_frame {} {{ v {} }}".format(time, value),
               file=f)
 
     end_time = sum(vs.length * vs.speed for vs in video_speeds)
 
-    print("        key_frame {} {{ v {} }}\n".format(round(end_time * FPS),
-                                                     value) +
+    print("        key_frame {} {{ v {} }}\n".format(end_time, value) +
           "}\n",
           file=f)
 
@@ -653,8 +651,8 @@ def write_svg_script(f, svgs, videos, video_speeds):
                "        key_frame {} {{ }}\n"
                "        key_frame {} {{ }}\n"
                "}}\n").format(svg.filename,
-                              round(start_time * FPS),
-                              round((start_time + svg.length) * FPS)),
+                              start_time,
+                              start_time + svg.length),
               file=f)
 
 def filename_sort_key(filename):
@@ -730,16 +728,14 @@ def write_speed_script_for_video(f,
         video_length = video.raw_video.length - video.start_time
 
     def add_frame(input_time, output_time, speed):
-        frame = round(output_time * FPS)
-
-        # If the time rounds to the same frame as the previous one
-        # then replace it instead
-        if len(key_frames) > 0 and frame == key_frames[-1][0]:
+        # If the time is the same as the previous one then replace it
+        # instead
+        if len(key_frames) > 0 and output_time == key_frames[-1][0]:
             key_frames.pop()
 
         utc_time = gpx_offset + input_time - video_input_time + video.start_time
 
-        key_frames.append((frame, utc_time))
+        key_frames.append((output_time, utc_time))
 
     last_vs = None
 
@@ -764,9 +760,9 @@ def write_speed_script_for_video(f,
               last_vs.speed,
               last_vs.speed)
 
-    for frame, utc_time in key_frames:
+    for timestamp, utc_time in key_frames:
         print("        key_frame {} {{ timestamp {} }}".format(
-            frame,
+            timestamp,
             utc_time),
               file=f)
 
@@ -806,8 +802,7 @@ def write_videos_script(f, videos, video_speeds):
         def replace_video_time(md):
             t = decode_time(md.group('time'))
             ot = get_output_time(videos, video_speeds, video.raw_video, t)
-            return (md.group(0)[:(md.start('time') - md.start(0))] +
-                    str(round(ot * FPS)))
+            return md.group(0)[:(md.start('time') - md.start(0))] + str(ot)
 
         print(script_time_re.sub(replace_video_time, "\n".join(video.script)),
               file=f)

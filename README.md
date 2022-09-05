@@ -199,7 +199,7 @@ rectangle {
 
 This adds a rectangle for about 1 second starting from 1:58.46 in the input video. The x1/y1/x2/y2 specify the dimensions of the rectangle. The values will be interpolated for the frames in-between. The rectangle will disappear at the time mentioned in the last key frame.
 
-The times in the script file are the times in the source video. Note that in real flootay language these times need to be frame numbers, but the program that reads the video script will automatically convert these for you.
+The times in the script file are the times in the source video. Note that in real flootay language these times need to be relative to the output video, but the program that reads the video script will automatically convert these for you.
 
 You can use the [make key frames](#make-key-frames) program to help pick the key frame numbers.
 

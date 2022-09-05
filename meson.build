@@ -1,5 +1,7 @@
 project('flootay', 'c')
 
+pkg = import('pkgconfig')
+
 cc = meson.get_compiler('c')
 
 foreach a : ['-Wall', '-Wuninitialized', '-Wempty-body', '-Wformat',
@@ -17,21 +19,34 @@ cairo_dep = dependency('cairo')
 rsvg_dep = dependency('librsvg-2.0')
 expat_dep = dependency('expat')
 
+flootay_deps = [m_dep, cairo_dep, rsvg_dep, expat_dep]
+
+flootay_lib = library('flootay',
+                      ['flootay-lib.c',
+                       'flt-buffer.c',
+                       'flt-error.c',
+                       'flt-file-error.c',
+                       'flt-gpx.c',
+                       'flt-lexer.c',
+                       'flt-list.c',
+                       'flt-map-renderer.c',
+                       'flt-parser.c',
+                       'flt-renderer.c',
+                       'flt-scene.c',
+                       'flt-utf8.c',
+                       'flt-util.c',
+                       'flootay-lib.c'],
+                      dependencies: flootay_deps,
+                      install: true)
+
+pkg.generate(flootay_lib)
+
+install_headers('flootay.h')
+
 executable('flootay',
-           ['flootay.c',
-            'flt-buffer.c',
-            'flt-error.c',
-            'flt-file-error.c',
-            'flt-gpx.c',
-            'flt-lexer.c',
-            'flt-list.c',
-            'flt-map-renderer.c',
-            'flt-parser.c',
-            'flt-renderer.c',
-            'flt-scene.c',
-            'flt-utf8.c',
-            'flt-util.c'],
-           dependencies: [m_dep, cairo_dep, rsvg_dep, expat_dep])
+           ['flootay.c'],
+           link_with: [flootay_lib],
+           dependencies: flootay_deps)
 
 executable('generate-logo',
            ['generate-logo.c',

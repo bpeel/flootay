@@ -552,7 +552,7 @@ def get_ffmpeg_filter(script, video_speeds):
         output_time += vs.length * vs.speed
 
     parts.append(")" * (len(video_speeds) - 1))
-    parts.append("',trim=duration={}[outv]".format(output_time))
+    parts.append("',fps=fps={},trim=duration={}[outv]".format(FPS, output_time))
 
     return "".join(parts)
 

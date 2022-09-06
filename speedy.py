@@ -589,6 +589,12 @@ def get_ffmpeg_command(script, video_speeds):
                          "-map", "[overoutv]",
                          "-map", "{}:a".format(sound_input),
                          "-r", "30",
+                         "-c:v", "libx264",
+                         "-profile:v", "high",
+                         "-bf", "2",
+                         "-g", "30",
+                         "-crf", "18",
+                         "-pix_fmt", "yuv420p",
                          "film.mp4"]
 
 def write_sound_script(f, total_video_time, sound_clips):

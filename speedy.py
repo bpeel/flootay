@@ -839,8 +839,8 @@ with open("overlay.flt", "wt", encoding="utf-8") as f:
                                      script.width, script.height),
           file=f)
     write_score_script(f, script.scores, script.videos, video_speeds)
-    write_svg_script(f, script.svgs, script.videos, video_speeds)
     write_speed_script(f, script, video_speeds)
+    write_svg_script(f, script.svgs, script.videos, video_speeds)
     write_videos_script(f, script.videos, video_speeds)
 
 os.chmod("overlay.flt", 0o775)

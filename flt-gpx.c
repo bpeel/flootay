@@ -63,7 +63,7 @@ struct flt_gpx_parser {
         /* The unix time that we found in this trkpt, or -1 if not
          * found yet.
          */
-        int64_t time;
+        double time;
         /* The speed that we found, or a negative number if not found yet */
         float speed;
         /* The elevation that we found, or a negative number if not found yet */
@@ -166,6 +166,19 @@ parse_time(struct flt_gpx_parser *parser)
         if (second == -1)
                 goto fail;
 
+        int sub_second_divisor = 1;
+        int sub_second_dividend = 0;
+
+        if (*time_str == '.') {
+                for (time_str++;
+                     *time_str >= '0' && *time_str <= '9';
+                     time_str++) {
+                        sub_second_dividend = (sub_second_dividend * 10 +
+                                               *time_str - '0');
+                        sub_second_divisor *= 10;
+                }
+        }
+
         if (*time_str != 'Z') {
                 report_error(parser, "timezone is not Z");
                 return false;
@@ -191,7 +204,7 @@ parse_time(struct flt_gpx_parser *parser)
         if (t == (time_t) -1)
                 goto fail;
 
-        parser->time = t;
+        parser->time = t + sub_second_dividend / (double) sub_second_divisor;
 
         return true;
 
@@ -352,7 +365,7 @@ start_element_cb(void *user_data,
         parser->trkpt_depth++;
 
         if (parser->trkpt_depth == 0) {
-                parser->time = -1;
+                parser->time = -1.0;
                 parser->speed = -1.0f;
                 parser->elevation = -1.0f;
                 return;
@@ -401,7 +414,7 @@ end_element_cb(void *user_data,
                 return;
 
         if (parser->trkpt_depth == 0 &&
-            parser->time >= 0 &&
+            parser->time >= 0.0 &&
             parser->speed >= 0.0f &&
             parser->elevation >= 0.0f)
                 add_point(parser);

@@ -36,7 +36,7 @@ struct flt_gpx_point {
         float lat, lon;
 
         /* Time since Unix epoch in seconds */
-        int64_t time;
+        double time;
         /* Velocity in metres per second at that time */
         float speed;
         /* Elevation in metres above sea level */

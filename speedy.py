@@ -264,7 +264,7 @@ def parse_script(infile):
             timestamp = dateutil.parser.parse(md.group('utc_time'))
             offset = (timestamp.timestamp() -
                       decode_time(md.group('video_time')))
-            gpx_offsets[md.group('filename')] = offset
+            gpx_offsets[md.group('filename')] = (offset, "speed.gpx")
             continue
 
         md = svg_re.match(line)
@@ -693,14 +693,15 @@ def get_video_gpx_offsets(script):
 
         if last_offset is not None:
             offsets[filename] = last_offset
-            last_offset += raw_footage[filename]
+            last_offset = (last_offset[0] + raw_footage[filename],
+                           last_offset[1])
 
     if found_count != len(script.gpx_offsets):
         raise Exception("At least one gpx_offset couldn’t be found in "
                         "raw footage")
 
     for filename in reversed(sorted_filenames):
-        last_offset -= raw_footage[filename]
+        last_offset = (last_offset[0] - raw_footage[filename], last_offset[1])
 
         if filename not in offsets:
             offsets[filename] = last_offset
@@ -722,7 +723,7 @@ def write_speed_script_for_video(f,
     if script.show_map:
         print("        map", file=f)
 
-    print("        file \"speed.gpx\"", file=f)
+    print("        file \"{}\"".format(gpx_offset[1]), file=f)
 
     input_time = 0
     output_time = 0
@@ -739,7 +740,10 @@ def write_speed_script_for_video(f,
         if len(key_frames) > 0 and output_time == key_frames[-1][0]:
             key_frames.pop()
 
-        utc_time = gpx_offset + input_time - video_input_time + video.start_time
+        utc_time = (gpx_offset[0] +
+                    input_time -
+                    video_input_time +
+                    video.start_time)
 
         key_frames.append((output_time, utc_time))
 

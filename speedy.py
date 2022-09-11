@@ -25,6 +25,7 @@ import dateutil.parser
 import os
 import json
 import io
+from xml.etree import ElementTree
 
 class Video:
     def __init__(self, raw_video, start_time, end_time):
@@ -161,12 +162,35 @@ def parse_script(infile):
 
     in_script = False
 
+    def maybe_add_gpx_offset(filename):
+        gpx_filename = os.path.splitext(filename)[0] + ".gpx"
+
+        if not os.path.exists(gpx_filename):
+            return
+
+        tree = ElementTree.parse(gpx_filename)
+
+        md = re.match(r'({http://www\.topografix\.com/GPX/1/[01]})gpx\Z',
+                      tree.getroot().tag)
+
+        if md == None:
+            raise ParseError(("{} does not appear to be "
+                              "a GPX file").format(gpx_filename))
+
+        xpath = "./{}trk/{}trkseg/{}trkpt/{}time".replace("{}", md.group(1))
+        first_time = tree.getroot().find(xpath)
+        timestamp = dateutil.parser.parse(first_time.text).timestamp()
+        gpx_offsets[filename] = (timestamp, gpx_filename)
+
     def get_raw_video(filename, length):
         try:
             return raw_videos[filename]
         except KeyError:
             raw_video = RawVideo(filename, length)
             raw_videos[filename] = raw_video
+
+            maybe_add_gpx_offset(filename)
+
             return raw_video
     
     for line_num, line in enumerate(infile):

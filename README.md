@@ -129,6 +129,14 @@ This means that at 11.299 seconds into the video `part1.mp4`, the time and date 
 
 There can be multiple `gpx_offset` commands in the script. If there are multiple videos, flootay will assume they were filmed sequentially and the filenames sort to chronological order. It works like this because my camera splits the recordings up into 15-minute files, so as long as I have an offset for one of the files it will be able to calculate the offset for the rest of them. If a video doesn’t have its own offset specified then the program will calculate one from a previous video. If no previous video has one it will use one from a subsequent video.
 
+Alternatively, if you have a separate GPX file for each video you can place a GPX with the same name as the video but a GPX extension. In that case you don’t need to use `gpx_offset` and speedy will just assume that the first track point in the file is the time for the start of the video. If you are using a GoPro with a GPS, you can extract the GPX data using the [gopro2gpx](https://github.com/juanmcasillas/gopro2gpx) script. For example:
+
+```bash
+for x in *.MP4; do
+  python3 -m gopro2gpx "$x" $(echo "$x" | sed 's/\.MP4$//')
+done
+```
+
 ### Skipping videos
 
 If some of the videos aren’t correlated to the GPX file, you can add `no_gpx` somewhere after that video. That way it won’t have the speedometer displayed on top of that video and the video won’t affect the offset calculation for the GPX file.

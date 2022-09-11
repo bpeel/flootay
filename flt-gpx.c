@@ -36,6 +36,9 @@
  */
 #define MAX_TIME_GAP 5
 
+#define GPX_NAMESPACE "http://www.topografix.com/GPX/1/0"
+#define GPX_ELEMENT(x) (GPX_NAMESPACE "\xff" x)
+
 struct flt_error_domain
 flt_gpx_error;
 
@@ -352,7 +355,7 @@ start_element_cb(void *user_data,
         }
 
         if (parser->trkpt_depth < 0) {
-                if (!strcmp(name, "trkpt")) {
+                if (!strcmp(name, GPX_ELEMENT("trkpt"))) {
                         parser->trkpt_depth = 0;
 
                         if (!parse_lat_lon(parser, atts))
@@ -376,11 +379,11 @@ start_element_cb(void *user_data,
 
         flt_buffer_set_length(&parser->buf, 0);
 
-        if (!strcmp(name, "time"))
+        if (!strcmp(name, GPX_ELEMENT("time")))
                 parser->in_child = CHILD_ELEMENT_TIME;
-        else if (!strcmp(name, "speed"))
+        else if (!strcmp(name, GPX_ELEMENT("speed")))
                 parser->in_child = CHILD_ELEMENT_SPEED;
-        else if (!strcmp(name, "ele"))
+        else if (!strcmp(name, GPX_ELEMENT("ele")))
                 parser->in_child = CHILD_ELEMENT_ELE;
 }
 
@@ -504,7 +507,8 @@ flt_gpx_parse(const char *filename,
         }
 
         struct flt_gpx_parser parser = {
-                .parser = XML_ParserCreate(NULL),
+                .parser = XML_ParserCreateNS(NULL, /* encoding */
+                                             '\xff'),
                 .filename = filename,
                 .points = FLT_BUFFER_STATIC_INIT,
                 .buf = FLT_BUFFER_STATIC_INIT,

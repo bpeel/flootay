@@ -470,6 +470,22 @@ compare_point_time_cb(const void *pa,
         return 0;
 }
 
+static size_t
+remove_duplicate_points(struct flt_gpx_point *points, size_t n_points)
+{
+        struct flt_gpx_point *dst = points;
+        const struct flt_gpx_point *end = points + n_points;
+
+        for (const struct flt_gpx_point *src = points; src < end; src++) {
+                *(dst++) = *src;
+
+                while (src + 1 < end && src[1].time == src->time)
+                        src++;
+        }
+
+        return dst - points;
+}
+
 bool
 flt_gpx_parse(const char *filename,
               struct flt_gpx_point **points_out,
@@ -524,13 +540,17 @@ flt_gpx_parse(const char *filename,
                 return false;
         }
 
-        *n_points_out = parser.points.length / sizeof (struct flt_gpx_point);
-        *points_out = (struct flt_gpx_point *) parser.points.data;
+        struct flt_gpx_point *points =
+                (struct flt_gpx_point *) parser.points.data;
+        size_t n_points = parser.points.length / sizeof (struct flt_gpx_point);
 
-        qsort(*points_out,
-              *n_points_out,
-              sizeof **points_out,
+        qsort(points,
+              n_points,
+              sizeof *points,
               compare_point_time_cb);
+
+        *points_out = points;
+        *n_points_out = remove_duplicate_points(*points_out, n_points);
 
         return true;
 }

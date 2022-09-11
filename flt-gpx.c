@@ -26,6 +26,7 @@
 #include <errno.h>
 #include <stdio.h>
 #include <math.h>
+#include <assert.h>
 
 #include "flt-util.h"
 #include "flt-buffer.h"
@@ -36,17 +37,23 @@
  */
 #define MAX_TIME_GAP 5
 
-#define GPX_NAMESPACE "http://www.topografix.com/GPX/1/0"
-#define GPX_ELEMENT(x) (GPX_NAMESPACE "\xff" x)
+#define MAKE_ELEMENT(ns, tag) ns "\xff" tag
+
+#define TPX_NAMESPACE "http://www.garmin.com/xmlschemas/TrackPointExtension/v2"
+#define TPX_ELEMENT(tag) MAKE_ELEMENT(TPX_NAMESPACE, tag)
 
 struct flt_error_domain
 flt_gpx_error;
 
-enum child_element {
-        CHILD_ELEMENT_NONE,
-        CHILD_ELEMENT_TIME,
-        CHILD_ELEMENT_SPEED,
-        CHILD_ELEMENT_ELE,
+enum parse_state {
+        PARSE_STATE_LOOKING_FOR_TRKPT,
+        PARSE_STATE_IN_TRKPT,
+        PARSE_STATE_IN_TIME,
+        PARSE_STATE_IN_SPEED,
+        PARSE_STATE_IN_ELE,
+        PARSE_STATE_IN_EXTENSIONS,
+        PARSE_STATE_IN_TRACK_POINT_EXTENSION,
+        PARSE_STATE_IN_EXTENSION_SPEED,
 };
 
 struct flt_gpx_parser {
@@ -59,10 +66,13 @@ struct flt_gpx_parser {
         /* Temporary buffer used for collecting element text */
         struct flt_buffer buf;
 
-        enum child_element in_child;
+        enum parse_state parse_state;
 
-        /* The current node depth if we are in a trkpt, or -1 otherwise */
-        int trkpt_depth;
+        /* If we encounter nodes that we don’t understand while
+         * parsing an interesting node, will ignore nodes until this
+         * depth gets back to zero.
+         */
+        int skip_depth;
         /* The unix time that we found in this trkpt, or -1 if not
          * found yet.
          */
@@ -342,6 +352,29 @@ parse_lat_lon(struct flt_gpx_parser *parser,
         return true;
 }
 
+static bool
+is_gpx_element(const char *name, const char *element_name)
+{
+        static const char namespace[] = "http://www.topografix.com/GPX/1/";
+
+        if (strncmp(name, namespace, sizeof namespace - 1))
+                return false;
+
+        name += sizeof namespace - 1;
+
+        if (*name != '0' && *name != '1')
+                return false;
+
+        name++;
+
+        if (*name != '\xff')
+                return false;
+
+        name++;
+
+        return !strcmp(name, element_name);
+}
+
 static void
 start_element_cb(void *user_data,
                  const XML_Char *name,
@@ -349,42 +382,66 @@ start_element_cb(void *user_data,
 {
         struct flt_gpx_parser *parser = user_data;
 
-        if (parser->in_child != CHILD_ELEMENT_NONE) {
-                report_error(parser, "unexpected element start");
+        if (parser->skip_depth > 0) {
+                parser->skip_depth++;
                 return;
         }
 
-        if (parser->trkpt_depth < 0) {
-                if (!strcmp(name, GPX_ELEMENT("trkpt"))) {
-                        parser->trkpt_depth = 0;
-
+        switch (parser->parse_state) {
+        case PARSE_STATE_LOOKING_FOR_TRKPT:
+                if (is_gpx_element(name, "trkpt")) {
                         if (!parse_lat_lon(parser, atts))
                                 return;
+
+                        parser->time = -1.0;
+                        parser->speed = -1.0f;
+                        parser->elevation = -1.0f;
+                        parser->parse_state = PARSE_STATE_IN_TRKPT;
                 }
+                return;
 
+        case PARSE_STATE_IN_TRKPT:
+                flt_buffer_set_length(&parser->buf, 0);
+
+                if (is_gpx_element(name, "time"))
+                        parser->parse_state = PARSE_STATE_IN_TIME;
+                else if (is_gpx_element(name, "speed"))
+                        parser->parse_state = PARSE_STATE_IN_SPEED;
+                else if (is_gpx_element(name, "ele"))
+                        parser->parse_state = PARSE_STATE_IN_ELE;
+                else if (is_gpx_element(name, "ele"))
+                        parser->parse_state = PARSE_STATE_IN_ELE;
+                else if (is_gpx_element(name, "extensions"))
+                        parser->parse_state = PARSE_STATE_IN_EXTENSIONS;
+                else
+                        parser->skip_depth++;
+                return;
+
+        case PARSE_STATE_IN_TIME:
+        case PARSE_STATE_IN_SPEED:
+        case PARSE_STATE_IN_ELE:
+        case PARSE_STATE_IN_EXTENSION_SPEED:
+                report_error(parser, "unexpected element start");
+                return;
+
+        case PARSE_STATE_IN_EXTENSIONS:
+                if (strcmp(name, TPX_ELEMENT("TrackPointExtension")))
+                        parser->skip_depth++;
+                else
+                        parser->parse_state =
+                                PARSE_STATE_IN_TRACK_POINT_EXTENSION;
+                return;
+
+        case PARSE_STATE_IN_TRACK_POINT_EXTENSION:
+                if (strcmp(name, TPX_ELEMENT("speed")))
+                        parser->skip_depth++;
+                else
+                        parser->parse_state =
+                                PARSE_STATE_IN_EXTENSION_SPEED;
                 return;
         }
 
-        parser->trkpt_depth++;
-
-        if (parser->trkpt_depth == 0) {
-                parser->time = -1.0;
-                parser->speed = -1.0f;
-                parser->elevation = -1.0f;
-                return;
-        }
-
-        if (parser->trkpt_depth != 1)
-                return;
-
-        flt_buffer_set_length(&parser->buf, 0);
-
-        if (!strcmp(name, GPX_ELEMENT("time")))
-                parser->in_child = CHILD_ELEMENT_TIME;
-        else if (!strcmp(name, GPX_ELEMENT("speed")))
-                parser->in_child = CHILD_ELEMENT_SPEED;
-        else if (!strcmp(name, GPX_ELEMENT("ele")))
-                parser->in_child = CHILD_ELEMENT_ELE;
+        assert(!"Invalid parse_state");
 }
 
 static void
@@ -393,36 +450,59 @@ end_element_cb(void *user_data,
 {
         struct flt_gpx_parser *parser = user_data;
 
-        switch (parser->in_child) {
-        case CHILD_ELEMENT_TIME:
-                if (!parse_time(parser))
-                        return;
-                parser->in_child = CHILD_ELEMENT_NONE;
-                break;
-        case CHILD_ELEMENT_SPEED:
-                if (!parse_speed(parser))
-                        return;
-                parser->in_child = CHILD_ELEMENT_NONE;
-                break;
-        case CHILD_ELEMENT_ELE:
-                if (!parse_ele(parser))
-                        return;
-                parser->in_child = CHILD_ELEMENT_NONE;
-                break;
-        case CHILD_ELEMENT_NONE:
-                break;
+        if (parser->skip_depth > 0) {
+                parser->skip_depth--;
+                return;
         }
 
-        if (parser->trkpt_depth < 0)
+        switch (parser->parse_state) {
+        case PARSE_STATE_LOOKING_FOR_TRKPT:
                 return;
 
-        if (parser->trkpt_depth == 0 &&
-            parser->time >= 0.0 &&
-            parser->speed >= 0.0f &&
-            parser->elevation >= 0.0f)
-                add_point(parser);
+        case PARSE_STATE_IN_TRKPT:
+                if (parser->time >= 0.0 &&
+                    parser->speed >= 0.0f &&
+                    parser->elevation >= 0.0f)
+                        add_point(parser);
 
-        parser->trkpt_depth--;
+                parser->parse_state = PARSE_STATE_LOOKING_FOR_TRKPT;
+
+                return;
+
+        case PARSE_STATE_IN_TIME:
+                if (!parse_time(parser))
+                        return;
+                parser->parse_state = PARSE_STATE_IN_TRKPT;
+                return;
+
+        case PARSE_STATE_IN_SPEED:
+                if (!parse_speed(parser))
+                        return;
+                parser->parse_state = PARSE_STATE_IN_TRKPT;
+                return;
+
+        case PARSE_STATE_IN_ELE:
+                if (!parse_ele(parser))
+                        return;
+                parser->parse_state = PARSE_STATE_IN_TRKPT;
+                return;
+
+        case PARSE_STATE_IN_EXTENSIONS:
+                parser->parse_state = PARSE_STATE_IN_TRKPT;
+                return;
+
+        case PARSE_STATE_IN_TRACK_POINT_EXTENSION:
+                parser->parse_state = PARSE_STATE_IN_EXTENSIONS;
+                return;
+
+        case PARSE_STATE_IN_EXTENSION_SPEED:
+                if (!parse_speed(parser))
+                        return;
+                parser->parse_state = PARSE_STATE_IN_TRACK_POINT_EXTENSION;
+                return;
+        }
+
+        assert(!"Invalid parse_state");
 }
 
 static void
@@ -432,10 +512,21 @@ character_data_cb(void *user_data,
 {
         struct flt_gpx_parser *parser = user_data;
 
-        if (parser->in_child != CHILD_ELEMENT_NONE) {
+        switch (parser->parse_state) {
+        case PARSE_STATE_LOOKING_FOR_TRKPT:
+        case PARSE_STATE_IN_EXTENSIONS:
+        case PARSE_STATE_IN_TRACK_POINT_EXTENSION:
+                break;
+
+        case PARSE_STATE_IN_TRKPT:
+        case PARSE_STATE_IN_TIME:
+        case PARSE_STATE_IN_SPEED:
+        case PARSE_STATE_IN_ELE:
+        case PARSE_STATE_IN_EXTENSION_SPEED:
                 flt_buffer_append(&parser->buf, s, len);
                 flt_buffer_append_c(&parser->buf, '\0');
                 parser->buf.length--;
+                break;
         }
 }
 
@@ -512,7 +603,8 @@ flt_gpx_parse(const char *filename,
                 .filename = filename,
                 .points = FLT_BUFFER_STATIC_INIT,
                 .buf = FLT_BUFFER_STATIC_INIT,
-                .trkpt_depth = -1,
+                .parse_state = PARSE_STATE_LOOKING_FOR_TRKPT,
+                .skip_depth = 0,
                 .error = NULL,
         };
 

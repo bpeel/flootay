@@ -77,9 +77,11 @@ struct flt_gpx_parser {
          * found yet.
          */
         double time;
-        /* The speed that we found, or a negative number if not found yet */
+        bool has_speed;
+        /* The speed that we found */
         float speed;
-        /* The elevation that we found, or a negative number if not found yet */
+        bool has_elevation;
+        /* The elevation that we found */
         float elevation;
         /* The coordinates that we found. This is always valid when we
          * are in a trkpt because it is parsed immediately from the
@@ -227,18 +229,17 @@ fail:
 }
 
 static bool
-parse_positive_float(struct flt_gpx_parser *parser,
-                     float *out)
+parse_float(const char *str, float *out)
 {
         char *tail;
 
         errno = 0;
-        float f = strtof((const char *) parser->buf.data, &tail);
+        float f = strtof(str, &tail);
 
         while (is_space(*tail))
                 tail++;
 
-        if (*tail != '\0' || errno || f < 0)
+        if (*tail != '\0' || errno || (f != 0.0f && !isnormal(f)))
                 return false;
 
         *out = f;
@@ -251,22 +252,15 @@ parse_float_range(const char *str,
                   float min, float max,
                   float *out)
 {
-        char *tail;
+        float value;
 
-        errno = 0;
-        float f = strtof(str, &tail);
-
-        while (is_space(*tail))
-                tail++;
-
-        if (*tail != '\0' ||
-            errno ||
-            f < min ||
-            f > max ||
-            (f != 0.0f && !isnormal(f)))
+        if (!parse_float(str, &value))
                 return false;
 
-        *out = f;
+        if (value < min || value > max)
+                return false;
+
+        *out = value;
 
         return true;
 }
@@ -274,10 +268,12 @@ parse_float_range(const char *str,
 static bool
 parse_speed(struct flt_gpx_parser *parser)
 {
-        if (!parse_positive_float(parser, &parser->speed)) {
+        if (!parse_float((const char *) parser->buf.data, &parser->speed)) {
                 report_error(parser, "invalid speed");
                 return false;
         }
+
+        parser->has_speed = true;
 
         return true;
 }
@@ -285,10 +281,12 @@ parse_speed(struct flt_gpx_parser *parser)
 static bool
 parse_ele(struct flt_gpx_parser *parser)
 {
-        if (!parse_positive_float(parser, &parser->elevation)) {
+        if (!parse_float((const char *) parser->buf.data, &parser->elevation)) {
                 report_error(parser, "invalid elevation");
                 return false;
         }
+
+        parser->has_elevation = true;
 
         return true;
 }
@@ -394,8 +392,8 @@ start_element_cb(void *user_data,
                                 return;
 
                         parser->time = -1.0;
-                        parser->speed = -1.0f;
-                        parser->elevation = -1.0f;
+                        parser->has_speed = false;
+                        parser->has_elevation = false;
                         parser->parse_state = PARSE_STATE_IN_TRKPT;
                 }
                 return;
@@ -461,8 +459,8 @@ end_element_cb(void *user_data,
 
         case PARSE_STATE_IN_TRKPT:
                 if (parser->time >= 0.0 &&
-                    parser->speed >= 0.0f &&
-                    parser->elevation >= 0.0f)
+                    parser->has_speed &&
+                    parser->has_elevation)
                         add_point(parser);
 
                 parser->parse_state = PARSE_STATE_LOOKING_FOR_TRKPT;

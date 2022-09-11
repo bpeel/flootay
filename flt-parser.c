@@ -1018,24 +1018,43 @@ parse_gpx_file(struct flt_parser *parser,
                       "expected filename",
                       error);
 
-        if (gpx->points != NULL) {
+        if (gpx->file != NULL) {
                 set_error(parser,
                           error,
                           "gpx object already has a file");
                 return FLT_PARSER_RETURN_ERROR;
         }
 
+        struct flt_scene_gpx_file *gpx_file;
+
         char *filename = get_relative_filename(parser, token->string_value);
 
-        bool parse_ret = flt_gpx_parse(filename,
-                                       &gpx->points,
-                                       &gpx->n_points,
-                                       error);
+        flt_list_for_each(gpx_file, &parser->scene->gpx_files, link) {
+                if (!strcmp(gpx_file->filename, filename)) {
+                        flt_free(filename);
+                        gpx->file = gpx_file;
+                        return FLT_PARSER_RETURN_OK;
+                }
+        }
 
-        flt_free(filename);
+        size_t n_points;
+        struct flt_gpx_point *points;
 
-        if (!parse_ret)
+        if (!flt_gpx_parse(filename,
+                           &points,
+                           &n_points,
+                           error)) {
+                flt_free(filename);
                 return FLT_PARSER_RETURN_ERROR;
+        }
+
+        gpx_file = flt_alloc(sizeof *gpx_file);
+        gpx_file->filename = filename;
+        gpx_file->n_points = n_points;
+        gpx_file->points = points;
+        flt_list_insert(parser->scene->gpx_files.prev, &gpx_file->link);
+
+        gpx->file = gpx_file;
 
         return FLT_PARSER_RETURN_OK;
 }
@@ -1150,7 +1169,7 @@ parse_gpx_base(struct flt_parser *parser,
                 return FLT_PARSER_RETURN_ERROR;
         }
 
-        if (gpx->points == NULL) {
+        if (gpx->file == NULL) {
                 set_error_with_line(parser,
                                     error,
                                     gpx_line_num,

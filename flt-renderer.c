@@ -387,8 +387,8 @@ interpolate_and_add_gpx(struct flt_renderer *renderer,
 
         struct flt_gpx_data gpx_data;
 
-        if (!flt_gpx_find_data(gpx->points,
-                               gpx->n_points,
+        if (!flt_gpx_find_data(gpx->file->points,
+                               gpx->file->n_points,
                                timestamp,
                                &gpx_data))
                 return true;

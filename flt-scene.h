@@ -32,6 +32,13 @@ enum flt_scene_object_type {
         FLT_SCENE_OBJECT_TYPE_CURVE,
 };
 
+struct flt_scene_gpx_file {
+        struct flt_list link;
+        char *filename;
+        size_t n_points;
+        struct flt_gpx_point *points;
+};
+
 struct flt_scene_object {
         struct flt_list link;
 
@@ -78,8 +85,7 @@ struct flt_scene_score_key_frame {
 
 struct flt_scene_gpx {
         struct flt_scene_object base;
-        size_t n_points;
-        struct flt_gpx_point *points;
+        const struct flt_scene_gpx_file *file;
         bool show_speed;
         bool show_elevation;
         bool show_map;
@@ -110,6 +116,7 @@ struct flt_scene {
         int video_width, video_height;
 
         struct flt_list objects;
+        struct flt_list gpx_files;
 
         char *map_url_base;
         char *map_api_key;

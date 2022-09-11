@@ -38,12 +38,6 @@ destroy_svg(struct flt_scene_svg *svg)
 }
 
 static void
-destroy_gpx(struct flt_scene_gpx *gpx)
-{
-        flt_free(gpx->points);
-}
-
-static void
 destroy_object(struct flt_scene_object *object)
 {
         destroy_key_frames(&object->key_frames);
@@ -52,9 +46,7 @@ destroy_object(struct flt_scene_object *object)
         case FLT_SCENE_OBJECT_TYPE_RECTANGLE:
         case FLT_SCENE_OBJECT_TYPE_SCORE:
         case FLT_SCENE_OBJECT_TYPE_CURVE:
-                break;
         case FLT_SCENE_OBJECT_TYPE_GPX:
-                destroy_gpx((struct flt_scene_gpx *) object);
                 break;
         case FLT_SCENE_OBJECT_TYPE_SVG:
                 destroy_svg((struct flt_scene_svg *) object);
@@ -62,6 +54,18 @@ destroy_object(struct flt_scene_object *object)
         }
 
         flt_free(object);
+}
+
+static void
+destroy_gpx_files(struct flt_scene *scene)
+{
+        struct flt_scene_gpx_file *file, *tmp;
+
+        flt_list_for_each_safe(file, tmp, &scene->gpx_files, link) {
+                flt_free(file->filename);
+                flt_free(file->points);
+                flt_free(file);
+        }
 }
 
 static void
@@ -83,6 +87,7 @@ flt_scene_new(void)
         scene->video_height = 1080;
 
         flt_list_init(&scene->objects);
+        flt_list_init(&scene->gpx_files);
 
         return scene;
 }
@@ -110,6 +115,7 @@ flt_scene_get_max_timestamp(const struct flt_scene *scene)
 void
 flt_scene_free(struct flt_scene *scene)
 {
+        destroy_gpx_files(scene);
         destroy_objects(scene);
 
         flt_free(scene->map_url_base);

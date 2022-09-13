@@ -35,13 +35,13 @@ class Video:
         self.sounds = []
         self.script = []
         self.filter = []
+        self.use_gpx = not raw_video.is_proc and not raw_video.is_image
 
 class RawVideo:
     def __init__(self, filename, length=None):
         self.filename = filename
         self.is_image = re.search(r'\.(?:jpe?g|png)$', filename) is not None
         self.is_proc = filename.startswith("|")
-        self.use_gpx = not self.is_proc and not self.is_image
 
         self.width = None
         self.height = None
@@ -238,7 +238,7 @@ def parse_script(infile):
             continue
 
         if line == "no_gpx":
-            videos[-1].raw_video.use_gpx = False
+            videos[-1].use_gpx = False
             continue
 
         md = output_size_re.match(line)
@@ -703,7 +703,7 @@ def get_video_gpx_offsets(script):
     raw_footage = dict((os.path.basename(video.raw_video.filename),
                         video.raw_video.length)
                        for video in script.videos
-                       if video.raw_video.use_gpx)
+                       if video.use_gpx)
     sorted_filenames = list(sorted(raw_footage.keys(), key=filename_sort_key))
 
     last_offset = None
@@ -810,7 +810,7 @@ def write_speed_script(f, script, video_speeds):
     input_time = 0
 
     for video in script.videos:
-        if video.raw_video.use_gpx:
+        if video.use_gpx:
             bn = os.path.basename(video.raw_video.filename)
             write_speed_script_for_video(f,
                                          script,

@@ -143,7 +143,7 @@ If some of the videos aren’t correlated to the GPX file, you can add `no_gpx` 
 
 ### Map
 
-If you write the word `map` on a line anywhere in the script file then the speedometer will be accompanied by a moving mapping at the bottom right of the video. By default the map tiles are sourced from the [OpenStreetMap cycle map](https://www.thunderforest.com/maps/opencyclemap/). You can use a different map source by specifying a URL to a compatible API. For example to use an outdoors hiking map you can add this to your script:
+If you write the word `map` on a line anywhere in the script file then the speedometer will be accompanied by a moving mapping at the bottom right of the video. By default the map tiles are sourced from the [OpenStreetMap cycle map](https://www.thunderforest.com/maps/opencyclemap/). You can use a different map source by specifying a URL to a compatible API. For example to use an outdoors hiking map you can add this to your script before the first video:
 
 ```
 {{

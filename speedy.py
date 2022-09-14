@@ -62,6 +62,7 @@ Script = collections.namedtuple('Script', ['width',
                                            'videos',
                                            'scores',
                                            'svgs',
+                                           'extra_script',
                                            'gpx_offsets',
                                            'speed_overrides',
                                            'show_elevation',
@@ -153,6 +154,7 @@ def parse_script(infile):
     videos = []
     scores = []
     svgs = []
+    extra_script = []
     speed_overrides = []
     sound_args = []
     gpx_offsets = {}
@@ -199,6 +201,8 @@ def parse_script(infile):
         if in_script:
             if line == "}}":
                 in_script = False
+            elif len(videos) == 0:
+                extra_script.append(line)
             else:
                 videos[-1].script.append(line)
             continue
@@ -356,6 +360,7 @@ def parse_script(infile):
                   videos,
                   scores,
                   svgs,
+                  extra_script,
                   gpx_offsets,
                   speed_overrides,
                   show_elevation,
@@ -861,10 +866,12 @@ with open("overlay.flt", "wt", encoding="utf-8") as f:
     print(("#!{}\n"
            "\n"
            "video_width {}\n"
-           "video_height {}").format(os.path.join(os.path.dirname(sys.argv[0]),
-                                                  "build",
-                                                  "flootay"),
-                                     script.width, script.height),
+           "video_height {}\n"
+           "{}").format(os.path.join(os.path.dirname(sys.argv[0]),
+                                     "build",
+                                     "flootay"),
+                        script.width, script.height,
+                        "\n".join(script.extra_script)),
           file=f)
     write_score_script(f, script.scores, script.videos, video_speeds)
     write_speed_script(f, script, video_speeds)

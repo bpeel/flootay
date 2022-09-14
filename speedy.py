@@ -530,13 +530,13 @@ def get_ffmpeg_input_args(script, video):
 
     return args
 
-def get_ffmpeg_filter(script, video_speeds):
+def get_ffmpeg_filter(script, overlay_input, video_speeds):
     input_time = 0
     output_time = 0
 
     parts = []
 
-    has_filter = [False] * len(script.videos)
+    input_names = ["[{}]".format(i) for i in range(len(script.videos))]
 
     for i, video in enumerate(script.videos):
         video_parts = []
@@ -550,17 +550,19 @@ def get_ffmpeg_filter(script, video_speeds):
             video_parts.append("scale={}:{}".format(script.width,
                                                     script.height))
 
-        if len(video_parts) <= 0:
-            continue
+        if len(video_parts) > 0:
+            parts.append("[{}]{}[sv{}];".format(i, ",".join(video_parts), i))
+            input_names[i] = "[sv{}]".format(i)
 
-        parts.append("[{}]{}[sv{}];".format(i, ",".join(video_parts), i))
-        has_filter[i] = True
+        if len(video.script) > 0:
+            parts.append("{}[{}]overlay[ov{}];".format(
+                input_names[i],
+                overlay_input,
+                i))
+            overlay_input += 1
+            input_names[i] = "[ov{}]".format(i)
 
-    for i, video in enumerate(script.videos):
-        parts.append("[")
-        if has_filter[i]:
-            parts.append("sv")
-        parts.append("{}]".format(i))
+    parts.append("".join(input_names))
 
     parts.extend(["concat=n={}:v=1:a=0[ccv];".format(len(script.videos)),
                   "[ccv]setpts='"])
@@ -593,6 +595,19 @@ def get_ffmpeg_command(script, video_speeds):
 
     next_input = len(script.videos)
 
+    first_overlay_input = next_input
+    for video_num, video in enumerate(script.videos):
+        if len(video.script) == 0:
+            continue
+
+        input_args.extend(["-f", "rawvideo",
+                           "-pixel_format", "rgba",
+                           "-video_size", "{}x{}".format(script.width,
+                                                         script.height),
+                           "-framerate", "30",
+                           "-i", "|./overlay-{}.flt".format(video_num)])
+        next_input += 1
+
     flootay_input = next_input
     next_input += 1
     input_args.extend(["-f", "rawvideo",
@@ -611,7 +626,8 @@ def get_ffmpeg_command(script, video_speeds):
                        "-c:a", "pcm_s24le",
                        "-i", "|./sound.sh"])
 
-    filter = (get_ffmpeg_filter(script, video_speeds) + ";" +
+    filter = (get_ffmpeg_filter(script, first_overlay_input, video_speeds) +
+              ";" +
               "[outv][{}]overlay[overoutv]".format(flootay_input))
 
     return input_args + ["-filter_complex", filter,
@@ -829,22 +845,17 @@ def write_speed_script(f, script, video_speeds):
         else:
             input_time += video.raw_video.length - video.start_time
 
-def write_videos_script(f, videos, video_speeds):
+def write_video_script(f, video):
     script_time_re = re.compile(r'\bkey_frame\s+(?P<time>' +
                                 TIME_RE.pattern +
                                 r')')
 
-    for video in videos:
-        if len(video.script) == 0:
-            continue
+    def replace_video_time(md):
+        t = decode_time(md.group('time')) - video.start_time
+        return md.group(0)[:(md.start('time') - md.start(0))] + str(t)
 
-        def replace_video_time(md):
-            t = decode_time(md.group('time'))
-            ot = get_output_time(videos, video_speeds, video.raw_video, t)
-            return md.group(0)[:(md.start('time') - md.start(0))] + str(ot)
-
-        print(script_time_re.sub(replace_video_time, "\n".join(video.script)),
-              file=f)
+    print(script_time_re.sub(replace_video_time, "\n".join(video.script)),
+          file=f)
 
 if len(sys.argv) >= 2:
     with open(sys.argv[1], "rt", encoding="utf-8") as f:
@@ -862,23 +873,34 @@ with open("sound.sh", "wt", encoding="utf-8") as f:
 
 os.chmod("sound.sh", 0o775)
 
+flootay_proc = os.path.join(os.path.dirname(sys.argv[0]),
+                            "build",
+                            "flootay")
+
 with open("overlay.flt", "wt", encoding="utf-8") as f:
     print(("#!{}\n"
            "\n"
            "video_width {}\n"
            "video_height {}\n"
-           "{}").format(os.path.join(os.path.dirname(sys.argv[0]),
-                                     "build",
-                                     "flootay"),
+           "{}").format(flootay_proc,
                         script.width, script.height,
                         "\n".join(script.extra_script)),
           file=f)
     write_score_script(f, script.scores, script.videos, video_speeds)
     write_speed_script(f, script, video_speeds)
     write_svg_script(f, script.svgs, script.videos, video_speeds)
-    write_videos_script(f, script.videos, video_speeds)
 
 os.chmod("overlay.flt", 0o775)
+
+for video_num, video in enumerate(script.videos):
+    if len(video.script) == 0:
+        continue
+
+    filename = "overlay-{}.flt".format(video_num)
+    with open(filename, "wt", encoding="utf-8") as f:
+        print("#!{}\n".format(flootay_proc), file=f)
+        write_video_script(f, video)
+    os.chmod(filename, 0o775)
 
 print(os.path.join(os.path.dirname(sys.argv[0]),
                    "build",

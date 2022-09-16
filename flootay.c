@@ -24,9 +24,8 @@
 
 #include "flt-util.h"
 #include "flt-scene.h"
-#include "flt-parser.h"
-#include "flt-file-error.h"
 #include "flt-renderer.h"
+#include "flt-parse-stdio.h"
 
 #define FPS 30
 
@@ -76,85 +75,6 @@ write_surface(cairo_surface_t *surface)
         return true;
 }
 
-struct stdio_source {
-        struct flt_source base;
-        FILE *infile;
-};
-
-static bool
-read_stdio_cb(struct flt_source *source,
-              void *ptr,
-              size_t *length,
-              struct flt_error **error)
-{
-        struct stdio_source *stdio_source = (struct stdio_source *) source;
-
-        size_t got = fread(ptr, 1, *length, stdio_source->infile);
-
-        if (got < *length) {
-                if (ferror(stdio_source->infile)) {
-                        flt_file_error_set(error,
-                                           errno,
-                                           "%s",
-                                           strerror(errno));
-                        return false;
-                }
-
-                *length = got;
-        }
-
-        return true;
-}
-
-static bool
-load_stdin(struct flt_scene *scene,
-           struct flt_error **error)
-{
-        struct stdio_source source = {
-                .base = { .read_source = read_stdio_cb },
-                .infile = stdin,
-        };
-
-        return flt_parser_parse(scene, &source.base, NULL, error);
-}
-
-static bool
-load_file(struct flt_scene *scene,
-          const char *filename,
-          struct flt_error **error)
-{
-        struct stdio_source source = {
-                .base = { .read_source = read_stdio_cb },
-                .infile = fopen(filename, "rb"),
-        };
-
-        if (source.infile == NULL) {
-                flt_file_error_set(error,
-                                   errno,
-                                   "%s: %s",
-                                   filename,
-                                   strerror(errno));
-                return false;
-        }
-
-        char *base_dir;
-
-        const char *last_part = strrchr(filename, '/');
-
-        if (last_part == NULL)
-                base_dir = NULL;
-        else
-                base_dir = flt_strndup(filename, last_part - filename);
-
-        bool ret = flt_parser_parse(scene, &source.base, base_dir, error);
-
-        fclose(source.infile);
-
-        flt_free(base_dir);
-
-        return ret;
-}
-
 int
 main(int argc, char **argv)
 {
@@ -171,10 +91,16 @@ main(int argc, char **argv)
                 struct flt_error *error = NULL;
                 bool load_ret;
 
-                if (!strcmp(argv[i], "-"))
-                        load_ret = load_stdin(scene, &error);
-                else
-                        load_ret = load_file(scene, argv[i], &error);
+                if (!strcmp(argv[i], "-")) {
+                        load_ret = flt_parse_stdio(scene,
+                                                   NULL, /* base_dir */
+                                                   stdin,
+                                                   &error);
+                } else {
+                        load_ret = flt_parse_stdio_from_file(scene,
+                                                             argv[i],
+                                                             &error);
+                }
 
                 if (!load_ret) {
                         fprintf(stderr, "%s\n", error->message);

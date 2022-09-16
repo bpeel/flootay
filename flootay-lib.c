@@ -24,8 +24,7 @@
 
 #include "flt-util.h"
 #include "flt-scene.h"
-#include "flt-parser.h"
-#include "flt-file-error.h"
+#include "flt-parse-stdio.h"
 #include "flt-renderer.h"
 
 struct flootay {
@@ -77,58 +76,6 @@ flootay_get_error(struct flootay *flootay)
         return flootay->error_message;
 }
 
-struct stdio_source {
-        struct flt_source base;
-        FILE *infile;
-};
-
-static bool
-read_stdio_cb(struct flt_source *source,
-              void *ptr,
-              size_t *length,
-              struct flt_error **error)
-{
-        struct stdio_source *stdio_source = (struct stdio_source *) source;
-
-        size_t got = fread(ptr, 1, *length, stdio_source->infile);
-
-        if (got < *length) {
-                if (ferror(stdio_source->infile)) {
-                        flt_file_error_set(error,
-                                           errno,
-                                           "%s",
-                                           strerror(errno));
-                        return false;
-                }
-
-                *length = got;
-        }
-
-        return true;
-}
-
-static bool
-load_file(struct flt_scene *scene,
-          const char *base_dir,
-          FILE *file,
-          struct flt_error **error)
-{
-        struct stdio_source source = {
-                .base = { .read_source = read_stdio_cb },
-                .infile = file,
-        };
-
-        if (source.infile == NULL) {
-                flt_file_error_set(error,
-                                   errno,
-                                   "%s",
-                                   strerror(errno));
-                return false;
-        }
-
-        return flt_parser_parse(scene, &source.base, base_dir, error);
-}
-
 bool
 flootay_load_script(struct flootay *flootay,
                     const char *base_dir,
@@ -137,7 +84,7 @@ flootay_load_script(struct flootay *flootay,
         struct flt_scene *scene = flt_scene_new();
         struct flt_error *error = NULL;
 
-        if (!load_file(scene, base_dir, file, &error)) {
+        if (!flt_parse_stdio(scene, base_dir, file, &error)) {
                 set_error(flootay, error->message);
                 flt_error_free(error);
                 flt_scene_free(scene);

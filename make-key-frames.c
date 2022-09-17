@@ -66,6 +66,11 @@ struct data {
         SDL_Texture *current_texture;
 
         bool drawing_box;
+        /* The aspect ratio of the box when drawing was started so
+         * that if shift is held down we can retain the same
+         * ratio.
+         */
+        int original_width, original_height;
 
         struct frame_data *frame_data;
 
@@ -625,8 +630,13 @@ handle_drag_button(struct data *data,
 
                 data->drawing_box = true;
 
+                ensure_box(data);
+
                 struct frame_data *frame_data =
                         data->frame_data + data->current_image_num;
+
+                data->original_width = abs(frame_data->box.w);
+                data->original_height = abs(frame_data->box.h);
 
                 int x = event->x, y = event->y;
 
@@ -698,8 +708,31 @@ handle_mouse_motion(struct data *data,
 
         map_coords(data, &x, &y);
 
-        box->w = x - box->x;
-        box->h = y - box->y;
+        int w = x - box->x;
+        int h = y - box->y;
+
+        if ((SDL_GetModState() & KMOD_SHIFT) &&
+            data->original_width > 0 &&
+            data->original_height > 0) {
+                if (data->original_width > data->original_height) {
+                        box->w = w;
+                        box->h = (abs(w) *
+                                  data->original_height /
+                                  data->original_width);
+                        if (h < 0)
+                                box->h = -box->h;
+                } else {
+                        box->h = h;
+                        box->w = (abs(h) *
+                                  data->original_width /
+                                  data->original_height);
+                        if (w < 0)
+                                box->w = -box->w;
+                }
+        } else {
+                box->w = w;
+                box->h = h;
+        }
 
         data->redraw_queued = true;
 }

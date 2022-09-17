@@ -302,6 +302,79 @@ unmap_box(struct data *data, SDL_Rect *box)
         box->h = y2 - box->y;
 }
 
+struct size_change {
+        int frame_num;
+        int w, h;
+};
+
+static void
+smooth_size_changes(struct data *data)
+{
+        struct size_change *size_changes =
+                flt_alloc(sizeof *size_changes * data->n_images);
+        int n_size_changes = 0;
+
+        /* Get a list of size changes */
+        for (int i = 0; i < data->n_images; i++) {
+                if (data->frame_data[i].has_box &&
+                    (n_size_changes == 0 ||
+                     data->frame_data[i].box.w !=
+                     size_changes[n_size_changes - 1].w ||
+                     data->frame_data[i].box.h !=
+                     size_changes[n_size_changes - 1].h)) {
+                        size_changes[n_size_changes].frame_num = i;
+                        size_changes[n_size_changes].w =
+                                data->frame_data[i].box.w;
+                        size_changes[n_size_changes].h =
+                                data->frame_data[i].box.h;
+                        n_size_changes++;
+                }
+        }
+
+        if (n_size_changes < 2)
+                goto out;
+
+        int change_start = 0;
+
+        for (int i = 0; i < data->n_images; i++) {
+                if (i >= size_changes[change_start + 1].frame_num) {
+                        change_start++;
+                        if (change_start + 1 >= n_size_changes)
+                                break;
+                }
+
+                struct frame_data *frame = data->frame_data + i;
+
+                if (!frame->has_box)
+                        continue;
+
+                const struct size_change *s = size_changes + change_start;
+                const struct size_change *e = s + 1;
+
+                int w = ((i - s->frame_num) *
+                         (e->w - s->w) /
+                         (e->frame_num - s->frame_num) +
+                         s->w);
+                int h = ((i - s->frame_num) *
+                         (e->h - s->h) /
+                         (e->frame_num - s->frame_num) +
+                         s->h);
+
+                int cx = frame->box.x + frame->box.w / 2;
+                int cy = frame->box.y + frame->box.h / 2;
+
+                frame->box.x = cx - w / 2;
+                frame->box.y = cy - h / 2;
+                frame->box.w = w;
+                frame->box.h = h;
+        }
+
+        data->redraw_queued = true;
+
+out:
+        flt_free(size_changes);
+}
+
 static double
 get_frame_time(struct data *data, int frame_num)
 {
@@ -513,6 +586,11 @@ handle_key_event(struct data *data,
 
         case SDLK_d:
                 delete_box(data);
+                break;
+
+        case SDLK_s:
+                if ((SDL_GetModState() & KMOD_SHIFT))
+                        smooth_size_changes(data);
                 break;
 
         case SDLK_UP:

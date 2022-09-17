@@ -32,12 +32,17 @@
 #include <SDL.h>
 
 #include "flt-buffer.h"
+#include "flt-parse-stdio.h"
+
+/* Tolerance for the timestamp when loading key frames from a scene */
+#define LOAD_KEY_FRAME_TOLERANCE 0.0005
 
 struct config {
         const char *video_filename;
         double start_time, end_time;
         int fps;
         int default_box_width, default_box_height;
+        const char *script_to_load;
 };
 
 struct frame_data {
@@ -918,6 +923,76 @@ generate_images(const struct config *config,
         return true;
 }
 
+static void
+load_frame_data_from_rectangle(struct data *data,
+                               const struct flt_scene_rectangle *rect)
+{
+        const struct flt_scene_rectangle_key_frame *key_frame;
+
+        flt_list_for_each(key_frame, &rect->base.key_frames, base.link) {
+                int frame_num = round((key_frame->base.timestamp -
+                                      data->config.start_time) *
+                                      data->config.fps);
+
+                if (frame_num < 0 ||
+                    frame_num >= data->n_images ||
+                    fabs(frame_num /
+                         (float) data->config.fps +
+                         data->config.start_time -
+                         key_frame->base.timestamp) > LOAD_KEY_FRAME_TOLERANCE)
+                        continue;
+
+                struct frame_data *frame_data =
+                        data->frame_data + frame_num;
+
+                frame_data->has_box = true;
+                frame_data->box.x = key_frame->x1;
+                frame_data->box.y = key_frame->y1;
+                frame_data->box.w = key_frame->x2 - key_frame->x1;
+                frame_data->box.h = key_frame->y2 - key_frame->y1;
+        }
+}
+
+static void
+load_frame_data_from_scene(struct data *data,
+                           const struct flt_scene *scene)
+{
+        struct flt_scene_object *object;
+
+        flt_list_for_each(object, &scene->objects, link) {
+                if (object->type == FLT_SCENE_OBJECT_TYPE_RECTANGLE) {
+                        struct flt_scene_rectangle *rect =
+                                flt_container_of(object,
+                                                 struct flt_scene_rectangle,
+                                                 base);
+                        load_frame_data_from_rectangle(data, rect);
+                        break;
+                }
+        }
+}
+
+static bool
+load_script(struct data *data, const char *filename)
+{
+        struct flt_scene *scene = flt_scene_new();
+        struct flt_error *error = NULL;
+        bool ret = true;
+
+        if (!flt_parse_stdio_from_file(scene,
+                                       filename,
+                                       &error)) {
+                fprintf(stderr, "%s: %s\n", filename, error->message);
+                flt_error_free(error);
+                ret = false;
+        } else {
+                load_frame_data_from_scene(data, scene);
+        }
+
+        flt_scene_free(scene);
+
+        return ret;
+}
+
 static bool
 parse_time(const char *time_str, double *value_out)
 {
@@ -956,7 +1031,7 @@ static bool
 parse_args(int argc, char **argv, struct config *config)
 {
         while (true) {
-                switch (getopt(argc, argv, "-s:e:r:w:h:")) {
+                switch (getopt(argc, argv, "-s:e:r:w:h:l:")) {
                 case 's':
                         if (!parse_time(optarg, &config->start_time))
                                 return false;
@@ -984,6 +1059,10 @@ parse_args(int argc, char **argv, struct config *config)
                         config->default_box_height = strtoul(optarg, NULL, 10);
                         break;
 
+                case 'l':
+                        config->script_to_load = optarg;
+                        break;
+
                 case 1:
                         config->video_filename = optarg;
                         break;
@@ -1002,7 +1081,7 @@ done:
             config->video_filename == NULL) {
                 fprintf(stderr,
                         "usage: make-key-frames -s <start_time> -e <end_time> "
-                        "[-r <fps>] <video>\n");
+                        "[-r <fps>] [-l <script>] <video>\n");
                 return false;
         }
 
@@ -1042,6 +1121,12 @@ main(int argc, char **argv)
                                      sizeof (struct frame_data));
 
         int ret = EXIT_SUCCESS;
+
+        if (data.config.script_to_load &&
+            !load_script(&data, data.config.script_to_load)) {
+                ret = EXIT_FAILURE;
+                goto out;
+        }
 
         if (data.n_images <= 0) {
                 fprintf(stderr, "Usage: make-key-frames <image>…\n");

@@ -55,10 +55,9 @@ executable('generate-logo',
            dependencies: [m_dep, cairo_dep, rsvg_dep, expat_dep])
 
 executable('make-key-frames',
-           ['make-key-frames.c',
-            'flt-buffer.c',
-            'flt-util.c'],
-           dependencies: [sdl_dep, sdl_image_dep])
+           ['make-key-frames.c'],
+           link_with: [flootay_lib],
+           dependencies: [sdl_dep, sdl_image_dep] + flootay_deps)
 
 executable('run-ffmpeg',
            ['run-ffmpeg.c',

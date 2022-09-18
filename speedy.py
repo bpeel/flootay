@@ -887,16 +887,14 @@ os.chmod("sound.sh", 0o775)
 flootay_proc = os.path.join(os.path.dirname(sys.argv[0]),
                             "build",
                             "flootay")
+flootay_header = ("#!{}\n"
+                  "\n"
+                  "video_width {}\n"
+                  "video_height {}\n").format(flootay_proc,
+                                              script.width, script.height)
 
 with open("overlay.flt", "wt", encoding="utf-8") as f:
-    print(("#!{}\n"
-           "\n"
-           "video_width {}\n"
-           "video_height {}\n"
-           "{}").format(flootay_proc,
-                        script.width, script.height,
-                        "\n".join(script.extra_script)),
-          file=f)
+    print(flootay_header + "\n".join(script.extra_script), file=f)
     write_score_script(f, script.scores, script.videos, video_speeds)
     write_speed_script(f, script, video_speeds)
     write_svg_script(f, script.svgs, script.videos, video_speeds)
@@ -909,7 +907,7 @@ for video_num, video in enumerate(script.videos):
 
     filename = "overlay-{}.flt".format(video_num)
     with open(filename, "wt", encoding="utf-8") as f:
-        print("#!{}\n".format(flootay_proc), file=f)
+        print(flootay_header, file=f)
         write_video_script(f, video)
     os.chmod(filename, 0o775)
 

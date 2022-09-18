@@ -541,10 +541,32 @@ def get_ffmpeg_input_args(script, video):
 
     return args
 
-def get_ffmpeg_filter(script, overlay_input, video_speeds):
+def get_video_speed_filter(video_speeds):
     input_time = 0
     output_time = 0
+    parts = ["setpts='"]
 
+    for i, vs in enumerate(video_speeds):
+        if i < len(video_speeds) - 1:
+            parts.append("if(lt(T-STARTT,{}),".format(input_time + vs.length))
+
+        parts.append("STARTPTS+{}/TB+(PTS-STARTPTS-{}/TB)".format(output_time,
+                                                                  input_time))
+        if vs.speed != 1.0:
+            parts.append("*{}".format(vs.speed))
+
+        if i < len(video_speeds) - 1:
+            parts.append(",")
+
+        input_time += vs.length
+        output_time += vs.length * vs.speed
+
+    parts.append(")" * (len(video_speeds) - 1))
+    parts.append("',fps=fps={},trim=duration={}".format(FPS, output_time))
+
+    return "".join(parts)
+
+def get_ffmpeg_filter(script, overlay_input, video_speeds):
     parts = []
 
     input_names = ["[{}]".format(i) for i in range(len(script.videos))]
@@ -575,26 +597,14 @@ def get_ffmpeg_filter(script, overlay_input, video_speeds):
 
     parts.append("".join(input_names))
 
-    parts.extend(["concat=n={}:v=1:a=0[ccv];".format(len(script.videos)),
-                  "[ccv]setpts='"])
+    parts.append("concat=n={}:v=1:a=0".format(len(script.videos)))
 
-    for i, vs in enumerate(video_speeds):
-        if i < len(video_speeds) - 1:
-            parts.append("if(lt(T-STARTT,{}),".format(input_time + vs.length))
+    if (len(video_speeds) > 1 or
+        (len(video_speeds) == 1 and video_speeds[0].speed != 1)):
+        parts.append(",")
+        parts.append(get_video_speed_filter(video_speeds))
 
-        parts.append("STARTPTS+{}/TB+(PTS-STARTPTS-{}/TB)".format(output_time,
-                                                                  input_time))
-        if vs.speed != 1.0:
-            parts.append("*{}".format(vs.speed))
-
-        if i < len(video_speeds) - 1:
-            parts.append(",")
-
-        input_time += vs.length
-        output_time += vs.length * vs.speed
-
-    parts.append(")" * (len(video_speeds) - 1))
-    parts.append("',fps=fps={},trim=duration={}[outv]".format(FPS, output_time))
+    parts.append("[outv]")
 
     return "".join(parts)
 

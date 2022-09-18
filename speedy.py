@@ -147,6 +147,7 @@ def parse_script(infile):
     output_size_re = re.compile(r'output_size\s+([0-9]+)x([0-9]+)$')
     default_speed_re = re.compile(r'default_speed\s+'
                                   r'(?P<speed>[0-9]+(?:\.[0-9]+)?)x?$')
+    flootay_file_re = re.compile(r'flootay_file\s+(?P<filename>.*?)\s*$')
 
     output_width = 1920
     output_height = 1080
@@ -243,6 +244,16 @@ def parse_script(infile):
 
         if line == "no_gpx":
             videos[-1].use_gpx = False
+            continue
+
+        md = flootay_file_re.match(line)
+        if md:
+            with open(md.group('filename'), "rt", encoding="utf-8") as f:
+                contents = f.read()
+            if len(videos) == 0:
+                extra_script.append(contents)
+            else:
+                videos[-1].script.append(contents)
             continue
 
         md = output_size_re.match(line)

@@ -379,6 +379,16 @@ def parse_script(infile):
                   sound_args,
                   default_speed)
 
+def script_has_sound(script):
+    if len(script.sound_args) > 0:
+        return True
+
+    for video in script.videos:
+        if len(video.sounds) > 0:
+            return True
+
+    return False
+
 def get_video_info(filename):
     with subprocess.Popen(["ffprobe",
                            "-i", filename,
@@ -638,30 +648,38 @@ def get_ffmpeg_command(script, video_speeds):
                        "-framerate", "30",
                        "-i", "|./overlay.flt"])
 
-    sound_input = next_input
-    next_input += 1
-    input_args.extend(["-ar", "48000",
-                       "-ac", "2",
-                       "-channel_layout", "stereo",
-                       "-f", "s24le",
-                       "-c:a", "pcm_s24le",
-                       "-i", "|./sound.sh"])
+    has_sound = script_has_sound(script)
+
+    if has_sound:
+        sound_input = next_input
+        next_input += 1
+        input_args.extend(["-ar", "48000",
+                           "-ac", "2",
+                           "-channel_layout", "stereo",
+                           "-f", "s24le",
+                           "-c:a", "pcm_s24le",
+                           "-i", "|./sound.sh"])
 
     filter = (get_ffmpeg_filter(script, first_overlay_input, video_speeds) +
               ";" +
               "[outv][{}]overlay[overoutv]".format(flootay_input))
 
-    return input_args + ["-filter_complex", filter,
-                         "-map", "[overoutv]",
-                         "-map", "{}:a".format(sound_input),
-                         "-r", "30",
-                         "-c:v", "libx264",
-                         "-profile:v", "high",
-                         "-bf", "2",
-                         "-g", "30",
-                         "-crf", "18",
-                         "-pix_fmt", "yuv420p",
-                         "film.mp4"]
+    args = input_args + ["-filter_complex", filter,
+                         "-map", "[overoutv]"]
+
+    if has_sound:
+        args.extend(["-map", "{}:a".format(sound_input)])
+
+    args.extend(["-r", "30",
+                 "-c:v", "libx264",
+                 "-profile:v", "high",
+                 "-bf", "2",
+                 "-g", "30",
+                 "-crf", "18",
+                 "-pix_fmt", "yuv420p",
+                 "film.mp4"])
+
+    return args
 
 def write_sound_script(f, total_video_time, sound_clips):
     dirname = os.path.dirname(sys.argv[0])
@@ -887,12 +905,13 @@ else:
 video_speeds = get_video_speeds(script.videos, script.speed_overrides)
 total_video_time = sum(vs.length * vs.speed for vs in video_speeds)
 
-with open("sound.sh", "wt", encoding="utf-8") as f:
-    write_sound_script(f,
-                       total_video_time,
-                       get_sound_clips(script.videos, video_speeds))
+if script_has_sound(script):
+    with open("sound.sh", "wt", encoding="utf-8") as f:
+        write_sound_script(f,
+                           total_video_time,
+                           get_sound_clips(script.videos, video_speeds))
 
-os.chmod("sound.sh", 0o775)
+    os.chmod("sound.sh", 0o775)
 
 flootay_proc = os.path.join(os.path.dirname(sys.argv[0]),
                             "build",

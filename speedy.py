@@ -183,7 +183,7 @@ def parse_script(infile):
         xpath = "./{}trk/{}trkseg/{}trkpt/{}time".replace("{}", md.group(1))
         first_time = tree.getroot().find(xpath)
         timestamp = dateutil.parser.parse(first_time.text).timestamp()
-        gpx_offsets[filename] = (timestamp, gpx_filename)
+        gpx_offsets[os.path.basename(filename)] = (timestamp, gpx_filename)
 
     def get_raw_video(filename, length):
         try:

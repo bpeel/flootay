@@ -579,7 +579,9 @@ def get_video_speed_filter(video_speeds):
 def get_ffmpeg_filter(script, overlay_input, video_speeds):
     parts = []
 
-    input_names = ["[{}]".format(i) for i in range(len(script.videos))]
+    has_sound = script_has_sound(script)
+
+    input_names = ["[{}:v]".format(i) for i in range(len(script.videos))]
 
     for i, video in enumerate(script.videos):
         video_parts = []
@@ -605,9 +607,14 @@ def get_ffmpeg_filter(script, overlay_input, video_speeds):
             overlay_input += 1
             input_names[i] = "[ov{}]".format(i)
 
-    parts.append("".join(input_names))
+    if has_sound:
+        parts.append("".join(input_names))
+    else:
+        for i, input_name in enumerate(input_names):
+            parts.append("{}[{}:a]".format(input_name, i))
 
-    parts.append("concat=n={}:v=1:a=0".format(len(script.videos)))
+    parts.append("concat=n={}:v=1:a={}".format(len(script.videos),
+                                               int(not has_sound)))
 
     if (len(video_speeds) > 1 or
         (len(video_speeds) == 1 and video_speeds[0].speed != 1)):
@@ -615,6 +622,9 @@ def get_ffmpeg_filter(script, overlay_input, video_speeds):
         parts.append(get_video_speed_filter(video_speeds))
 
     parts.append("[outv]")
+
+    if not has_sound:
+        parts.append("[outa]")
 
     return "".join(parts)
 
@@ -667,8 +677,12 @@ def get_ffmpeg_command(script, video_speeds):
     args = input_args + ["-filter_complex", filter,
                          "-map", "[overoutv]"]
 
+    args.append("-map")
+
     if has_sound:
-        args.extend(["-map", "{}:a".format(sound_input)])
+        args.append("{}:a".format(sound_input))
+    else:
+        args.append("[outa]")
 
     args.extend(["-r", "30",
                  "-c:v", "libx264",

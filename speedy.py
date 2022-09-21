@@ -67,6 +67,7 @@ Script = collections.namedtuple('Script', ['width',
                                            'speed_overrides',
                                            'show_elevation',
                                            'show_map',
+                                           'twitter',
                                            'sound_args',
                                            'default_speed'])
 Svg = collections.namedtuple('Svg', ['video',
@@ -161,6 +162,7 @@ def parse_script(infile):
     gpx_offsets = {}
     show_elevation = False
     show_map = False
+    twitter = False
     default_speed = 1.0 / 3.0
 
     in_script = False
@@ -240,6 +242,10 @@ def parse_script(infile):
 
         if line == "map":
             show_map = True
+            continue
+
+        if line == "twitter":
+            twitter = True
             continue
 
         if line == "no_gpx":
@@ -376,6 +382,7 @@ def parse_script(infile):
                   speed_overrides,
                   show_elevation,
                   show_map,
+                  twitter,
                   sound_args,
                   default_speed)
 
@@ -686,12 +693,18 @@ def get_ffmpeg_command(script, video_speeds):
 
     args.extend(["-r", "30",
                  "-c:v", "libx264",
-                 "-profile:v", "high",
-                 "-bf", "2",
-                 "-g", "30",
-                 "-crf", "18",
-                 "-pix_fmt", "yuv420p",
-                 "film.mp4"])
+                 "-pix_fmt", "yuv420p"])
+
+    if script.twitter:
+        args.extend(["-profile:v", "main",
+                     "-crf", "24"])
+    else:
+        args.extend(["-profile:v", "high",
+                     "-bf", "2",
+                     "-g", "30",
+                     "-crf", "18"])
+
+    args.append("film.mp4")
 
     return args
 

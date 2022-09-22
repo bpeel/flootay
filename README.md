@@ -46,7 +46,7 @@ If you save this into a file called `my-video.script` you could then generate th
 ../flootay/speedy.py my-video.script | bash
 ```
 
-The video will be written to `film.mp4`. It will have a resolution of 1920x1080. Note that it is assumed that all of the input videos have an aspect ratio of 16:9. The videos will be scaled to 1920x1080.
+The video will be written to a file with the same name as the script but the extension changed to `.mp4`. It will have a resolution of 1920x1080. Note that it is assumed that all of the input videos have an aspect ratio of 16:9. The videos will be scaled to 1920x1080.
 
 ## Speed
 

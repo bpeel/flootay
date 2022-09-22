@@ -635,7 +635,7 @@ def get_ffmpeg_filter(script, overlay_input, video_speeds):
 
     return "".join(parts)
 
-def get_ffmpeg_command(script, video_speeds):
+def get_ffmpeg_command(script, video_filename, video_speeds):
     input_args = (["ffmpeg"] +
                   sum((get_ffmpeg_input_args(script, video)
                        for video in script.videos),
@@ -704,7 +704,7 @@ def get_ffmpeg_command(script, video_speeds):
                      "-g", "30",
                      "-crf", "18"])
 
-    args.append("film.mp4")
+    args.append(video_filename)
 
     return args
 
@@ -924,9 +924,11 @@ def write_video_script(f, video):
           file=f)
 
 if len(sys.argv) >= 2:
+    video_filename = os.path.splitext(sys.argv[1])[0] + ".mp4"
     with open(sys.argv[1], "rt", encoding="utf-8") as f:
         script = parse_script(f)
 else:
+    video_filename = "film.mp4"
     script = parse_script(sys.stdin)
 
 video_speeds = get_video_speeds(script.videos, script.speed_overrides)
@@ -971,4 +973,6 @@ print(os.path.join(os.path.dirname(sys.argv[0]),
                    "build",
                    "run-ffmpeg"),
       " ".join(shlex.quote(arg)
-               for arg in get_ffmpeg_command(script, video_speeds)))
+               for arg in get_ffmpeg_command(script,
+                                             video_filename,
+                                             video_speeds)))

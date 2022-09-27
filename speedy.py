@@ -560,10 +560,15 @@ def get_ffmpeg_input_args(script, video):
 
     return args
 
-def get_video_speed_filter(video_speeds):
+def get_video_speed_filter(video_speeds, is_audio=False):
     input_time = 0
     output_time = 0
-    parts = ["setpts='"]
+    parts = []
+
+    if is_audio:
+        parts.append("a")
+
+    parts.append("setpts='")
 
     for i, vs in enumerate(video_speeds):
         if i < len(video_speeds) - 1:
@@ -581,7 +586,12 @@ def get_video_speed_filter(video_speeds):
         output_time += vs.length * vs.speed
 
     parts.append(")" * (len(video_speeds) - 1))
-    parts.append("',fps=fps={},trim=duration={}".format(FPS, output_time))
+    parts.append("',")
+    if is_audio:
+        parts.append("a")
+    else:
+        parts.append("fps=fps={},".format(FPS))
+    parts.append("trim=duration={}".format(output_time))
 
     return "".join(parts)
 
@@ -627,13 +637,22 @@ def get_ffmpeg_filter(script, overlay_input, video_speeds):
 
     if (len(video_speeds) > 1 or
         (len(video_speeds) == 1 and video_speeds[0].speed != 1)):
-        parts.append(",")
-        parts.append(get_video_speed_filter(video_speeds))
 
-    parts.append("[outv]")
+        if has_sound:
+            parts.append(",")
+            parts.append(get_video_speed_filter(video_speeds))
+            parts.append("[outv]")
+        else:
+            parts.append("[coutv][couta];[coutv]")
+            parts.append(get_video_speed_filter(video_speeds))
+            parts.append("[outv];[couta]")
+            parts.append(get_video_speed_filter(video_speeds, is_audio=True))
+            parts.append("[outa]")
+    else:
+        parts.append("[outv]")
 
-    if not has_sound:
-        parts.append("[outa]")
+        if not has_sound:
+            parts.append("[outa]")
 
     return "".join(parts)
 

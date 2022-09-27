@@ -131,7 +131,8 @@ def parse_script(infile):
     gpx_offset_re = re.compile(r'gpx_offset\s+(?P<filename>\S+)\s+'
                                r'(?P<video_time>'
                                + TIME_RE.pattern +
-                               r')\s+(?P<utc_time>.*)')
+                               r')\s+(?P<utc_time>\S+)'
+                               r'(?:\s+(?P<gpx_filename>\S.*))?$')
     slow_re = re.compile(r'slow\s+(?P<start_time>' +
                          TIME_RE.pattern +
                          r')\s+(?P<end_time>' +
@@ -309,7 +310,8 @@ def parse_script(infile):
             timestamp = dateutil.parser.parse(md.group('utc_time'))
             offset = (timestamp.timestamp() -
                       decode_time(md.group('video_time')))
-            gpx_offsets[md.group('filename')] = (offset, "speed.gpx")
+            gpx_filename = md.group('gpx_filename') or "speed.gpx"
+            gpx_offsets[md.group('filename')] = (offset, gpx_filename)
             continue
 
         md = svg_re.match(line)

@@ -133,17 +133,17 @@ def parse_script(infile):
                                + TIME_RE.pattern +
                                r')\s+(?P<utc_time>\S+)'
                                r'(?:\s+(?P<gpx_filename>\S.*))?$')
-    slow_re = re.compile(r'slow\s+(?P<start_time>' +
+    slow_re = re.compile(r'slow(?:\s+(?P<start_time>' +
                          TIME_RE.pattern +
-                         r')\s+(?P<end_time>' +
+                         r')(?:\s+(?P<end_time>' +
                          TIME_RE.pattern +
-                         r')$')
-    speed_re = re.compile(r'(?P<speed>[0-9]+(?:\.[0-9]+)?)x\s+'
+                         r'))?)?$')
+    speed_re = re.compile(r'(?P<speed>[0-9]+(?:\.[0-9]+)?)x(?:\s+'
                           r'(?P<start_time>' +
                           TIME_RE.pattern +
-                          r')\s+(?P<end_time>' +
+                          r')(?:\s+(?P<end_time>' +
                           TIME_RE.pattern +
-                          r')$')
+                          r'))?)?$')
     sound_args_re = re.compile(r'sound_args\s+(?P<args>.*)')
     filter_re = re.compile(r'filter\s+(?P<filter>.*)')
     output_size_re = re.compile(r'output_size\s+([0-9]+)x([0-9]+)$')
@@ -198,6 +198,25 @@ def parse_script(infile):
             maybe_add_gpx_offset(filename)
 
             return raw_video
+
+    def add_speed_override_from_md(speed, md):
+        if md.group('start_time') is None:
+            start_time = videos[-1].start_time
+        else:
+            start_time = decode_time(md.group('start_time'))
+
+        if md.group('end_time') is None:
+            if videos[-1].end_time is None:
+                end_time = videos[-1].raw_video.length
+            else:
+                end_time = videos[-1].end_time
+        else:
+            end_time = decode_time(md.group('end_time'))
+
+        speed_overrides.append(SpeedOverride(videos[-1].raw_video,
+                                             start_time,
+                                             end_time - start_time,
+                                             speed))
     
     for line_num, line in enumerate(infile):
         line = line.strip()
@@ -281,23 +300,12 @@ def parse_script(infile):
 
         md = slow_re.match(line)
         if md:
-            start_time = decode_time(md.group('start_time'))
-            end_time = decode_time(md.group('end_time'))
-            speed_overrides.append(SpeedOverride(videos[-1].raw_video,
-                                                 start_time,
-                                                 end_time - start_time,
-                                                 1.0))
+            add_speed_override_from_md(1.0, md)
             continue
 
         md = speed_re.match(line)
         if md:
-            speed = 1.0 / float(md.group('speed'))
-            start_time = decode_time(md.group('start_time'))
-            end_time = decode_time(md.group('end_time'))
-            speed_overrides.append(SpeedOverride(videos[-1].raw_video,
-                                                 start_time,
-                                                 end_time - start_time,
-                                                 speed))
+            add_speed_override_from_md(1.0 / float(md.group('speed')), md)
             continue
 
         md = default_speed_re.match(line)

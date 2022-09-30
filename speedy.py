@@ -945,10 +945,19 @@ def write_video_script(f, video):
                                 TIME_RE.pattern +
                                 r')')
 
+    if video.end_time:
+        end_time = video.end_time
+    else:
+        end_time = video.raw_video.length
+
     def replace_video_time(md):
         t = decode_time(md.group('time')) - video.start_time
         if t < 0:
             raise Exception("Time in flootay script is negative "
+                            "for {} in {}".format(
+                                md.group('time'), video.raw_video.filename))
+        if t > end_time:
+            raise Exception("Time in flootay script is past end of video "
                             "for {} in {}".format(
                                 md.group('time'), video.raw_video.filename))
         return md.group(0)[:(md.start('time') - md.start(0))] + str(t)

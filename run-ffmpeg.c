@@ -23,6 +23,7 @@
 #include <errno.h>
 #include <stdlib.h>
 #include <sys/wait.h>
+#include <signal.h>
 
 #include "flt-buffer.h"
 #include "flt-util.h"
@@ -146,16 +147,67 @@ run_ffmpeg(struct flt_buffer *args,
                 pi->cp.read_fd = -1;
         }
 
-        int status = EXIT_FAILURE;
+        struct flt_child_proc *ffmpeg_proc = add_child_proc(proc_inputs);
 
-        if (waitpid(pid, &status, 0 /* options */) == -1 ||
-            !WIFEXITED(status) ||
-            WEXITSTATUS(status) != EXIT_SUCCESS) {
-                fprintf(stderr, "%s failed\n", argv[0]);
+        ffmpeg_proc->pid = pid;
+        ffmpeg_proc->program_name = flt_strdup(argv[0]);
+
+        return true;
+}
+
+static bool
+has_child(struct flt_list *proc_inputs)
+{
+        struct proc_input *pi;
+
+        flt_list_for_each(pi, proc_inputs, link) {
+                if (pi->cp.pid != (pid_t) -1)
+                        return true;
+        }
+
+        return false;
+}
+
+static bool
+finish_child(struct proc_input *pi, int status)
+{
+        pi->cp.pid = (pid_t) -1;
+
+        if (!WIFEXITED(status) || WEXITSTATUS(status) != EXIT_SUCCESS) {
+                fprintf(stderr, "%s failed\n", pi->cp.program_name);
                 return false;
         } else {
                 return true;
         }
+}
+
+static bool
+wait_for_children(struct flt_list *proc_inputs)
+{
+        while (has_child(proc_inputs)) {
+                int status = EXIT_FAILURE;
+
+                pid_t pid = wait(&status);
+
+                if (pid == -1) {
+                        fprintf(stderr,
+                                "waitpid failed: %s\n",
+                                strerror(errno));
+                        return false;
+                } else {
+                        struct proc_input *pi;
+
+                        flt_list_for_each(pi, proc_inputs, link) {
+                                if (pi->cp.pid == pid) {
+                                        if (!finish_child(pi, status))
+                                                return false;
+                                        break;
+                                }
+                        }
+                }
+        }
+
+        return true;
 }
 
 static void
@@ -186,6 +238,17 @@ close_proc_inputs(struct flt_list *list)
         return ret;
 }
 
+static void
+kill_children(struct flt_list *proc_inputs)
+{
+        struct proc_input *pi;
+
+        flt_list_for_each(pi, proc_inputs, link) {
+                if (pi->cp.pid != (pid_t) -1)
+                        kill(pi->cp.pid, SIGTERM);
+        }
+}
+
 int
 main(int argc, char **argv)
 {
@@ -210,8 +273,15 @@ main(int argc, char **argv)
                 goto out;
         }
 
-        if (!run_ffmpeg(&args, &proc_inputs))
+        if (!run_ffmpeg(&args, &proc_inputs)) {
                 ret = EXIT_FAILURE;
+                goto out;
+        }
+
+        if (!wait_for_children(&proc_inputs)) {
+                ret = EXIT_FAILURE;
+                kill_children(&proc_inputs);
+        }
 
 out:
         if (!close_proc_inputs(&proc_inputs))

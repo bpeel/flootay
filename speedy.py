@@ -627,11 +627,18 @@ def get_ffmpeg_filter(script, overlay_input, video_speeds):
             input_names[i] = "[sv{}]".format(i)
 
         if len(video.script) > 0:
-            parts.append("{}[{}]overlay[ov{}];".format(
-                input_names[i],
-                overlay_input,
-                i))
-            overlay_input += 1
+            if overlay_input is None:
+                parts.append("{}flootay=filename=overlay-{}.flt[ov{}];".format(
+                    input_names[i],
+                    i,
+                    i))
+            else:
+                parts.append("{}[{}]overlay[ov{}];".format(
+                    input_names[i],
+                    overlay_input,
+                    i))
+                overlay_input += 1
+
             input_names[i] = "[ov{}]".format(i)
 
     if has_sound:
@@ -664,6 +671,11 @@ def get_ffmpeg_filter(script, overlay_input, video_speeds):
 
     return "".join(parts)
 
+def check_ffmpeg_has_flootay():
+    filters = subprocess.check_output(["ffmpeg", "-hide_banner", "-filters"],
+                                      encoding="utf-8")
+    return re.search(r'^\s*...\s+flootay\s+', filters, re.MULTILINE) is not None
+
 def get_ffmpeg_command(script, video_filename, video_speeds):
     input_args = (["ffmpeg"] +
                   sum((get_ffmpeg_input_args(script, video)
@@ -672,27 +684,24 @@ def get_ffmpeg_command(script, video_filename, video_speeds):
 
     next_input = len(script.videos)
 
-    first_overlay_input = next_input
-    for video_num, video in enumerate(script.videos):
-        if len(video.script) == 0:
-            continue
+    has_flootay = check_ffmpeg_has_flootay()
 
-        input_args.extend(["-f", "rawvideo",
-                           "-pixel_format", "rgba",
-                           "-video_size", "{}x{}".format(script.width,
-                                                         script.height),
-                           "-framerate", "30",
-                           "-i", "|./overlay-{}.flt".format(video_num)])
-        next_input += 1
+    if has_flootay:
+        first_overlay_input = None
+    else:
+        first_overlay_input = next_input
 
-    flootay_input = next_input
-    next_input += 1
-    input_args.extend(["-f", "rawvideo",
-                       "-pixel_format", "rgba",
-                       "-video_size", "{}x{}".format(script.width,
-                                                     script.height),
-                       "-framerate", "30",
-                       "-i", "|./overlay.flt"])
+        for video_num, video in enumerate(script.videos):
+            if len(video.script) == 0:
+                continue
+
+            input_args.extend(["-f", "rawvideo",
+                               "-pixel_format", "rgba",
+                               "-video_size", "{}x{}".format(script.width,
+                                                             script.height),
+                               "-framerate", "30",
+                               "-i", "|./overlay-{}.flt".format(video_num)])
+            next_input += 1
 
     has_sound = script_has_sound(script)
 
@@ -706,9 +715,24 @@ def get_ffmpeg_command(script, video_filename, video_speeds):
                            "-c:a", "pcm_s24le",
                            "-i", "|./sound.sh"])
 
-    filter = (get_ffmpeg_filter(script, first_overlay_input, video_speeds) +
+    if has_flootay:
+        overlay_filter = "[outv]flootay=filename=overlay.flt[overoutv]"
+    else:
+        flootay_input = next_input
+        next_input += 1
+        input_args.extend(["-f", "rawvideo",
+                           "-pixel_format", "rgba",
+                           "-video_size", "{}x{}".format(script.width,
+                                                         script.height),
+                           "-framerate", "30",
+                           "-i", "|./overlay.flt"])
+        overlay_filter = "[outv][{}]overlay[overoutv]".format(flootay_input)
+
+    filter = (get_ffmpeg_filter(script,
+                                first_overlay_input,
+                                video_speeds) +
               ";" +
-              "[outv][{}]overlay[overoutv]".format(flootay_input))
+              overlay_filter)
 
     args = input_args + ["-filter_complex", filter,
                          "-map", "[overoutv]"]

@@ -603,7 +603,7 @@ def get_video_speed_filter(video_speeds, is_audio=False):
 
     return "".join(parts)
 
-def get_ffmpeg_filter(script, overlay_input, video_speeds):
+def get_ffmpeg_filter(script, overlay_input, silent_input, video_speeds):
     parts = []
 
     has_sound = script_has_sound(script)
@@ -645,7 +645,12 @@ def get_ffmpeg_filter(script, overlay_input, video_speeds):
         parts.append("".join(input_names))
     else:
         for i, input_name in enumerate(input_names):
-            parts.append("{}[{}:a]".format(input_name, i))
+            if script.videos[i].raw_video.is_image:
+                audio_input = silent_input
+                silent_input += 1
+            else:
+                audio_input = i
+            parts.append("{}[{}:a]".format(input_name, audio_input))
 
     parts.append("concat=n={}:v=1:a={}".format(len(script.videos),
                                                int(not has_sound)))
@@ -705,8 +710,9 @@ def get_ffmpeg_command(script, video_filename, video_speeds):
 
     has_sound = script_has_sound(script)
 
+    sound_input = next_input
+
     if has_sound:
-        sound_input = next_input
         next_input += 1
         input_args.extend(["-ar", "48000",
                            "-ac", "2",
@@ -714,6 +720,17 @@ def get_ffmpeg_command(script, video_filename, video_speeds):
                            "-f", "s24le",
                            "-c:a", "pcm_s24le",
                            "-i", "|./sound.sh"])
+    else:
+        for video in script.videos:
+            if not video.raw_video.is_image:
+                continue
+
+            input_args.extend(["-f", "lavfi",
+                               "-i",
+                               "anullsrc=channel_layout=stereo:"
+                               "sample_rate=48000:"
+                               "d=0"])
+            next_input += 1
 
     if has_flootay:
         overlay_filter = "[outv]flootay=filename=overlay.flt[overoutv]"
@@ -730,6 +747,7 @@ def get_ffmpeg_command(script, video_filename, video_speeds):
 
     filter = (get_ffmpeg_filter(script,
                                 first_overlay_input,
+                                sound_input,
                                 video_speeds) +
               ";" +
               overlay_filter)

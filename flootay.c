@@ -116,7 +116,7 @@ main(int argc, char **argv)
                                            scene->video_height);
         cairo_t *cr = cairo_create(surface);
 
-        int n_frames = ceil(flt_scene_get_max_timestamp(scene) * FPS) + 1;
+        int n_frames = ceil(flt_scene_get_max_timestamp(scene) * FPS);
 
         struct flt_renderer *renderer = flt_renderer_new(scene);
 

@@ -66,19 +66,22 @@ class RawVideo:
                     self.height = int(stream['height'])
                     break
 
-Script = collections.namedtuple('Script', ['width',
-                                           'height',
-                                           'videos',
-                                           'scores',
-                                           'svgs',
-                                           'extra_script',
-                                           'gpx_offsets',
-                                           'speed_overrides',
-                                           'show_elevation',
-                                           'show_map',
-                                           'twitter',
-                                           'sound_args',
-                                           'default_speed'])
+class Script:
+    def __init__(self):
+        self.width = 1920
+        self.height = 1080
+        self.videos = []
+        self.scores = []
+        self.svgs = []
+        self.extra_script = []
+        self.speed_overrides = []
+        self.sound_args = []
+        self.gpx_offsets = {}
+        self.show_elevation = False
+        self.show_map = False
+        self.twitter = False
+        self.default_speed = 1.0 / 3.0
+
 Svg = collections.namedtuple('Svg', ['video',
                                      'filename',
                                      'start_time',
@@ -162,20 +165,8 @@ def parse_script(infile):
                                   r'(?P<speed>[0-9]+(?:\.[0-9]+)?)x?$')
     flootay_file_re = re.compile(r'flootay_file\s+(?P<filename>.*?)\s*$')
 
-    output_width = 1920
-    output_height = 1080
     raw_videos = {}
-    videos = []
-    scores = []
-    svgs = []
-    extra_script = []
-    speed_overrides = []
-    sound_args = []
-    gpx_offsets = {}
-    show_elevation = False
-    show_map = False
-    twitter = False
-    default_speed = 1.0 / 3.0
+    script = Script()
 
     in_script = False
 
@@ -197,7 +188,8 @@ def parse_script(infile):
         xpath = "./{}trk/{}trkseg/{}trkpt/{}time".replace("{}", md.group(1))
         first_time = tree.getroot().find(xpath)
         timestamp = dateutil.parser.parse(first_time.text).timestamp()
-        gpx_offsets[os.path.basename(filename)] = (timestamp, gpx_filename)
+        script.gpx_offsets[os.path.basename(filename)] = (timestamp,
+                                                          gpx_filename)
 
     def get_raw_video(filename, length):
         try:
@@ -212,22 +204,19 @@ def parse_script(infile):
 
     def add_speed_override_from_md(speed, md):
         if md.group('start_time') is None:
-            start_time = videos[-1].start_time
+            start_time = script.videos[-1].start_time
         else:
             start_time = decode_time(md.group('start_time'))
 
         if md.group('end_time') is None:
-            if videos[-1].end_time is None:
-                end_time = videos[-1].raw_video.length
-            else:
-                end_time = videos[-1].end_time
+            end_time = script.videos[-1].end_time_or_length()
         else:
             end_time = decode_time(md.group('end_time'))
 
-        speed_overrides.append(SpeedOverride(videos[-1].raw_video,
-                                             start_time,
-                                             end_time - start_time,
-                                             speed))
+        script.speed_overrides.append(SpeedOverride(script.videos[-1].raw_video,
+                                                    start_time,
+                                                    end_time - start_time,
+                                                    speed))
     
     for line_num, line in enumerate(infile):
         line = line.strip()
@@ -235,10 +224,10 @@ def parse_script(infile):
         if in_script:
             if line == "}}":
                 in_script = False
-            elif len(videos) == 0:
-                extra_script.append(line)
+            elif len(script.videos) == 0:
+                script.extra_script.append(line)
             else:
-                videos[-1].script.append(line)
+                script.videos[-1].script.append(line)
             continue
 
         if line == "{{":
@@ -255,58 +244,58 @@ def parse_script(infile):
                                            "generate-logo"))
             raw_video = get_raw_video(video_filename, 3)
             video = Video(raw_video, 0, 3)
-            videos.append(video)
+            script.videos.append(video)
             sound_filename = os.path.join(os.path.dirname(sys.argv[0]),
                                           "logo-sound.flac")
             video.sounds.append(Sound(0,
                                       sound_filename,
                                       get_sound_length(sound_filename)))
-            speed_overrides.append(SpeedOverride(raw_video,
-                                                 0, # start_time
-                                                 3, # end_time
-                                                 1.0))
+            script.speed_overrides.append(SpeedOverride(raw_video,
+                                                        0, # start_time
+                                                        3, # end_time
+                                                        1.0))
             continue
 
         if line == "elevation":
-            show_elevation = True
+            script.show_elevation = True
             continue
 
         if line == "map":
-            show_map = True
+            script.show_map = True
             continue
 
         if line == "twitter":
-            twitter = True
+            script.twitter = True
             continue
 
         if line == "no_gpx":
-            videos[-1].use_gpx = False
+            script.videos[-1].use_gpx = False
             continue
 
         md = flootay_file_re.match(line)
         if md:
             with open(md.group('filename'), "rt", encoding="utf-8") as f:
                 contents = f.read()
-            if len(videos) == 0:
-                extra_script.append(contents)
+            if len(script.videos) == 0:
+                script.extra_script.append(contents)
             else:
-                videos[-1].script.append(contents)
+                script.videos[-1].script.append(contents)
             continue
 
         md = output_size_re.match(line)
         if md:
-            output_width = int(md.group(1))
-            output_height = int(md.group(2))
+            script.width = int(md.group(1))
+            script.height = int(md.group(2))
             continue
 
         md = filter_re.match(line)
         if md:
-            videos[-1].filter.append(md.group('filter'))
+            script.videos[-1].filter.append(md.group('filter'))
             continue
 
         md = sound_args_re.match(line)
         if md:
-            sound_args.extend(shlex.split(md.group('args')))
+            script.sound_args.extend(shlex.split(md.group('args')))
             continue
 
         md = slow_re.match(line)
@@ -321,7 +310,7 @@ def parse_script(infile):
 
         md = default_speed_re.match(line)
         if md:
-            default_speed = 1.0 / float(md.group('speed'))
+            script.default_speed = 1.0 / float(md.group('speed'))
             continue
 
         md = gpx_offset_re.match(line)
@@ -330,36 +319,36 @@ def parse_script(infile):
             offset = (timestamp.timestamp() -
                       decode_time(md.group('video_time')))
             gpx_filename = md.group('gpx_filename') or "speed.gpx"
-            gpx_offsets[md.group('filename')] = (offset, gpx_filename)
+            script.gpx_offsets[md.group('filename')] = (offset, gpx_filename)
             continue
 
         md = svg_re.match(line)
         if md:
-            if len(videos) <= 0:
+            if len(script.videos) <= 0:
                 raise ParseError(("line {}: svg specified "
                                   "with no video").format(line_num + 1))
 
-            svgs.append(Svg(videos[-1],
-                            md.group('filename'),
-                            decode_time(md.group('start_time')),
-                            decode_time(md.group('length'))))
+            script.svgs.append(Svg(script.videos[-1],
+                                   md.group('filename'),
+                                   decode_time(md.group('start_time')),
+                                   decode_time(md.group('length'))))
 
             continue
  
         md = score_re.match(line)
         if md:
-            if len(videos) <= 0:
+            if len(script.videos) <= 0:
                 raise ParseError(("line {}: score specified "
                                   "with no video").format(line_num + 1))
 
-            scores.append(ScoreDiff(videos[-1],
-                                    decode_time(md.group('time')),
-                                    int(md.group('diff'))))
+            script.scores.append(ScoreDiff(script.videos[-1],
+                                           decode_time(md.group('time')),
+                                           int(md.group('diff'))))
             continue
 
         md = sound_re.match(line)
         if md:
-            if len(videos) <= 0:
+            if len(script.videos) <= 0:
                 raise ParseError(("line {}: sound specified "
                                   "with no video").format(line_num + 1))
 
@@ -368,7 +357,7 @@ def parse_script(infile):
             length = get_sound_length(filename)
 
             sound = Sound(start_time, filename, length)
-            videos[-1].sounds.append(sound)
+            script.videos[-1].sounds.append(sound)
 
             continue
 
@@ -391,21 +380,9 @@ def parse_script(infile):
 
         raw_video = get_raw_video(filename, potential_raw_length)
 
-        videos.append(Video(raw_video, start_time, end_time))
+        script.videos.append(Video(raw_video, start_time, end_time))
 
-    return Script(output_width,
-                  output_height,
-                  videos,
-                  scores,
-                  svgs,
-                  extra_script,
-                  gpx_offsets,
-                  speed_overrides,
-                  show_elevation,
-                  show_map,
-                  twitter,
-                  sound_args,
-                  default_speed)
+    return script
 
 def script_has_sound(script):
     if len(script.sound_args) > 0:

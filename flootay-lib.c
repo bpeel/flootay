@@ -111,13 +111,18 @@ flootay_render(struct flootay *flootay,
 
         struct flt_error *error = NULL;
 
-        if (!flt_renderer_render(flootay->renderer,
-                                 cr,
-                                 timestamp,
-                                 &error)) {
+        switch (flt_renderer_render(flootay->renderer,
+                                    cr,
+                                    timestamp,
+                                    &error)) {
+        case FLT_RENDERER_RESULT_ERROR:
                 set_error(flootay, error->message);
                 flt_error_free(error);
                 return false;
+
+        case FLT_RENDERER_RESULT_EMPTY:
+        case FLT_RENDERER_RESULT_OK:
+                break;
         }
 
         return true;

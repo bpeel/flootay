@@ -27,10 +27,16 @@
 
 struct flt_renderer;
 
+enum flt_renderer_result {
+        FLT_RENDERER_RESULT_ERROR,
+        FLT_RENDERER_RESULT_EMPTY,
+        FLT_RENDERER_RESULT_OK,
+};
+
 struct flt_renderer *
 flt_renderer_new(struct flt_scene *scene);
 
-bool
+enum flt_renderer_result
 flt_renderer_render(struct flt_renderer *renderer,
                     cairo_t *cr,
                     double timestamp,

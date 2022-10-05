@@ -488,7 +488,7 @@ interpolate_and_add_curve(struct flt_renderer *renderer,
         cairo_restore(cr);
 }
 
-static bool
+static enum flt_renderer_result
 interpolate_and_add_object(struct flt_renderer *renderer,
                            cairo_t *cr,
                            double timestamp,
@@ -502,13 +502,13 @@ interpolate_and_add_object(struct flt_renderer *renderer,
                         goto found_frame;
         }
 
-        return true;
+        return FLT_RENDERER_RESULT_EMPTY;
 
 found_frame:
 
         /* Ignore if the end frame is the first frame */
         if (object->key_frames.next == &end_frame->link)
-                return true;
+                return FLT_RENDERER_RESULT_EMPTY;
 
         const struct flt_scene_key_frame *s =
                 flt_container_of(end_frame->link.prev,
@@ -566,7 +566,7 @@ found_frame:
                                               flt_scene_gpx_key_frame *)
                                              end_frame,
                                              error))
-                        return false;
+                        return FLT_RENDERER_RESULT_ERROR;
                 break;
         case FLT_SCENE_OBJECT_TYPE_CURVE:
                 interpolate_and_add_curve(renderer,
@@ -583,7 +583,7 @@ found_frame:
                 break;
         }
 
-        return true;
+        return FLT_RENDERER_RESULT_OK;
 }
 
 struct flt_renderer *
@@ -596,7 +596,7 @@ flt_renderer_new(struct flt_scene *scene)
         return renderer;
 }
 
-bool
+enum flt_renderer_result
 flt_renderer_render(struct flt_renderer *renderer,
                     cairo_t *cr,
                     double timestamp,
@@ -610,16 +610,27 @@ flt_renderer_render(struct flt_renderer *renderer,
 
         const struct flt_scene_object *object;
 
+        enum flt_renderer_result ret = FLT_RENDERER_RESULT_EMPTY;
+
         flt_list_for_each(object, &renderer->scene->objects, link) {
-                if (!interpolate_and_add_object(renderer,
-                                                cr,
-                                                timestamp,
-                                                object,
-                                                error))
-                        return false;
+                switch (interpolate_and_add_object(renderer,
+                                                   cr,
+                                                   timestamp,
+                                                   object,
+                                                   error)) {
+                case FLT_RENDERER_RESULT_ERROR:
+                        return FLT_RENDERER_RESULT_ERROR;
+
+                case FLT_RENDERER_RESULT_EMPTY:
+                        break;
+
+                case FLT_RENDERER_RESULT_OK:
+                        ret = FLT_RENDERER_RESULT_OK;
+                        break;
+                }
         }
 
-        return true;
+        return ret;
 }
 
 void

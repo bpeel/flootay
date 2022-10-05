@@ -123,14 +123,19 @@ main(int argc, char **argv)
         for (int frame_num = 0; frame_num < n_frames; frame_num++) {
                 struct flt_error *error = NULL;
 
-                if (!flt_renderer_render(renderer,
-                                         cr,
-                                         frame_num / (double) FPS,
-                                         &error)) {
+                switch (flt_renderer_render(renderer,
+                                            cr,
+                                            frame_num / (double) FPS,
+                                            &error)) {
+                case FLT_RENDERER_RESULT_ERROR:
                         fprintf(stderr, "%s\n", error->message);
                         flt_error_free(error);
                         ret = EXIT_FAILURE;
                         goto render_out;
+
+                case FLT_RENDERER_RESULT_EMPTY:
+                case FLT_RENDERER_RESULT_OK:
+                        break;
                 }
 
                 cairo_surface_flush(surface);

@@ -1025,14 +1025,16 @@ if script_has_sound(script):
 flootay_proc = os.path.join(os.path.dirname(sys.argv[0]),
                             "build",
                             "flootay")
-flootay_header = ("#!{}\n"
-                  "\n"
-                  "video_width {}\n"
-                  "video_height {}\n").format(flootay_proc,
-                                              script.width, script.height)
+flootay_header = (("#!{}\n"
+                   "\n"
+                   "video_width {}\n"
+                   "video_height {}\n").format(flootay_proc,
+                                               script.width, script.height) +
+                  "\n".join(script.extra_script) +
+                  "\n")
 
 with open("overlay.flt", "wt", encoding="utf-8") as f:
-    print(flootay_header + "\n".join(script.extra_script), file=f)
+    print(flootay_header, file=f)
     write_score_script(f, script.scores, script.videos, video_speeds)
     write_speed_script(f, script, video_speeds)
     write_svg_script(f, script.svgs, script.videos, video_speeds)

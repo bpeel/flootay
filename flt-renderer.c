@@ -602,12 +602,6 @@ flt_renderer_render(struct flt_renderer *renderer,
                     double timestamp,
                     struct flt_error **error)
 {
-        cairo_save(cr);
-        cairo_set_source_rgba(cr, 0.0, 0.0, 0.0, 0.0);
-        cairo_set_operator(cr, CAIRO_OPERATOR_SOURCE);
-        cairo_paint(cr);
-        cairo_restore(cr);
-
         const struct flt_scene_object *object;
 
         enum flt_renderer_result ret = FLT_RENDERER_RESULT_EMPTY;

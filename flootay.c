@@ -123,6 +123,12 @@ main(int argc, char **argv)
         for (int frame_num = 0; frame_num < n_frames; frame_num++) {
                 struct flt_error *error = NULL;
 
+                cairo_save(cr);
+                cairo_set_source_rgba(cr, 0.0, 0.0, 0.0, 0.0);
+                cairo_set_operator(cr, CAIRO_OPERATOR_SOURCE);
+                cairo_paint(cr);
+                cairo_restore(cr);
+
                 switch (flt_renderer_render(renderer,
                                             cr,
                                             frame_num / (double) FPS,

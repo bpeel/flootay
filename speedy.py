@@ -94,6 +94,8 @@ GOPRO_FILENAME_RE = re.compile(r'(?P<camera_type>G[HX])'
 
 FPS = 30
 
+OVERLAY_FILTER = "overlay=eof_action=pass"
+
 class ParseError(Exception):
     pass
 
@@ -633,9 +635,10 @@ def get_ffmpeg_filter(script, overlay_input, silent_input, video_speeds):
                     i,
                     i))
             else:
-                parts.append("{}[{}]overlay[ov{}];".format(
+                parts.append("{}[{}]{}[ov{}];".format(
                     input_names[i],
                     overlay_input,
+                    OVERLAY_FILTER,
                     i))
                 overlay_input += 1
 
@@ -743,7 +746,8 @@ def get_ffmpeg_command(script, video_filename, video_speeds):
                                                          script.height),
                            "-framerate", "30",
                            "-i", "|./overlay.flt"])
-        overlay_filter = "[outv][{}]overlay[overoutv]".format(flootay_input)
+        overlay_filter = "[outv][{}]{}[overoutv]".format(flootay_input,
+                                                         OVERLAY_FILTER)
 
     filter = (get_ffmpeg_filter(script,
                                 first_overlay_input,

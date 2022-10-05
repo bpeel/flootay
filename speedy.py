@@ -37,6 +37,15 @@ class Video:
         self.filter = []
         self.use_gpx = not raw_video.is_proc and not raw_video.is_image
 
+    def end_time_or_length(self):
+        if self.end_time is None:
+            return self.raw_video.length
+        else:
+            return self.end_time
+
+    def length(self):
+        return self.end_time_or_length() - self.start_time
+
 class RawVideo:
     def __init__(self, filename, length=None):
         self.filename = filename
@@ -431,12 +440,7 @@ def get_videos_length(videos):
     total_length = 0
 
     for video in videos:
-        if video.end_time is None:
-            length = video.raw_video.length - video.start_time
-        else:
-            length = video.end_time - video.start_time
-
-        total_length += length
+        total_length += video.length()
 
     return total_length
 
@@ -444,10 +448,7 @@ def get_input_time(videos, raw_video, t):
     total_time = 0
 
     for video in videos:
-        if video.end_time is None:
-            end_time = video.raw_video.length
-        else:
-            end_time = video.end_time
+        end_time = video.end_time_or_length()
 
         if (raw_video == video.raw_video and
             t >= video.start_time and
@@ -915,10 +916,7 @@ def write_speed_script_for_video(f,
     output_time = 0
     key_frames = []
 
-    if video.end_time:
-        video_length = video.end_time - video.start_time
-    else:
-        video_length = video.raw_video.length - video.start_time
+    video_length = video.length()
 
     def add_frame(input_time, output_time, speed):
         # If the time is the same as the previous one then replace it
@@ -981,20 +979,14 @@ def write_speed_script(f, script, video_speeds):
                                          input_time,
                                          video_speeds)
 
-        if video.end_time:
-            input_time += video.end_time - video.start_time
-        else:
-            input_time += video.raw_video.length - video.start_time
+        input_time += video.length()
 
 def write_video_script(f, video):
     script_time_re = re.compile(r'\bkey_frame\s+(?P<time>' +
                                 TIME_RE.pattern +
                                 r')')
 
-    if video.end_time:
-        end_time = video.end_time
-    else:
-        end_time = video.raw_video.length
+    end_time = video.end_time_or_length()
 
     def replace_video_time(md):
         t = decode_time(md.group('time')) - video.start_time

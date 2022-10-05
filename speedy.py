@@ -895,91 +895,41 @@ def get_video_gpx_offsets(script):
 
     return offsets
 
-def write_speed_script_for_video(f,
-                                 script,
-                                 video,
-                                 gpx_offset,
-                                 video_input_time,
-                                 video_speeds):
-    print(("# {}\n"
-           "speed {{").format(video.raw_video.filename),
-          file=f)
+def get_speed_script_for_video(script,
+                               video,
+                               gpx_offset):
+    parts = ["speed {\n"]
 
     if script.show_elevation:
-        print("        elevation", file=f)
+        parts.append("        elevation\n")
     if script.show_map:
-        print("        map", file=f)
+        parts.append("        map\n")
 
-    print("        file \"{}\"".format(gpx_offset[1]), file=f)
+    timestamp = gpx_offset[0] + video.start_time
 
-    input_time = 0
-    output_time = 0
-    key_frames = []
+    parts.append(("        file \"{}\"\n"
+                  "        key_frame {} {{ timestamp {} }}\n"
+                  "        key_frame {} {{ timestamp {} }}\n"
+                  "}}\n").format(gpx_offset[1],
+                                 video.start_time,
+                                 timestamp,
+                                 video.end_time_or_length(),
+                                 timestamp + video.length()))
 
-    video_length = video.length()
+    return "".join(parts)
 
-    def add_frame(input_time, output_time, speed):
-        # If the time is the same as the previous one then replace it
-        # instead
-        if len(key_frames) > 0 and output_time == key_frames[-1][0]:
-            key_frames.pop()
-
-        utc_time = (gpx_offset[0] +
-                    input_time -
-                    video_input_time +
-                    video.start_time)
-
-        key_frames.append((output_time, utc_time))
-
-    last_vs = None
-
-    for vs in video_speeds:
-        if input_time >= video_input_time + video_length:
-            break
-
-        last_vs = vs
-
-        if input_time + vs.length > video_input_time:
-            clip_start_time = max(input_time, video_input_time)
-            add_frame(clip_start_time,
-                      output_time + (clip_start_time - input_time) * vs.speed,
-                      vs.speed)
-
-        input_time += vs.length
-        output_time += vs.length * vs.speed
-
-    add_frame(video_input_time + video_length,
-              output_time +
-              (video_input_time + video_length - input_time) *
-              last_vs.speed,
-              last_vs.speed)
-
-    for timestamp, utc_time in key_frames:
-        print("        key_frame {} {{ timestamp {} }}".format(
-            timestamp,
-            utc_time),
-              file=f)
-
-    print("}\n", file=f)
-
-def write_speed_script(f, script, video_speeds):
+def add_speed_scripts(script):
     if len(script.gpx_offsets) == 0:
         return
 
     offsets = get_video_gpx_offsets(script)
-    input_time = 0
 
     for video in script.videos:
         if video.use_gpx:
             bn = os.path.basename(video.raw_video.filename)
-            write_speed_script_for_video(f,
-                                         script,
-                                         video,
-                                         offsets[bn],
-                                         input_time,
-                                         video_speeds)
-
-        input_time += video.length()
+            video.script.append(get_speed_script_for_video(script,
+                                                           video,
+                                                           offsets[bn]))
 
 def write_video_script(f, video):
     script_time_re = re.compile(r'\bkey_frame\s+(?P<time>' +
@@ -1022,6 +972,8 @@ if script_has_sound(script):
 
     os.chmod("sound.sh", 0o775)
 
+add_speed_scripts(script)
+
 flootay_proc = os.path.join(os.path.dirname(sys.argv[0]),
                             "build",
                             "flootay")
@@ -1036,7 +988,6 @@ flootay_header = (("#!{}\n"
 with open("overlay.flt", "wt", encoding="utf-8") as f:
     print(flootay_header, file=f)
     write_score_script(f, script.scores, script.videos, video_speeds)
-    write_speed_script(f, script, video_speeds)
     write_svg_script(f, script.svgs, script.videos, video_speeds)
 
 os.chmod("overlay.flt", 0o775)

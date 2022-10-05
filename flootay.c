@@ -30,6 +30,21 @@
 #define FPS 30
 
 static bool
+write_row(const void *data, int width)
+{
+        size_t wrote = fwrite(data, 1, width * 4, stdout);
+
+        if (wrote != width * 4) {
+                fprintf(stderr,
+                        "error writing frame: %s\n",
+                        strerror(errno));
+                return false;
+        }
+
+        return true;
+}
+
+static bool
 write_surface(cairo_surface_t *surface)
 {
         int width = cairo_image_surface_get_width(surface);
@@ -62,14 +77,26 @@ write_surface(cairo_surface_t *surface)
                         *(out_pix++) = a;
                 }
 
-                size_t wrote = fwrite(data, 1, width * 4, stdout);
-
-                if (wrote != width * 4) {
-                        fprintf(stderr,
-                                "error writing frame: %s\n",
-                                strerror(errno));
+                if (!write_row(data, width))
                         return false;
-                }
+        }
+
+        return true;
+}
+
+static bool
+write_blank_surface(cairo_surface_t *surface)
+{
+        /* This assumes the surface is all zeroes so we don’t need to
+         * unpremultiply.
+         */
+        int width = cairo_image_surface_get_width(surface);
+        int height = cairo_image_surface_get_height(surface);
+        const void *data = cairo_image_surface_get_data(surface);
+
+        for (int y = 0; y < height; y++) {
+                if (!write_row(data, width))
+                        return false;
         }
 
         return true;
@@ -115,6 +142,7 @@ main(int argc, char **argv)
                                            scene->video_width,
                                            scene->video_height);
         cairo_t *cr = cairo_create(surface);
+        bool surface_is_clear = false;
 
         int n_frames = ceil(flt_scene_get_max_timestamp(scene) * FPS);
 
@@ -123,11 +151,15 @@ main(int argc, char **argv)
         for (int frame_num = 0; frame_num < n_frames; frame_num++) {
                 struct flt_error *error = NULL;
 
-                cairo_save(cr);
-                cairo_set_source_rgba(cr, 0.0, 0.0, 0.0, 0.0);
-                cairo_set_operator(cr, CAIRO_OPERATOR_SOURCE);
-                cairo_paint(cr);
-                cairo_restore(cr);
+                if (!surface_is_clear) {
+                        cairo_save(cr);
+                        cairo_set_source_rgba(cr, 0.0, 0.0, 0.0, 0.0);
+                        cairo_set_operator(cr, CAIRO_OPERATOR_SOURCE);
+                        cairo_paint(cr);
+                        cairo_restore(cr);
+
+                        surface_is_clear = true;
+                }
 
                 switch (flt_renderer_render(renderer,
                                             cr,
@@ -140,15 +172,24 @@ main(int argc, char **argv)
                         goto render_out;
 
                 case FLT_RENDERER_RESULT_EMPTY:
-                case FLT_RENDERER_RESULT_OK:
+                        cairo_surface_flush(surface);
+
+                        if (!write_blank_surface(surface)) {
+                                ret = EXIT_FAILURE;
+                                goto render_out;
+                        }
                         break;
-                }
 
-                cairo_surface_flush(surface);
+                case FLT_RENDERER_RESULT_OK:
+                        surface_is_clear = false;
 
-                if (!write_surface(surface)) {
-                        ret = EXIT_FAILURE;
-                        goto render_out;
+                        cairo_surface_flush(surface);
+
+                        if (!write_surface(surface)) {
+                                ret = EXIT_FAILURE;
+                                goto render_out;
+                        }
+                        break;
                 }
         }
 

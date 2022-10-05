@@ -25,6 +25,12 @@
 
 struct flootay;
 
+enum flootay_render_result {
+        FLOOTAY_RENDER_RESULT_ERROR,
+        FLOOTAY_RENDER_RESULT_EMPTY,
+        FLOOTAY_RENDER_RESULT_OK,
+};
+
 struct flootay *
 flootay_new(void);
 
@@ -40,7 +46,7 @@ flootay_load_script(struct flootay *flootay,
                     const char *base_dir,
                     FILE *file);
 
-bool
+enum flootay_render_result
 flootay_render(struct flootay *flootay,
                cairo_t *cr,
                double timestamp);

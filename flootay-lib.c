@@ -21,6 +21,7 @@
 #include <stdio.h>
 #include <cairo.h>
 #include <errno.h>
+#include <assert.h>
 
 #include "flt-util.h"
 #include "flt-scene.h"
@@ -99,7 +100,7 @@ flootay_load_script(struct flootay *flootay,
         return true;
 }
 
-bool
+enum flootay_render_result
 flootay_render(struct flootay *flootay,
                cairo_t *cr,
                double timestamp)
@@ -118,14 +119,18 @@ flootay_render(struct flootay *flootay,
         case FLT_RENDERER_RESULT_ERROR:
                 set_error(flootay, error->message);
                 flt_error_free(error);
-                return false;
+                return FLOOTAY_RENDER_RESULT_ERROR;
 
         case FLT_RENDERER_RESULT_EMPTY:
+                return FLOOTAY_RENDER_RESULT_EMPTY;
+
         case FLT_RENDERER_RESULT_OK:
-                break;
+                return FLOOTAY_RENDER_RESULT_OK;
         }
 
-        return true;
+        assert(!"unexpected return value from flt_renderer_render");
+
+        return FLOOTAY_RENDER_RESULT_EMPTY;
 }
 
 void

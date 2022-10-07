@@ -394,6 +394,18 @@ def script_has_sound(script):
 
     return False
 
+def is_normal_speed(video_speeds):
+    return len(video_speeds) == 1 and video_speeds[0].speed == 1
+
+def get_sound_mode(script, video_speeds):
+    if script_has_sound(script):
+        return "generate"
+
+    if is_normal_speed(video_speeds):
+        return "original"
+
+    return "silence"
+
 def get_video_info(filename):
     with subprocess.Popen(["ffprobe",
                            "-i", filename,
@@ -548,13 +560,10 @@ def get_ffmpeg_input_args(script, video):
 
     return args
 
-def get_video_speed_filter(video_speeds, is_audio=False):
+def get_video_speed_filter(video_speeds):
     input_time = 0
     output_time = 0
     parts = []
-
-    if is_audio:
-        parts.append("a")
 
     parts.append("setpts='")
 
@@ -575,18 +584,17 @@ def get_video_speed_filter(video_speeds, is_audio=False):
 
     parts.append(")" * (len(video_speeds) - 1))
     parts.append("',")
-    if is_audio:
-        parts.append("a")
-    else:
-        parts.append("fps=fps={},".format(FPS))
+    parts.append("fps=fps={},".format(FPS))
     parts.append("trim=duration={}".format(output_time))
 
     return "".join(parts)
 
-def get_ffmpeg_filter(script, overlay_input, silent_input, video_speeds):
+def get_ffmpeg_filter(script,
+                      sound_mode,
+                      overlay_input,
+                      silent_input,
+                      video_speeds):
     parts = []
-
-    has_sound = script_has_sound(script)
 
     input_names = ["[{}:v]".format(i) for i in range(len(script.videos))]
 
@@ -622,9 +630,7 @@ def get_ffmpeg_filter(script, overlay_input, silent_input, video_speeds):
 
             input_names[i] = "[ov{}]".format(i)
 
-    if has_sound:
-        parts.append("".join(input_names))
-    else:
+    if sound_mode == "original":
         for i, input_name in enumerate(input_names):
             if script.videos[i].raw_video.is_image:
                 audio_input = silent_input
@@ -632,28 +638,21 @@ def get_ffmpeg_filter(script, overlay_input, silent_input, video_speeds):
             else:
                 audio_input = i
             parts.append("{}[{}:a]".format(input_name, audio_input))
+    else:
+        parts.append("".join(input_names))
 
     parts.append("concat=n={}:v=1:a={}".format(len(script.videos),
-                                               int(not has_sound)))
+                                               int(sound_mode == "original")))
 
-    if (len(video_speeds) > 1 or
-        (len(video_speeds) == 1 and video_speeds[0].speed != 1)):
-
-        if has_sound:
-            parts.append(",")
-            parts.append(get_video_speed_filter(video_speeds))
-            parts.append("[outv]")
-        else:
-            parts.append("[coutv][couta];[coutv]")
-            parts.append(get_video_speed_filter(video_speeds))
-            parts.append("[outv];[couta]")
-            parts.append(get_video_speed_filter(video_speeds, is_audio=True))
-            parts.append("[outa]")
-    else:
+    if is_normal_speed(video_speeds):
         parts.append("[outv]")
 
-        if not has_sound:
+        if sound_mode == "original":
             parts.append("[outa]")
+    else:
+        parts.append(",")
+        parts.append(get_video_speed_filter(video_speeds))
+        parts.append("[outv]")
 
     return "".join(parts)
 
@@ -669,6 +668,8 @@ def get_ffmpeg_command(script, video_filename, video_speeds):
                       []))
 
     next_input = len(script.videos)
+
+    sound_mode = get_sound_mode(script, video_speeds)
 
     has_flootay = check_ffmpeg_has_flootay()
 
@@ -689,11 +690,9 @@ def get_ffmpeg_command(script, video_filename, video_speeds):
                                "-i", "|./overlay-{}.flt".format(video_num)])
             next_input += 1
 
-    has_sound = script_has_sound(script)
-
     sound_input = next_input
 
-    if has_sound:
+    if sound_mode == "generate":
         next_input += 1
         input_args.extend(["-ar", "48000",
                            "-ac", "2",
@@ -701,7 +700,7 @@ def get_ffmpeg_command(script, video_filename, video_speeds):
                            "-f", "s24le",
                            "-c:a", "pcm_s24le",
                            "-i", "|./sound.sh"])
-    else:
+    elif sound_mode == "original":
         for video in script.videos:
             if not video.raw_video.is_image:
                 continue
@@ -728,6 +727,7 @@ def get_ffmpeg_command(script, video_filename, video_speeds):
                                                          OVERLAY_FILTER)
 
     filter = (get_ffmpeg_filter(script,
+                                sound_mode,
                                 first_overlay_input,
                                 sound_input,
                                 video_speeds) +
@@ -737,12 +737,12 @@ def get_ffmpeg_command(script, video_filename, video_speeds):
     args = input_args + ["-filter_complex", filter,
                          "-map", "[overoutv]"]
 
-    args.append("-map")
-
-    if has_sound:
-        args.append("{}:a".format(sound_input))
-    else:
-        args.append("[outa]")
+    if sound_mode == "generate":
+        args.extend(["-map", "{}:a".format(sound_input)])
+    elif sound_mode == "original":
+        args.extend(["-map", "[outa]"])
+    elif sound_mode == "silence":
+        args.append("-an")
 
     args.extend(["-r", "30",
                  "-c:v", "libx264",

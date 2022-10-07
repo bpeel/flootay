@@ -59,16 +59,6 @@ clamp(int value, int min, int max)
 }
 
 static void
-fill_rectangle(cairo_t *cr,
-               int x1, int y1,
-               int x2, int y2)
-{
-        cairo_set_source_rgb(cr, 0.0, 0.0, 0.0);
-        cairo_rectangle(cr, x1, y1, x2 - x1, y2 - y1);
-        cairo_fill(cr);
-}
-
-static void
 set_source_from_color(cairo_t *cr, uint32_t color)
 {
         cairo_set_source_rgb(cr,
@@ -80,6 +70,7 @@ set_source_from_color(cairo_t *cr, uint32_t color)
 static void
 interpolate_and_add_rectangle(struct flt_renderer *renderer,
                               cairo_t *cr,
+                              const struct flt_scene_rectangle *rectangle,
                               double i,
                               const struct flt_scene_rectangle_key_frame *s,
                               const struct flt_scene_rectangle_key_frame *e)
@@ -97,7 +88,9 @@ interpolate_and_add_rectangle(struct flt_renderer *renderer,
                        y1,
                        renderer->scene->video_height);
 
-        fill_rectangle(cr, x1, y1, x2, y2);
+        set_source_from_color(cr, rectangle->color);
+        cairo_rectangle(cr, x1, y1, x2 - x1, y2 - y1);
+        cairo_fill(cr);
 }
 
 static void
@@ -527,6 +520,8 @@ found_frame:
         case FLT_SCENE_OBJECT_TYPE_RECTANGLE:
                 interpolate_and_add_rectangle(renderer,
                                               cr,
+                                              (const struct
+                                               flt_scene_rectangle *) object,
                                               i,
                                               (const struct
                                                flt_scene_rectangle_key_frame *)

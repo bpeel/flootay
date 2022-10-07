@@ -54,6 +54,7 @@ struct flt_scene_key_frame {
 
 struct flt_scene_rectangle {
         struct flt_scene_object base;
+        uint32_t color;
 };
 
 struct flt_scene_rectangle_key_frame {

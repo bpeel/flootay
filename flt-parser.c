@@ -576,6 +576,15 @@ parse_rectangle_key_frame(struct flt_parser *parser,
         return FLT_PARSER_RETURN_OK;
 }
 
+static const struct flt_parser_property
+rectangle_props[] = {
+        {
+                offsetof(struct flt_scene_rectangle, color),
+                FLT_PARSER_VALUE_TYPE_COLOR,
+                FLT_LEXER_KEYWORD_COLOR,
+        },
+};
+
 static enum flt_parser_return
 parse_rectangle(struct flt_parser *parser,
                 struct flt_error **error)
@@ -617,6 +626,19 @@ parse_rectangle(struct flt_parser *parser,
                                     funcs,
                                     FLT_N_ELEMENTS(funcs),
                                     error)) {
+                case FLT_PARSER_RETURN_OK:
+                        continue;
+                case FLT_PARSER_RETURN_NOT_MATCHED:
+                        break;
+                case FLT_PARSER_RETURN_ERROR:
+                        return FLT_PARSER_RETURN_ERROR;
+                }
+
+                switch (parse_properties(parser,
+                                         rectangle_props,
+                                         FLT_N_ELEMENTS(rectangle_props),
+                                         rectangle,
+                                         error)) {
                 case FLT_PARSER_RETURN_OK:
                         continue;
                 case FLT_PARSER_RETURN_NOT_MATCHED:

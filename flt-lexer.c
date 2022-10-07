@@ -382,6 +382,28 @@ flt_lexer_put_token(struct flt_lexer *lexer)
         lexer->n_put_tokens++;
 }
 
+static long
+parse_decimal_or_hex(const char *str, char **tail)
+{
+        /* Not using zero for the base in strtol because we don’t want
+         * to accept octal.
+         */
+
+        const char *prefix = str;
+
+        if (*prefix == '-')
+                prefix++;
+
+        int base;
+
+        if (prefix[0] == '0' && (prefix[1] == 'x' || prefix[1] == 'X'))
+                base = 16;
+        else
+                base = 10;
+
+        return strtol(str, tail, base);
+}
+
 static bool
 parse_number(struct flt_lexer *lexer,
              const char *str,
@@ -392,7 +414,7 @@ parse_number(struct flt_lexer *lexer,
 
         errno = 0;
 
-        token->number_value = strtol(str, &tail, 10);
+        token->number_value = parse_decimal_or_hex(str, &tail);
 
         if (errno) {
                 set_error(lexer,
@@ -405,7 +427,8 @@ parse_number(struct flt_lexer *lexer,
 
         while (*tail == ':') {
                 const char *sub_part_start = tail + 1;
-                unsigned long sub_part = strtoul(sub_part_start, &tail, 10);
+                unsigned long sub_part =
+                        parse_decimal_or_hex(sub_part_start, &tail);
 
                 if (errno ||
                     tail == sub_part_start ||

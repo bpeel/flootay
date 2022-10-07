@@ -96,6 +96,11 @@ fail_checks[] = {
                 FLT_LEXER_ERROR_INVALID_NUMBER,
                 "line 1: Invalid number “0:18446744073709551616”"
         },
+        {
+                "0x50x5",
+                FLT_LEXER_ERROR_INVALID_NUMBER,
+                "line 1: Invalid number “0x50x5”",
+        },
 };
 
 static const struct number_check
@@ -151,6 +156,38 @@ number_checks[] = {
         {
                 "-1:34.12",
                 { -94, -120000000, true }
+        },
+        {
+                "010",
+                { 10 }
+        },
+        {
+                "-010",
+                { -10 }
+        },
+        {
+                "0x10",
+                { 16 }
+        },
+        {
+                "-0x10",
+                { -16 }
+        },
+        {
+                "0x7fffffffffffffff",
+                { LONG_MAX }
+        },
+        {
+                "-0x8000000000000000",
+                { LONG_MIN }
+        },
+        {
+                "0X10",
+                { 16 }
+        },
+        {
+                "0x0123456789abcdef",
+                { 0x0123456789abcdef }
         },
 };
 

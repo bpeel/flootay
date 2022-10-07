@@ -1420,22 +1420,9 @@ parse_curve_key_frame(struct flt_parser *parser,
 static const struct flt_parser_property
 curve_props[] = {
         {
-                offsetof(struct flt_scene_curve, r),
-                FLT_PARSER_VALUE_TYPE_DOUBLE,
-                FLT_LEXER_KEYWORD_R,
-                .min_double_value = 0.0, .max_double_value = 1.0,
-        },
-        {
-                offsetof(struct flt_scene_curve, g),
-                FLT_PARSER_VALUE_TYPE_DOUBLE,
-                FLT_LEXER_KEYWORD_G,
-                .min_double_value = 0.0, .max_double_value = 1.0,
-        },
-        {
-                offsetof(struct flt_scene_curve, b),
-                FLT_PARSER_VALUE_TYPE_DOUBLE,
-                FLT_LEXER_KEYWORD_B,
-                .min_double_value = 0.0, .max_double_value = 1.0,
+                offsetof(struct flt_scene_curve, color),
+                FLT_PARSER_VALUE_TYPE_COLOR,
+                FLT_LEXER_KEYWORD_COLOR,
         },
 };
 

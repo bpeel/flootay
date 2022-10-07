@@ -102,7 +102,7 @@ struct flt_scene_point {
 
 struct flt_scene_curve {
         struct flt_scene_object base;
-        double r, g, b;
+        uint32_t color;
 };
 
 struct flt_scene_curve_key_frame {

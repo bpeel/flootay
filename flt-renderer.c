@@ -69,6 +69,15 @@ fill_rectangle(cairo_t *cr,
 }
 
 static void
+set_source_from_color(cairo_t *cr, uint32_t color)
+{
+        cairo_set_source_rgb(cr,
+                             ((color >> 16) & 0xff) / 255.0,
+                             ((color >> 8) & 0xff) / 255.0,
+                             (color & 0xff) / 255.0);
+}
+
+static void
 interpolate_and_add_rectangle(struct flt_renderer *renderer,
                               cairo_t *cr,
                               double i,
@@ -468,10 +477,7 @@ interpolate_and_add_curve(struct flt_renderer *renderer,
         cairo_save(cr);
 
         cairo_set_antialias(cr, CAIRO_ANTIALIAS_BEST);
-        cairo_set_source_rgb(cr,
-                             curve->r,
-                             curve->g,
-                             curve->b);
+        set_source_from_color(cr, curve->color);
         cairo_set_line_width(cr,
                              interpolate_double(i,
                                                 s->stroke_width,

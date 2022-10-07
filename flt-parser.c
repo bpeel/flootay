@@ -27,6 +27,7 @@
 #include "flt-list.h"
 #include "flt-buffer.h"
 #include "flt-gpx.h"
+#include "flt-color.h"
 
 struct flt_error_domain
 flt_parser_error;
@@ -50,6 +51,7 @@ enum flt_parser_value_type {
         FLT_PARSER_VALUE_TYPE_INT,
         FLT_PARSER_VALUE_TYPE_DOUBLE,
         FLT_PARSER_VALUE_TYPE_BOOL,
+        FLT_PARSER_VALUE_TYPE_COLOR,
 };
 
 typedef enum flt_parser_return
@@ -307,6 +309,48 @@ parse_bool_property(struct flt_parser *parser,
 }
 
 static enum flt_parser_return
+parse_color_property(struct flt_parser *parser,
+                     const struct flt_parser_property *prop,
+                     void *object,
+                     struct flt_error **error)
+{
+        const struct flt_lexer_token *token;
+
+        check_item_keyword(parser, prop->prop_keyword, error);
+
+        uint32_t *field = (uint32_t *) (((uint8_t *) object) + prop->offset);
+
+        token = flt_lexer_get_token(parser->lexer, error);
+
+        switch (token->type) {
+        case FLT_LEXER_TOKEN_TYPE_STRING:
+                if (!flt_color_lookup(token->string_value, field)) {
+                        set_error(parser,
+                                  error,
+                                  "Unknown color name “%s”",
+                                  token->string_value);
+                        return FLT_PARSER_RETURN_ERROR;
+                }
+                break;
+        case FLT_LEXER_TOKEN_TYPE_NUMBER:
+                if (token->number_value < 0 ||
+                    token->number_value > 0xffffff) {
+                        set_error(parser,
+                                  error,
+                                  "Number out of range for color");
+                        return FLT_PARSER_RETURN_ERROR;
+                }
+                *field = token->number_value;
+                break;
+        default:
+                set_error(parser, error, "Expected color");
+                return FLT_PARSER_RETURN_ERROR;
+        }
+
+        return FLT_PARSER_RETURN_OK;
+}
+
+static enum flt_parser_return
 parse_properties(struct flt_parser *parser,
                  const struct flt_parser_property *props,
                  size_t n_props,
@@ -340,6 +384,12 @@ parse_properties(struct flt_parser *parser,
                                                   props + i,
                                                   object,
                                                   error);
+                        break;
+                case FLT_PARSER_VALUE_TYPE_COLOR:
+                        ret = parse_color_property(parser,
+                                                   props + i,
+                                                   object,
+                                                   error);
                         break;
                 }
 

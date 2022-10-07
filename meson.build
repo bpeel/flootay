@@ -24,6 +24,7 @@ flootay_deps = [m_dep, cairo_dep, rsvg_dep, expat_dep]
 flootay_lib = library('flootay',
                       ['flootay-lib.c',
                        'flt-buffer.c',
+                       'flt-color.c',
                        'flt-error.c',
                        'flt-file-error.c',
                        'flt-gpx.c',

@@ -191,12 +191,13 @@ The overlay in the video is generated from a separate text file description in t
 
 ### Draw a rectangle
 
-I use this to draw a black rectangle over licence plates in my videos. For example:
+I use this to draw a rectangle over licence plates in my videos. For example:
 
 ```
 {{
 
 rectangle {
+        color "red"
         key_frame 1:58.46 { x1 -12 y1 766 x2 132 y2 878 }
         key_frame 1:58.86 { x1 149 y1 766 x2 288 y2 850 }
         key_frame 1:59.26 { x1 449 y1 715 x2 588 y2 818 }
@@ -204,6 +205,8 @@ rectangle {
 
 }}
 ```
+
+The color can be a CSS color name in a string, or a hexadecimal value like `color 0xffff00` for yellow. If no color is specified the rectangle will be black.
 
 This adds a rectangle for about 1 second starting from 1:58.46 in the input video. The x1/y1/x2/y2 specify the dimensions of the rectangle. The values will be interpolated for the frames in-between. The rectangle will disappear at the time mentioned in the last key frame.
 

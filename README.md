@@ -287,3 +287,6 @@ make-key-frames -w <svg-width> -h <svg-height> …
 
 That way when you right click it will draw a box with the size of the SVG.
 
+## FFmpeg filter
+
+By default flootay works by passing raw video frames to ffmpeg via a pipe and then using the overlay filter to apply them. There is also an [experimental branch](https://github.com/bpeel/ffmpeg) of ffmpeg that adds a filter to generate the overlay directly onto the frames from the source clips. This has the advantage that flootay doesn’t need to be told the video size and it will generate the overlay exactly at the right time for each frame of the source video even if it has a variable frame rate. If you build that branch and put the resulting ffmpeg executable in the PATH where speedy can find it then it will automatically detect and use the filter.

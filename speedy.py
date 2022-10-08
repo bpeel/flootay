@@ -81,6 +81,7 @@ class Script:
         self.show_map = False
         self.twitter = False
         self.default_speed = 1.0 / 3.0
+        self.silent = False
 
 Svg = collections.namedtuple('Svg', ['video',
                                      'filename',
@@ -268,6 +269,10 @@ def parse_script(infile):
             script.twitter = True
             continue
 
+        if line == "silent":
+            script.silent = True
+            continue
+
         if line == "no_gpx":
             script.videos[-1].use_gpx = False
             continue
@@ -398,6 +403,9 @@ def is_normal_speed(video_speeds):
     return len(video_speeds) == 1 and video_speeds[0].speed == 1
 
 def get_sound_mode(script, video_speeds):
+    if script.silent:
+        return "silence"
+
     if script_has_sound(script):
         return "generate"
 

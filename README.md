@@ -77,6 +77,8 @@ part1.mp4
 8x 5:00 8:00
 ```
 
+With either command you can leave out the start time or the end time to make it default to the start or end of the clip. So if you leave out both times for example by just writing `slow` somewhere after the video then the whole clip will be at normal speed.
+
 ## Sound
 
 You can add commentary to a video by splitting your comments up into separate audio files. For example:

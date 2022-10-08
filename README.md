@@ -111,6 +111,10 @@ sound_args -S 73
 
 This will make the music start at the 73rd second.
 
+### Keeping the original sound
+
+If all of the videos are at the original speed and you don’t add any sound files or `sound_args` lines then speedy will keep the original sound from the videos. You can stop it from doing this by adding the line `silent` somewhere in the script.
+
 ## GPX trace
 
 If you want to add a speedometer to your video, save a GPX trace in the same directory as the script and call it `speed.gpx`. The trace needs to have the speed recorded in it for this to work. If you have a GPX file without the speed, you can synthesise the speed with [gpsbabel](https://www.gpsbabel.org/) with a command like this:

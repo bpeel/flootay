@@ -36,6 +36,7 @@ enum flt_lexer_error {
 enum flt_lexer_keyword {
         FLT_LEXER_KEYWORD_RECTANGLE = 1,
         FLT_LEXER_KEYWORD_SVG,
+        FLT_LEXER_KEYWORD_SVG_VIEWPORT,
         FLT_LEXER_KEYWORD_SCORE,
         FLT_LEXER_KEYWORD_GPX,
         FLT_LEXER_KEYWORD_ELEVATION,

@@ -1011,6 +1011,177 @@ parse_svg(struct flt_parser *parser,
 }
 
 static const struct flt_parser_property
+svg_viewport_key_frame_props[] = {
+        {
+                offsetof(struct flt_scene_svg_viewport_key_frame, x1),
+                FLT_PARSER_VALUE_TYPE_INT,
+                FLT_LEXER_KEYWORD_X1,
+                .min_value = INT_MIN, .max_value = INT_MAX,
+        },
+        {
+                offsetof(struct flt_scene_svg_viewport_key_frame, y1),
+                FLT_PARSER_VALUE_TYPE_INT,
+                FLT_LEXER_KEYWORD_Y1,
+                .min_value = INT_MIN, .max_value = INT_MAX,
+        },
+        {
+                offsetof(struct flt_scene_svg_viewport_key_frame, x2),
+                FLT_PARSER_VALUE_TYPE_INT,
+                FLT_LEXER_KEYWORD_X2,
+                .min_value = INT_MIN, .max_value = INT_MAX,
+        },
+        {
+                offsetof(struct flt_scene_svg_viewport_key_frame, y2),
+                FLT_PARSER_VALUE_TYPE_INT,
+                FLT_LEXER_KEYWORD_Y2,
+                .min_value = INT_MIN, .max_value = INT_MAX,
+        },
+};
+
+static enum flt_parser_return
+parse_svg_viewport_key_frame(struct flt_parser *parser,
+                             struct flt_error **error)
+{
+        struct flt_scene_key_frame *base_key_frame;
+
+        const size_t struct_size =
+                sizeof (struct flt_scene_svg_key_frame);
+
+        enum flt_parser_return base_ret =
+                parse_base_key_frame(parser,
+                                     struct_size,
+                                     &base_key_frame,
+                                     error);
+
+        if (base_ret != FLT_PARSER_RETURN_OK)
+                return base_ret;
+
+        struct flt_scene_svg_key_frame *key_frame =
+                (struct flt_scene_svg_key_frame *) base_key_frame;
+
+        while (true) {
+                const struct flt_lexer_token *token =
+                        flt_lexer_get_token(parser->lexer, error);
+
+                if (token == NULL)
+                        return FLT_PARSER_RETURN_ERROR;
+
+                if (token->type == FLT_LEXER_TOKEN_TYPE_CLOSE_BRACKET)
+                        break;
+
+                flt_lexer_put_token(parser->lexer);
+
+                const size_t n_props =
+                        FLT_N_ELEMENTS(svg_viewport_key_frame_props);
+
+                switch (parse_properties(parser,
+                                         svg_viewport_key_frame_props,
+                                         n_props,
+                                         key_frame,
+                                         error)) {
+                case FLT_PARSER_RETURN_OK:
+                        continue;
+                case FLT_PARSER_RETURN_NOT_MATCHED:
+                        break;
+                case FLT_PARSER_RETURN_ERROR:
+                        return FLT_PARSER_RETURN_ERROR;
+                }
+
+                set_error(parser,
+                          error,
+                          "Expected key_frame item (like x, y etc)");
+
+                return FLT_PARSER_RETURN_ERROR;
+        }
+
+        return FLT_PARSER_RETURN_OK;
+}
+
+static enum flt_parser_return
+parse_svg_viewport(struct flt_parser *parser,
+                   struct flt_error **error)
+{
+        const struct flt_lexer_token *token;
+
+        check_item_keyword(parser, FLT_LEXER_KEYWORD_SVG_VIEWPORT, error);
+
+        int svg_line_num = flt_lexer_get_line_num(parser->lexer);
+
+        require_token(parser,
+                      FLT_LEXER_TOKEN_TYPE_OPEN_BRACKET,
+                      "expected ‘{’",
+                      error);
+
+        struct flt_scene_svg *svg = flt_calloc(sizeof *svg);
+
+        svg->base.type = FLT_SCENE_OBJECT_TYPE_SVG_VIEWPORT;
+
+        flt_list_init(&svg->base.key_frames);
+        flt_list_insert(parser->scene->objects.prev, &svg->base.link);
+
+        while (true) {
+                token = flt_lexer_get_token(parser->lexer, error);
+
+                if (token == NULL)
+                        return FLT_PARSER_RETURN_ERROR;
+
+                if (token->type == FLT_LEXER_TOKEN_TYPE_CLOSE_BRACKET)
+                        break;
+
+                flt_lexer_put_token(parser->lexer);
+
+                static const item_parse_func funcs[] = {
+                        parse_svg_viewport_key_frame,
+                };
+
+                switch (parse_items(parser,
+                                    funcs,
+                                    FLT_N_ELEMENTS(funcs),
+                                    error)) {
+                case FLT_PARSER_RETURN_OK:
+                        continue;
+                case FLT_PARSER_RETURN_NOT_MATCHED:
+                        break;
+                case FLT_PARSER_RETURN_ERROR:
+                        return FLT_PARSER_RETURN_ERROR;
+                }
+
+                switch (parse_svg_file(parser, svg, error)) {
+                case FLT_PARSER_RETURN_OK:
+                        continue;
+                case FLT_PARSER_RETURN_NOT_MATCHED:
+                        break;
+                case FLT_PARSER_RETURN_ERROR:
+                        return FLT_PARSER_RETURN_ERROR;
+                }
+
+                set_error(parser,
+                          error,
+                          "Expected svg_viewport item (like a key_frame)");
+
+                return FLT_PARSER_RETURN_ERROR;
+        }
+
+        if (flt_list_empty(&svg->base.key_frames)) {
+                set_error_with_line(parser,
+                                    error,
+                                    svg_line_num,
+                                    "svg_viewport has no key frames");
+                return FLT_PARSER_RETURN_ERROR;
+        }
+
+        if (svg->handle == NULL) {
+                set_error_with_line(parser,
+                                    error,
+                                    svg_line_num,
+                                    "svg_viewport has no file");
+                return FLT_PARSER_RETURN_ERROR;
+        }
+
+        return FLT_PARSER_RETURN_OK;
+}
+
+static const struct flt_parser_property
 gpx_key_frame_props[] = {
         {
                 offsetof(struct flt_scene_gpx_key_frame, timestamp),
@@ -1573,6 +1744,7 @@ parse_file(struct flt_parser *parser,
                 static const item_parse_func funcs[] = {
                         parse_rectangle,
                         parse_svg,
+                        parse_svg_viewport,
                         parse_score,
                         parse_gpx,
                         parse_speed,

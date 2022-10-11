@@ -27,6 +27,7 @@
 enum flt_scene_object_type {
         FLT_SCENE_OBJECT_TYPE_RECTANGLE,
         FLT_SCENE_OBJECT_TYPE_SVG,
+        FLT_SCENE_OBJECT_TYPE_SVG_VIEWPORT,
         FLT_SCENE_OBJECT_TYPE_SCORE,
         FLT_SCENE_OBJECT_TYPE_GPX,
         FLT_SCENE_OBJECT_TYPE_CURVE,
@@ -73,6 +74,12 @@ struct flt_scene_svg_key_frame {
         struct flt_scene_key_frame base;
 
         int x, y;
+};
+
+struct flt_scene_svg_viewport_key_frame {
+        struct flt_scene_key_frame base;
+
+        int x1, y1, x2, y2;
 };
 
 struct flt_scene_score {

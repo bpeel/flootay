@@ -542,6 +542,8 @@ found_frame:
                                          flt_scene_svg_key_frame *)
                                         end_frame);
                 break;
+        case FLT_SCENE_OBJECT_TYPE_SVG_VIEWPORT:
+                break;
         case FLT_SCENE_OBJECT_TYPE_SCORE:
                 interpolate_and_add_score(renderer,
                                           cr,

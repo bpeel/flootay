@@ -33,6 +33,13 @@ enum flt_renderer_result {
         FLT_RENDERER_RESULT_OK,
 };
 
+enum flt_renderer_error {
+        FLT_RENDERER_ERROR_SVG,
+};
+
+extern struct flt_error_domain
+flt_renderer_error;
+
 struct flt_renderer *
 flt_renderer_new(struct flt_scene *scene);
 

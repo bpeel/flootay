@@ -36,6 +36,9 @@ struct flt_renderer {
         cairo_pattern_t *map_point_pattern;
 };
 
+struct flt_error_domain
+flt_renderer_error;
+
 static int
 interpolate(double factor, int s, int e)
 {
@@ -108,6 +111,48 @@ interpolate_and_add_svg(struct flt_renderer *renderer,
         cairo_translate(cr, x, y);
         rsvg_handle_render_cairo(svg->handle, cr);
         cairo_restore(cr);
+}
+
+static bool
+interpolate_and_add_svg_viewport(struct flt_renderer *renderer,
+                                 cairo_t *cr,
+                                 const struct flt_scene_svg *svg,
+                                 double i,
+                                 const struct
+                                 flt_scene_svg_viewport_key_frame *s,
+                                 const struct
+                                 flt_scene_svg_viewport_key_frame *e,
+                                 struct flt_error **error_out)
+{
+        double x1 = interpolate_double(i, s->x1, e->x1);
+        double y1 = interpolate_double(i, s->y1, e->y1);
+        double x2 = interpolate_double(i, s->x2, e->x2);
+        double y2 = interpolate_double(i, s->y2, e->y2);
+
+        RsvgRectangle viewport = {
+                .x = MIN(x1, x2),
+                .y = MIN(y1, y2),
+                .width = fabs(x1 - x2),
+                .height = fabs(y2 - y1),
+        };
+
+        GError *error = NULL;
+
+        if (!rsvg_handle_render_document(svg->handle,
+                                         cr,
+                                         &viewport,
+                                         &error)) {
+                flt_set_error(error_out,
+                              &flt_renderer_error,
+                              FLT_RENDERER_ERROR_SVG,
+                              "%s",
+                              error->message);
+                g_error_free(error);
+
+                return false;
+        }
+
+        return true;
 }
 
 static void
@@ -543,6 +588,14 @@ found_frame:
                                         end_frame);
                 break;
         case FLT_SCENE_OBJECT_TYPE_SVG_VIEWPORT:
+                if (!interpolate_and_add_svg_viewport(renderer,
+                                                      cr,
+                                                      (const void *) object,
+                                                      i,
+                                                      (const void *) s,
+                                                      (const void *) end_frame,
+                                                      error))
+                        return FLT_RENDERER_RESULT_ERROR;
                 break;
         case FLT_SCENE_OBJECT_TYPE_SCORE:
                 interpolate_and_add_score(renderer,

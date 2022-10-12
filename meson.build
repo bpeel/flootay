@@ -75,6 +75,10 @@ executable('generate-sound',
             'flt-list.c'],
             dependencies: [m_dep])
 
+executable('gpx-to-svg',
+           ['gpx-to-svg.c'],
+           dependencies: [m_dep, expat_dep])
+
 executable('test-map-renderer',
            ['test-map-renderer.c',
             'flt-util.c',

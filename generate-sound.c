@@ -574,6 +574,7 @@ process_options(int argc, char **argv, struct config *config)
                                 fprintf(stderr,
                                         "invalid start_time: %s\n",
                                         optarg);
+                                return false;
                         }
                         break;
 
@@ -582,6 +583,7 @@ process_options(int argc, char **argv, struct config *config)
                                 fprintf(stderr,
                                         "invalid music_start_time: %s\n",
                                         optarg);
+                                return false;
                         }
                         break;
 
@@ -590,6 +592,7 @@ process_options(int argc, char **argv, struct config *config)
                                 fprintf(stderr,
                                         "invalid music_end_time: %s\n",
                                         optarg);
+                                return false;
                         }
                         break;
 

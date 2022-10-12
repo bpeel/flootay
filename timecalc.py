@@ -19,6 +19,12 @@
 import re
 import sys
 
+def remove_leading_zeroes(num):
+    start = 0
+    while start < len(num) - 1 and num[start] == "0":
+        start += 1
+    return num[start:]
+
 def convert(e):
     def replace(md):
         parts = ['(']
@@ -26,9 +32,10 @@ def convert(e):
         segments.pop()
 
         for i, segment in enumerate(segments):
-            parts.append("{}*{}+".format(segment, 60 ** (len(segments) - i)))
+            parts.append("{}*{}+".format(remove_leading_zeroes(segment),
+                                         60 ** (len(segments) - i)))
 
-        parts.append(md.group(2))
+        parts.append(remove_leading_zeroes(md.group(2)))
 
         parts.append(')')
 

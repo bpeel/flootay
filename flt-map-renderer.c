@@ -45,6 +45,7 @@
 struct flt_map_renderer {
         struct flt_list tile_cache;
         int n_cached_tiles;
+        bool clip;
 
         char *url_base;
         char *api_key;
@@ -69,6 +70,8 @@ flt_map_renderer_new(const char *url_base,
 
         flt_list_init(&renderer->tile_cache);
 
+        renderer->clip = true;
+
         if (url_base == NULL)
                 url_base = DEFAULT_MAP_URL_BASE;
 
@@ -83,6 +86,13 @@ flt_map_renderer_new(const char *url_base,
                 renderer->api_key = flt_strdup(api_key);
 
         return renderer;
+}
+
+void
+flt_map_renderer_set_clip(struct flt_map_renderer *renderer,
+                          bool clip)
+{
+        renderer->clip = clip;
 }
 
 static void
@@ -456,7 +466,13 @@ flt_map_renderer_render(struct flt_map_renderer *renderer,
 
         cairo_save(cr);
 
-        set_clip(cr, draw_center_x, draw_center_y, map_width, map_height);
+        if (renderer->clip) {
+                set_clip(cr,
+                         draw_center_x,
+                         draw_center_y,
+                         map_width,
+                         map_height);
+        }
 
         int tile_x, tile_y, pixel_x, pixel_y;
 

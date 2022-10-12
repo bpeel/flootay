@@ -40,6 +40,10 @@ struct flt_map_renderer *
 flt_map_renderer_new(const char *url_base,
                      const char *api_key);
 
+void
+flt_map_renderer_set_clip(struct flt_map_renderer *renderer,
+                          bool clip);
+
 bool
 flt_map_renderer_render(struct flt_map_renderer *renderer,
                         cairo_t *cr,

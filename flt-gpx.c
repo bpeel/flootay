@@ -42,6 +42,10 @@
 #define TPX_NAMESPACE "http://www.garmin.com/xmlschemas/TrackPointExtension/v2"
 #define TPX_ELEMENT(tag) MAKE_ELEMENT(TPX_NAMESPACE, tag)
 
+/* Radius of the earth at the equator in metres according to WGS84.
+ */
+#define EARTH_RADIUS 6378137.0
+
 struct flt_error_domain
 flt_gpx_error;
 
@@ -67,6 +71,9 @@ struct flt_gpx_parser {
         struct flt_buffer buf;
 
         enum parse_state parse_state;
+
+        /* Cumulative distance so far */
+        double distance;
 
         /* If we encounter nodes that we don’t understand while
          * parsing an interesting node, will ignore nodes until this
@@ -291,6 +298,23 @@ parse_ele(struct flt_gpx_parser *parser)
         return true;
 }
 
+static double
+distance_between_points(const struct flt_gpx_point *a,
+                        const struct flt_gpx_point *b)
+{
+        double lat1 = a->lat / 180.0 * M_PI;
+        double lon1 = a->lon / 180.0 * M_PI;
+        double lat2 = b->lat / 180.0 * M_PI;
+        double lon2 = b->lon / 180.0 * M_PI;
+        double sin_half_lat_diff = sin((lat1 - lat2) / 2.0);
+        double sin_half_lon_diff = sin((lon1 - lon2) / 2.0);
+        double d = 2.0 * asin(sqrt(sin_half_lat_diff * sin_half_lat_diff +
+                                   cos(lat1) * cos(lat2) *
+                                   sin_half_lon_diff * sin_half_lon_diff));
+
+        return d * EARTH_RADIUS;
+}
+
 static void
 add_point(struct flt_gpx_parser *parser)
 {
@@ -307,6 +331,11 @@ add_point(struct flt_gpx_parser *parser)
         point->time = parser->time;
         point->speed = parser->speed;
         point->elevation = parser->elevation;
+
+        if (parser->points.length >= 2 * sizeof *point)
+                parser->distance += distance_between_points(point - 1, point);
+
+        point->distance = parser->distance;
 }
 
 static bool
@@ -603,6 +632,7 @@ flt_gpx_parse(const char *filename,
                 .buf = FLT_BUFFER_STATIC_INIT,
                 .parse_state = PARSE_STATE_LOOKING_FOR_TRKPT,
                 .skip_depth = 0,
+                .distance = 0.0,
                 .error = NULL,
         };
 
@@ -657,6 +687,7 @@ set_data_from_point(struct flt_gpx_data *data,
         data->lon = point->lon;
         data->speed = point->speed;
         data->elevation = point->elevation;
+        data->distance = point->distance;
 }
 
 bool
@@ -732,6 +763,10 @@ flt_gpx_find_data(const struct flt_gpx_point *points,
         data->elevation = (t *
                            (points[min + 1].elevation - points[min].elevation) +
                            points[min].elevation);
+
+        data->distance = (t *
+                          (points[min + 1].distance - points[min].distance) +
+                          points[min].distance);
 
         return true;
 }

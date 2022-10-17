@@ -41,11 +41,13 @@ struct flt_gpx_point {
         float speed;
         /* Elevation in metres above sea level */
         float elevation;
+        /* Cumulative distance between all the points */
+        float distance;
 };
 
 struct flt_gpx_data {
         double lat, lon;
-        double speed, elevation;
+        double speed, elevation, distance;
 };
 
 bool

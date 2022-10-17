@@ -528,6 +528,65 @@ interpolate_and_add_gpx(struct flt_renderer *renderer,
 }
 
 static void
+interpolate_and_add_time(struct flt_renderer *renderer,
+                         cairo_t *cr,
+                         double i,
+                         const struct flt_scene_time_key_frame *s,
+                         const struct flt_scene_time_key_frame *e)
+{
+        int value = interpolate_double(i, s->value, e->value);
+
+        struct flt_buffer buf = FLT_BUFFER_STATIC_INIT;
+
+        if (value < 0) {
+                flt_buffer_append_c(&buf, '-');
+                value = -value;
+        }
+
+        if (value >= 3600) {
+                flt_buffer_append_printf(&buf,
+                                         "%ih%02im%02is",
+                                         value / 3600,
+                                         value % 3600 / 60,
+                                         value % 60);
+        } else if (value >= 60) {
+                flt_buffer_append_printf(&buf,
+                                         "%im%02is",
+                                         value / 60,
+                                         value % 60);
+        } else {
+                flt_buffer_append_printf(&buf, "%is", value);
+        }
+
+        float gap = renderer->scene->video_height / 15.0f;
+
+        cairo_save(cr);
+
+        cairo_select_font_face(cr,
+                               "monospace",
+                               CAIRO_FONT_SLANT_NORMAL,
+                               CAIRO_FONT_WEIGHT_NORMAL);
+        cairo_set_font_size(cr, renderer->scene->video_height / 12.0f);
+
+        cairo_text_extents_t text_extents;
+
+        cairo_text_extents(cr,
+                           (const char *) buf.data,
+                           &text_extents);
+
+        cairo_move_to(cr,
+                      renderer->scene->video_width / 2.0 -
+                      text_extents.x_advance / 2.0,
+                      gap + text_extents.height);
+
+        render_score_text(renderer, cr, (const char *) buf.data);
+
+        cairo_restore(cr);
+
+        flt_buffer_destroy(&buf);
+}
+
+static void
 clip_curve_axis(double t,
                 const double points[4],
                 double sub_points[4])
@@ -698,6 +757,17 @@ found_frame:
                                              end_frame,
                                              error))
                         return FLT_RENDERER_RESULT_ERROR;
+                break;
+        case FLT_SCENE_OBJECT_TYPE_TIME:
+                interpolate_and_add_time(renderer,
+                                         cr,
+                                         i,
+                                         (const struct
+                                          flt_scene_time_key_frame *)
+                                         s,
+                                         (const struct
+                                          flt_scene_time_key_frame *)
+                                         end_frame);
                 break;
         case FLT_SCENE_OBJECT_TYPE_CURVE:
                 interpolate_and_add_curve(renderer,

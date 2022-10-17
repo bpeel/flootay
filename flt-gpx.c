@@ -329,12 +329,26 @@ add_point(struct flt_gpx_parser *parser)
         point->lat = parser->lat;
         point->lon = parser->lon;
         point->time = parser->time;
-        point->speed = parser->speed;
         point->elevation = parser->elevation;
 
-        if (parser->points.length >= 2 * sizeof *point)
-                parser->distance += distance_between_points(point - 1, point);
+        double distance, time_diff;
 
+        if (parser->points.length >= 2 * sizeof *point) {
+                distance = distance_between_points(point - 1, point);
+                time_diff = point->time - point[-1].time;
+        } else {
+                distance = 0.0;
+                time_diff = 0.0;
+        }
+
+        if (parser->has_speed)
+                point->speed = parser->speed;
+        else if (time_diff <= 0.0)
+                point->speed = 0.0;
+        else
+                point->speed = distance / time_diff;
+
+        parser->distance += distance;
         point->distance = parser->distance;
 }
 
@@ -488,7 +502,6 @@ end_element_cb(void *user_data,
 
         case PARSE_STATE_IN_TRKPT:
                 if (parser->time >= 0.0 &&
-                    parser->has_speed &&
                     parser->has_elevation)
                         add_point(parser);
 

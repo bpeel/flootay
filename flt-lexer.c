@@ -93,6 +93,7 @@ keywords[] = {
         [FLT_LEXER_KEYWORD_GPX] = "gpx",
         [FLT_LEXER_KEYWORD_SPEED] = "speed",
         [FLT_LEXER_KEYWORD_ELEVATION] = "elevation",
+        [FLT_LEXER_KEYWORD_DISTANCE] = "distance",
         [FLT_LEXER_KEYWORD_MAP] = "map",
         [FLT_LEXER_KEYWORD_CURVE] = "curve",
         [FLT_LEXER_KEYWORD_KEY_FRAME] = "key_frame",
@@ -116,6 +117,7 @@ keywords[] = {
         [FLT_LEXER_KEYWORD_FILE] = "file",
         [FLT_LEXER_KEYWORD_V] = "v",
         [FLT_LEXER_KEYWORD_TIMESTAMP] = "timestamp",
+        [FLT_LEXER_KEYWORD_DISTANCE_OFFSET] = "distance_offset",
         [FLT_LEXER_KEYWORD_MAP_URL_BASE] = "map_url_base",
         [FLT_LEXER_KEYWORD_MAP_API_KEY] = "map_api_key",
 };

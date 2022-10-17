@@ -94,8 +94,10 @@ struct flt_scene_score_key_frame {
 struct flt_scene_gpx {
         struct flt_scene_object base;
         const struct flt_scene_gpx_file *file;
+        double distance_offset;
         bool show_speed;
         bool show_elevation;
+        bool show_distance;
         bool show_map;
 };
 

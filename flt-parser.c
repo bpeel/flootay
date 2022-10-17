@@ -1315,9 +1315,20 @@ gpx_props[] = {
                 FLT_LEXER_KEYWORD_ELEVATION,
         },
         {
+                offsetof(struct flt_scene_gpx, show_distance),
+                FLT_PARSER_VALUE_TYPE_BOOL,
+                FLT_LEXER_KEYWORD_DISTANCE,
+        },
+        {
                 offsetof(struct flt_scene_gpx, show_map),
                 FLT_PARSER_VALUE_TYPE_BOOL,
                 FLT_LEXER_KEYWORD_MAP,
+        },
+        {
+                offsetof(struct flt_scene_gpx, distance_offset),
+                FLT_PARSER_VALUE_TYPE_DOUBLE,
+                FLT_LEXER_KEYWORD_DISTANCE_OFFSET,
+                .min_double_value = -DBL_MAX, .max_double_value = DBL_MAX,
         },
 };
 
@@ -1325,6 +1336,7 @@ static enum flt_parser_return
 parse_gpx_base(struct flt_parser *parser,
                bool show_speed,
                bool show_elevation,
+               bool show_distance,
                bool show_map,
                struct flt_error **error)
 {
@@ -1434,6 +1446,7 @@ parse_gpx(struct flt_parser *parser,
         return parse_gpx_base(parser,
                               false, /* show_speed */
                               false, /* show_elevation */
+                              false, /* show_distance */
                               false, /* show_map */
                               error);
 }
@@ -1449,6 +1462,7 @@ parse_speed(struct flt_parser *parser,
         return parse_gpx_base(parser,
                               true, /* show_speed */
                               false, /* show_elevation */
+                              false, /* show_distance */
                               false, /* show_map */
                               error);
 }
@@ -1464,6 +1478,23 @@ parse_elevation(struct flt_parser *parser,
         return parse_gpx_base(parser,
                               false, /* show_speed */
                               true, /* show_elevation */
+                              false, /* show_distance */
+                              false, /* show_map */
+                              error);
+}
+
+static enum flt_parser_return
+parse_distance(struct flt_parser *parser,
+               struct flt_error **error)
+{
+        const struct flt_lexer_token *token;
+
+        check_item_keyword(parser, FLT_LEXER_KEYWORD_DISTANCE, error);
+
+        return parse_gpx_base(parser,
+                              false, /* show_speed */
+                              false, /* show_elevation */
+                              true, /* show_distance */
                               false, /* show_map */
                               error);
 }
@@ -1479,6 +1510,7 @@ parse_map(struct flt_parser *parser,
         return parse_gpx_base(parser,
                               false, /* show_speed */
                               false, /* show_elevation */
+                              false, /* show_distance */
                               true, /* show_map */
                               error);
 }
@@ -1749,6 +1781,7 @@ parse_file(struct flt_parser *parser,
                         parse_gpx,
                         parse_speed,
                         parse_elevation,
+                        parse_distance,
                         parse_map,
                         parse_curve,
                 };

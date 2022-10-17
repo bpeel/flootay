@@ -47,6 +47,7 @@ destroy_object(struct flt_scene_object *object)
         case FLT_SCENE_OBJECT_TYPE_SCORE:
         case FLT_SCENE_OBJECT_TYPE_CURVE:
         case FLT_SCENE_OBJECT_TYPE_GPX:
+        case FLT_SCENE_OBJECT_TYPE_TIME:
                 break;
         case FLT_SCENE_OBJECT_TYPE_SVG:
         case FLT_SCENE_OBJECT_TYPE_SVG_VIEWPORT:

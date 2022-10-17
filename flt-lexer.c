@@ -96,6 +96,7 @@ keywords[] = {
         [FLT_LEXER_KEYWORD_DISTANCE] = "distance",
         [FLT_LEXER_KEYWORD_MAP] = "map",
         [FLT_LEXER_KEYWORD_CURVE] = "curve",
+        [FLT_LEXER_KEYWORD_TIME] = "time",
         [FLT_LEXER_KEYWORD_KEY_FRAME] = "key_frame",
         [FLT_LEXER_KEYWORD_VIDEO_WIDTH] = "video_width",
         [FLT_LEXER_KEYWORD_VIDEO_HEIGHT] = "video_height",

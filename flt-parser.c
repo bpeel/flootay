@@ -1732,6 +1732,139 @@ parse_curve(struct flt_parser *parser,
 }
 
 static const struct flt_parser_property
+time_key_frame_props[] = {
+        {
+                offsetof(struct flt_scene_time_key_frame, value),
+                FLT_PARSER_VALUE_TYPE_DOUBLE,
+                FLT_LEXER_KEYWORD_TIME,
+                .min_double_value = 0.0, .max_double_value = DBL_MAX,
+        },
+};
+
+static enum flt_parser_return
+parse_time_key_frame(struct flt_parser *parser,
+                      struct flt_error **error)
+{
+        struct flt_scene_key_frame *base_key_frame;
+
+        const size_t struct_size =
+                sizeof (struct flt_scene_time_key_frame);
+
+        enum flt_parser_return base_ret =
+                parse_base_key_frame(parser,
+                                     struct_size,
+                                     &base_key_frame,
+                                     error);
+
+        if (base_ret != FLT_PARSER_RETURN_OK)
+                return base_ret;
+
+        struct flt_scene_time_key_frame *key_frame =
+                (struct flt_scene_time_key_frame *) base_key_frame;
+
+        while (true) {
+                const struct flt_lexer_token *token =
+                        flt_lexer_get_token(parser->lexer, error);
+
+                if (token == NULL)
+                        return FLT_PARSER_RETURN_ERROR;
+
+                if (token->type == FLT_LEXER_TOKEN_TYPE_CLOSE_BRACKET)
+                        break;
+
+                flt_lexer_put_token(parser->lexer);
+
+                switch (parse_properties(parser,
+                                         time_key_frame_props,
+                                         FLT_N_ELEMENTS(time_key_frame_props),
+                                         key_frame,
+                                         error)) {
+                case FLT_PARSER_RETURN_OK:
+                        continue;
+                case FLT_PARSER_RETURN_NOT_MATCHED:
+                        break;
+                case FLT_PARSER_RETURN_ERROR:
+                        return FLT_PARSER_RETURN_ERROR;
+                }
+
+                set_error(parser,
+                          error,
+                          "Expected key_frame item (like time)");
+
+                return FLT_PARSER_RETURN_ERROR;
+        }
+
+        return FLT_PARSER_RETURN_OK;
+}
+
+static enum flt_parser_return
+parse_time(struct flt_parser *parser,
+            struct flt_error **error)
+{
+        const struct flt_lexer_token *token;
+
+        check_item_keyword(parser, FLT_LEXER_KEYWORD_TIME, error);
+
+        int time_line_num = flt_lexer_get_line_num(parser->lexer);
+
+        require_token(parser,
+                      FLT_LEXER_TOKEN_TYPE_OPEN_BRACKET,
+                      "expected ‘{’",
+                      error);
+
+        struct flt_scene_time *time = flt_calloc(sizeof *time);
+
+        time->base.type = FLT_SCENE_OBJECT_TYPE_TIME;
+
+        flt_list_init(&time->base.key_frames);
+        flt_list_insert(parser->scene->objects.prev, &time->base.link);
+
+        while (true) {
+                token = flt_lexer_get_token(parser->lexer, error);
+
+                if (token == NULL)
+                        return FLT_PARSER_RETURN_ERROR;
+
+                if (token->type == FLT_LEXER_TOKEN_TYPE_CLOSE_BRACKET)
+                        break;
+
+                flt_lexer_put_token(parser->lexer);
+
+                static const item_parse_func funcs[] = {
+                        parse_time_key_frame,
+                };
+
+                switch (parse_items(parser,
+                                    funcs,
+                                    FLT_N_ELEMENTS(funcs),
+                                    error)) {
+                case FLT_PARSER_RETURN_OK:
+                        continue;
+                case FLT_PARSER_RETURN_NOT_MATCHED:
+                        break;
+                case FLT_PARSER_RETURN_ERROR:
+                        return FLT_PARSER_RETURN_ERROR;
+                }
+
+                set_error(parser,
+                          error,
+                          "Expected time item (like a key_frame)");
+
+                return FLT_PARSER_RETURN_ERROR;
+        }
+
+        if (flt_list_empty(&time->base.key_frames)) {
+                set_error_with_line(parser,
+                                    error,
+                                    time_line_num,
+                                    "time has no key frames");
+                return FLT_PARSER_RETURN_ERROR;
+        }
+
+        return FLT_PARSER_RETURN_OK;
+}
+
+static const struct flt_parser_property
 file_props[] = {
         {
                 offsetof(struct flt_scene, video_width),
@@ -1783,6 +1916,7 @@ parse_file(struct flt_parser *parser,
                         parse_elevation,
                         parse_distance,
                         parse_map,
+                        parse_time,
                         parse_curve,
                 };
 

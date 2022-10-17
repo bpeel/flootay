@@ -78,10 +78,12 @@ class Script:
         self.sound_args = []
         self.gpx_offsets = {}
         self.show_elevation = False
+        self.show_distance = False
         self.show_map = False
         self.twitter = False
         self.default_speed = 1.0 / 3.0
         self.silent = False
+        self.distance_offset = None
 
 Svg = collections.namedtuple('Svg', ['video',
                                      'filename',
@@ -165,6 +167,8 @@ def parse_script(infile):
     default_speed_re = re.compile(r'default_speed\s+'
                                   r'(?P<speed>[0-9]+(?:\.[0-9]+)?)x?$')
     flootay_file_re = re.compile(r'flootay_file\s+(?P<filename>.*?)\s*$')
+    distance_offset_re = re.compile(r'distance_offset\s+'
+                                    r'(?P<offset>-?[0-9]+(?:\.[0-9]+)?)$')
 
     raw_videos = {}
     script = Script()
@@ -261,6 +265,10 @@ def parse_script(infile):
             script.show_elevation = True
             continue
 
+        if line == "distance":
+            script.show_distance = True
+            continue
+
         if line == "map":
             script.show_map = True
             continue
@@ -316,6 +324,11 @@ def parse_script(infile):
         md = default_speed_re.match(line)
         if md:
             script.default_speed = 1.0 / float(md.group('speed'))
+            continue
+
+        md = distance_offset_re.match(line)
+        if md:
+            script.distance_offset = float(md.group('offset'))
             continue
 
         md = gpx_offset_re.match(line)
@@ -887,6 +900,11 @@ def get_speed_script_for_video(script,
 
     if script.show_elevation:
         parts.append("        elevation\n")
+    if script.show_distance:
+        parts.append("        distance\n")
+    if script.distance_offset is not None:
+        parts.append("        distance_offset {}\n".format(
+            script.distance_offset))
     if script.show_map:
         parts.append("        map\n")
 

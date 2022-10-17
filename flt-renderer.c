@@ -353,6 +353,75 @@ add_elevation(struct flt_renderer *renderer,
         cairo_restore(cr);
 }
 
+static void
+add_distance(struct flt_renderer *renderer,
+             cairo_t *cr,
+             double distance)
+{
+        float gap = renderer->scene->video_height / 15.0f;
+
+        cairo_save(cr);
+
+        struct flt_buffer buf = FLT_BUFFER_STATIC_INIT;
+        const char *units;
+
+        if (distance < 1000.0) {
+                flt_buffer_append_printf(&buf,
+                                         "%2i",
+                                         (int) distance);
+                units = " m";
+        } else {
+                flt_buffer_append_printf(&buf,
+                                         "%.2f",
+                                         distance / 1000.0);
+                units = " km";
+        }
+
+        cairo_set_font_size(cr, renderer->scene->video_height / 24.0f);
+
+        cairo_text_extents_t units_extents;
+
+        cairo_text_extents(cr, units, &units_extents);
+
+        cairo_save(cr);
+
+        cairo_text_extents_t text_extents;
+
+        cairo_select_font_face(cr,
+                               "monospace",
+                               CAIRO_FONT_SLANT_NORMAL,
+                               CAIRO_FONT_WEIGHT_NORMAL);
+        cairo_set_font_size(cr, renderer->scene->video_height / 12.0f);
+
+        cairo_text_extents(cr,
+                           (const char *) buf.data,
+                           &text_extents);
+
+        double total_x_advance = (units_extents.x_advance +
+                                  text_extents.x_advance);
+
+        cairo_move_to(cr,
+                      renderer->scene->video_width / 2.0 -
+                      total_x_advance / 2.0,
+                      renderer->scene->video_height - gap);
+
+        render_score_text(renderer, cr, (const char *) buf.data);
+
+        cairo_restore(cr);
+
+        flt_buffer_destroy(&buf);
+
+        cairo_move_to(cr,
+                      renderer->scene->video_width / 2.0 -
+                      total_x_advance / 2.0 +
+                      text_extents.x_advance,
+                      renderer->scene->video_height - gap);
+
+        render_score_text(renderer, cr, units);
+
+        cairo_restore(cr);
+}
+
 static bool
 add_map(struct flt_renderer *renderer,
         cairo_t *cr,
@@ -444,6 +513,12 @@ interpolate_and_add_gpx(struct flt_renderer *renderer,
                 add_speed(renderer, cr, gpx_data.speed);
         if (gpx->show_elevation)
                 add_elevation(renderer, cr, gpx_data.elevation);
+
+        if (gpx->show_distance) {
+                add_distance(renderer,
+                             cr,
+                             gpx_data.distance + gpx->distance_offset);
+        }
 
         if (gpx->show_map &&
             !add_map(renderer, cr, gpx_data.lat, gpx_data.lon, error))

@@ -341,12 +341,22 @@ add_point(struct flt_gpx_parser *parser)
                 time_diff = 0.0;
         }
 
-        if (parser->has_speed)
+        if (parser->has_speed) {
                 point->speed = parser->speed;
-        else if (time_diff <= 0.0)
-                point->speed = 0.0;
-        else
+        } else if (time_diff <= 0.0) {
+                if (parser->points.length >= 2 * sizeof *point) {
+                        /* Copy the previous speed. The outer function
+                         * will remove points with the same time later
+                         * on and we don’t want it to remove the only
+                         * one with a real speed.
+                         */
+                        point->speed = point[-1].speed;
+                } else {
+                        point->speed = 0.0;
+                }
+        } else {
                 point->speed = distance / time_diff;
+        }
 
         parser->distance += distance;
         point->distance = parser->distance;

@@ -80,6 +80,7 @@ class Script:
         self.show_elevation = False
         self.show_distance = False
         self.show_map = False
+        self.show_time = False
         self.twitter = False
         self.default_speed = 1.0 / 3.0
         self.silent = False
@@ -271,6 +272,10 @@ def parse_script(infile):
 
         if line == "map":
             script.show_map = True
+            continue
+
+        if line == "time":
+            script.show_time = True
             continue
 
         if line == "twitter":
@@ -934,6 +939,25 @@ def add_speed_scripts(script):
                                                            video,
                                                            offsets[bn]))
 
+def add_time_scripts(script):
+    timestamp = 0
+
+    for video in script.videos:
+        if video.raw_video.is_proc or video.raw_video.is_image:
+            continue
+
+        length = video.length()
+
+        video.script.append(("time {{\n"
+                             "        key_frame {} {{ time {} }}\n"
+                             "        key_frame {} {{ time {} }}\n"
+                             "}}\n").format(video.start_time,
+                                            timestamp,
+                                            video.end_time_or_length(),
+                                            timestamp + length))
+
+        timestamp += length
+
 def write_video_script(f, video):
     script_time_re = re.compile(r'\bkey_frame\s+(?P<time>' +
                                 TIME_RE.pattern +
@@ -976,6 +1000,9 @@ if script_has_sound(script):
     os.chmod("sound.sh", 0o775)
 
 add_speed_scripts(script)
+
+if script.show_time:
+    add_time_scripts(script)
 
 flootay_proc = os.path.join(os.path.dirname(sys.argv[0]),
                             "build",

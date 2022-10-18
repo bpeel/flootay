@@ -119,13 +119,7 @@ If all of the videos are at the original speed and you don’t add any sound fil
 
 ## GPX trace
 
-If you want to add a speedometer to your video, save a GPX trace in the same directory as the script and call it `speed.gpx`. The trace needs to have the speed recorded in it for this to work. If you have a GPX file without the speed, you can synthesise the speed with [gpsbabel](https://www.gpsbabel.org/) with a command like this:
-
-```
-gpsbabel -t -i gpx -f my-trace.gpx -x track,speed -o gpx -F speed.gpx
-```
-
-You need to give flootay a reference point within one of the films so that it can work out the offsets. In order to do this, put a command like this at the start of the script:
+If you want to add a speedometer to your video, save a GPX trace in the same directory as the script and call it `speed.gpx`. You need to give flootay a reference point within one of the films so that it can work out the offsets. In order to do this, put a command like this at the start of the script:
 
 ```
 gpx_offset part1.mp4 11.299 2022-08-11T145400Z
@@ -168,6 +162,19 @@ map_api_key "cafecafecafecafecafecafecafecafe"
 ```
 
 The map tiles will be downloaded once and cached on disk for later runs. If you want to redownload them, delete the `map-tiles` directory.
+
+### Distance
+
+If you write the word `distance` on a line somewhere in the script then the total distance travelled will also be displayed at the bottom of the video. The distance is calculated from the first point in the GPX file. You can offset this value with a line like:
+
+```
+# value in meters
+distance_offset -512
+```
+
+### Time
+
+If you write the word `time` on a line in the script then the cumulative time of the unaccelerated videos will be displayed at the top of the output video.
 
 ## Image videos
 

@@ -835,19 +835,21 @@ def write_score_script(f, scores, videos, video_speeds):
           "}\n",
           file=f)
 
-def write_svg_script(f, svgs, videos, video_speeds):
-    for svg in svgs:
-        start_time = get_output_time(videos,
+def write_svg_script(f, script, video_speeds):
+    for svg in script.svgs:
+        start_time = get_output_time(script.videos,
                                      video_speeds,
                                      svg.video.raw_video,
                                      svg.start_time)
 
         print(("svg {{\n"
                "        file \"{}\"\n"
-               "        key_frame {} {{ }}\n"
+               "        key_frame {} {{ x1 0 y1 0 x2 {} y2 {} }}\n"
                "        key_frame {} {{ }}\n"
                "}}\n").format(svg.filename,
                               start_time,
+                              script.width,
+                              script.height,
                               start_time + svg.length),
               file=f)
 
@@ -1018,7 +1020,7 @@ flootay_header = (("#!{}\n"
 with open("overlay.flt", "wt", encoding="utf-8") as f:
     print(flootay_header, file=f)
     write_score_script(f, script.scores, script.videos, video_speeds)
-    write_svg_script(f, script.svgs, script.videos, video_speeds)
+    write_svg_script(f, script, video_speeds)
 
 os.chmod("overlay.flt", 0o775)
 

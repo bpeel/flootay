@@ -284,15 +284,19 @@ By default the program will generate 10 snapshots per second of video. If your b
 
 ### SVGs
 
-When creating the key frames to position an SVG, you only need the x and y position of the topleft of the box without the size. If you press `shift+w`, the program will copy a definition of the key frames to the clipboard that is suitable for defining an SVG.
-
-In order to help position the SVG, you can use the right mouse button to just click where you want the center of the SVG to be. However for this to work, you first need to tell the program the size of the SVG so that it can calculate the topleft position. You can do this on the command line with the `-w` and `-h` options:
+When drawing SVGs, you can give flootay a rectangle to fit the image into. The image will be scaled so that it is centered within the rectangle whilst maintaining the aspect ratio. You can specify the SVG file to load with the `-S` option on the command line:
 
 ```
-make-key-frames -w <svg-width> -h <svg-height> …
+make-key-frames -S <svg-file> …
 ```
 
-That way when you right click it will draw a box with the size of the SVG.
+This will also cause the SVG to be displayed for the current frame when editing the rectangles. It will also try to read the size of the SVG as the default rectangle size. This means that you can simply right click to position the SVG without having to draw a box.
+
+### Rectangle size
+
+Sometimes you want the size of the rectangle or the SVG to change over the course of the animation. This is useful for example if the thing you are covering up moves closer towards the camera during the animation. It looks nicer if you do this without changing the aspect ratio of the rectangle. In order to help do this, if you hold down shift while drawing a rectangle, it will force the rectangle to keep the same aspect ratio as a previous frame.
+
+In order to avoid sudden jumps in the size, you can press Shift+S before writing out the rectangle data in order to make the editor smooth out the size changes. Whenever it finds a rectangle with the same size a previous rectangle, it will interpolate the size between the surrounding rectangles with different sizes. You probably only want to do this once after you have finished editing all the rectangles.
 
 ## FFmpeg filter
 

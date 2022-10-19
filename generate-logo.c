@@ -55,7 +55,7 @@
 #define LON_START_TIME 1
 #define LON_TIME 1
 
-enum {
+enum label {
         LABEL_BACKGROUND,
         LABEL_BICLU,
         LABEL_WHEEL,
@@ -202,6 +202,22 @@ write_surface(cairo_surface_t *surface)
 }
 
 static void
+render_sub(struct painter *painter, cairo_t *cr, enum label label)
+{
+        static const RsvgRectangle viewport = {
+                .x = 0, .y = 0,
+                .width = VIDEO_WIDTH,
+                .height = VIDEO_HEIGHT,
+        };
+
+        rsvg_handle_render_layer(painter->svg,
+                                 cr,
+                                 painter->ids[label],
+                                 &viewport,
+                                 NULL /* error */);
+}
+
+static void
 render_biclou(cairo_t *cr, int frame_num, struct painter *painter)
 {
         int total_frames = BICLOU_TIME * FPS;
@@ -216,9 +232,7 @@ render_biclou(cairo_t *cr, int frame_num, struct painter *painter)
 
         cairo_save(cr);
         cairo_translate(cr, -distance, 0.0f);
-        rsvg_handle_render_cairo_sub(painter->svg,
-                                     cr,
-                                     painter->ids[LABEL_BICLU]);
+        render_sub(painter, cr, LABEL_BICLU);
         cairo_restore(cr);
 
         float angle = -distance * 2.0f * M_PI / WHEEL_DIAMETER;
@@ -227,9 +241,7 @@ render_biclou(cairo_t *cr, int frame_num, struct painter *painter)
         cairo_translate(cr, WHEEL_X - distance, WHEEL_Y);
         cairo_rotate(cr, angle);
         cairo_translate(cr, -WHEEL_X, -WHEEL_Y);
-        rsvg_handle_render_cairo_sub(painter->svg,
-                                     cr,
-                                     painter->ids[LABEL_WHEEL]);
+        render_sub(painter, cr, LABEL_WHEEL);
         cairo_restore(cr);
 }
 
@@ -248,9 +260,7 @@ render_y(cairo_t *cr, int frame_num, struct painter *painter)
                         VIDEO_WIDTH,
                         frame_num * (Y_END - Y_START) / total_frames);
         cairo_clip(cr);
-        rsvg_handle_render_cairo_sub(painter->svg,
-                                     cr,
-                                     painter->ids[LABEL_Y]);
+        render_sub(painter, cr, LABEL_Y);
         cairo_restore(cr);
 }
 
@@ -281,9 +291,7 @@ render_lon(cairo_t *cr, int frame_num, struct painter *painter)
 static void
 paint_frame(cairo_t *cr, int frame_num, struct painter *painter)
 {
-        rsvg_handle_render_cairo_sub(painter->svg,
-                                     cr,
-                                     painter->ids[LABEL_BACKGROUND]);
+        render_sub(painter, cr, LABEL_BACKGROUND);
 
         render_biclou(cr, frame_num, painter);
 
@@ -325,9 +333,7 @@ create_lon_surface(struct painter *painter)
         cairo_paint(cr);
         cairo_restore(cr);
 
-        rsvg_handle_render_cairo_sub(painter->svg,
-                                     cr,
-                                     painter->ids[LABEL_LON]);
+        render_sub(painter, cr, LABEL_LON);
 
         cairo_destroy(cr);
 }

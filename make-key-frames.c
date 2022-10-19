@@ -1035,32 +1035,61 @@ generate_images(const struct config *config,
 }
 
 static void
+set_frame_data(struct data *data,
+               double timestamp,
+               int x1, int y1,
+               int x2, int y2)
+{
+        int frame_num = round((timestamp - data->config.start_time) *
+                              data->config.fps);
+
+        if (frame_num < 0 ||
+            frame_num >= data->n_images ||
+            fabs(frame_num /
+                 (float) data->config.fps +
+                 data->config.start_time -
+                 timestamp) > LOAD_KEY_FRAME_TOLERANCE)
+                return;
+
+        struct frame_data *frame_data =
+                data->frame_data + frame_num;
+
+        frame_data->has_box = true;
+        frame_data->box.x = x1;
+        frame_data->box.y = y1;
+        frame_data->box.w = x2 - x1;
+        frame_data->box.h = y2 - y1;
+}
+
+static void
 load_frame_data_from_rectangle(struct data *data,
                                const struct flt_scene_rectangle *rect)
 {
         const struct flt_scene_rectangle_key_frame *key_frame;
 
         flt_list_for_each(key_frame, &rect->base.key_frames, base.link) {
-                int frame_num = round((key_frame->base.timestamp -
-                                      data->config.start_time) *
-                                      data->config.fps);
+                set_frame_data(data,
+                               key_frame->base.timestamp,
+                               key_frame->x1,
+                               key_frame->y1,
+                               key_frame->x2,
+                               key_frame->y2);
+        }
+}
 
-                if (frame_num < 0 ||
-                    frame_num >= data->n_images ||
-                    fabs(frame_num /
-                         (float) data->config.fps +
-                         data->config.start_time -
-                         key_frame->base.timestamp) > LOAD_KEY_FRAME_TOLERANCE)
-                        continue;
+static void
+load_frame_data_from_svg_viewport(struct data *data,
+                                  const struct flt_scene_svg *svg)
+{
+        const struct flt_scene_svg_viewport_key_frame *key_frame;
 
-                struct frame_data *frame_data =
-                        data->frame_data + frame_num;
-
-                frame_data->has_box = true;
-                frame_data->box.x = key_frame->x1;
-                frame_data->box.y = key_frame->y1;
-                frame_data->box.w = key_frame->x2 - key_frame->x1;
-                frame_data->box.h = key_frame->y2 - key_frame->y1;
+        flt_list_for_each(key_frame, &svg->base.key_frames, base.link) {
+                set_frame_data(data,
+                               key_frame->base.timestamp,
+                               key_frame->x1,
+                               key_frame->y1,
+                               key_frame->x2,
+                               key_frame->y2);
         }
 }
 
@@ -1077,6 +1106,13 @@ load_frame_data_from_scene(struct data *data,
                                                  struct flt_scene_rectangle,
                                                  base);
                         load_frame_data_from_rectangle(data, rect);
+                        break;
+                } else if (object->type == FLT_SCENE_OBJECT_TYPE_SVG_VIEWPORT) {
+                        struct flt_scene_svg *svg =
+                                flt_container_of(object,
+                                                 struct flt_scene_svg,
+                                                 base);
+                        load_frame_data_from_svg_viewport(data, svg);
                         break;
                 }
         }

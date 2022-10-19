@@ -30,6 +30,8 @@
 #include <dirent.h>
 #include <SDL_image.h>
 #include <SDL.h>
+#include <librsvg/rsvg.h>
+#include <assert.h>
 
 #include "flt-buffer.h"
 #include "flt-parse-stdio.h"
@@ -43,6 +45,7 @@ struct config {
         int fps;
         int default_box_width, default_box_height;
         const char *script_to_load;
+        const char *svg_to_load;
 };
 
 struct frame_data {
@@ -65,12 +68,18 @@ struct data {
         SDL_Surface *current_image;
         SDL_Texture *current_texture;
 
+        SDL_Texture *svg_texture;
+
+        int default_box_width, default_box_height;
+
         bool drawing_box;
         /* The aspect ratio of the box when drawing was started so
          * that if shift is held down we can retain the same
          * ratio.
          */
         int original_width, original_height;
+
+        RsvgHandle *svg_handle;
 
         struct frame_data *frame_data;
 
@@ -542,11 +551,11 @@ ensure_box(struct data *data)
 
         /* Make up a box */
         frame_data->box.x = (VIDEO_WIDTH / 2 -
-                             data->config.default_box_width / 2);
+                             data->default_box_width / 2);
         frame_data->box.y = (VIDEO_HEIGHT / 2 -
-                             data->config.default_box_height / 2);
-        frame_data->box.w = data->config.default_box_width;
-        frame_data->box.h = data->config.default_box_height;
+                             data->default_box_height / 2);
+        frame_data->box.w = data->default_box_width;
+        frame_data->box.h = data->default_box_height;
         frame_data->has_box = true;
 }
 
@@ -846,6 +855,148 @@ paint_boxes(struct data *data)
 }
 
 static void
+free_svg_texture(struct data *data)
+{
+        if (data->svg_texture) {
+                SDL_DestroyTexture(data->svg_texture);
+                data->svg_texture = NULL;
+        }
+}
+
+static SDL_BlendMode
+get_premultiplied_blend_mode(void)
+{
+        /* Get the blend mode to compensate for pre-multiplied alpha
+         * in the cairo image.
+         */
+        return SDL_ComposeCustomBlendMode(
+                /* srcColorFactor */
+                SDL_BLENDFACTOR_ONE,
+                /* dstColorFactor */
+                SDL_BLENDFACTOR_ONE_MINUS_SRC_ALPHA,
+                /* colorOperation */
+                SDL_BLENDOPERATION_ADD,
+                /* srcAlphaFactor */
+                SDL_BLENDFACTOR_ONE,
+                /* dstAlphaFactor */
+                SDL_BLENDFACTOR_ONE_MINUS_SRC_ALPHA,
+                /* alphaOperation */
+                SDL_BLENDOPERATION_ADD);
+}
+
+static bool
+get_cached_svg_texture(struct data *data,
+                       int width,
+                       int height)
+{
+        if (data->svg_handle == NULL)
+                return false;
+
+        if (data->svg_texture) {
+                int tw, th;
+
+                SDL_QueryTexture(data->svg_texture,
+                                 NULL, /* format */
+                                 NULL, /* access */
+                                 &tw, &th);
+
+                if (tw == width && th == height)
+                        return true;
+        }
+
+        free_svg_texture(data);
+
+        bool ret = true;
+
+        cairo_surface_t *surface =
+                cairo_image_surface_create(CAIRO_FORMAT_ARGB32,
+                                           width,
+                                           height);
+        cairo_t *cr = cairo_create(surface);
+
+        cairo_save(cr);
+        cairo_set_source_rgba(cr, 0.0, 0.0, 0.0, 0.0);
+        cairo_set_operator(cr, CAIRO_OPERATOR_SOURCE);
+        cairo_paint(cr);
+        cairo_restore(cr);
+
+        RsvgRectangle viewport = {
+                .x = 0, .y = 0,
+                .width = width,
+                .height = height,
+        };
+
+        if (rsvg_handle_render_document(data->svg_handle,
+                                        cr,
+                                        &viewport,
+                                        NULL /* error */)) {
+                data->svg_texture = SDL_CreateTexture(data->renderer,
+                                                      SDL_PIXELFORMAT_BGRA32,
+                                                      SDL_TEXTUREACCESS_STATIC,
+                                                      width,
+                                                      height);
+
+                SDL_SetTextureBlendMode(data->svg_texture,
+                                        get_premultiplied_blend_mode());
+
+                if (data->svg_texture == NULL) {
+                        ret = false;
+                } else {
+                        cairo_surface_flush(surface);
+
+                        const void *pixels =
+                                cairo_image_surface_get_data(surface);
+                        int pitch =
+                                cairo_image_surface_get_stride(surface);
+
+                        SDL_UpdateTexture(data->svg_texture,
+                                          NULL, /* rect */
+                                          pixels,
+                                          pitch);
+                }
+        } else {
+                ret = false;
+        }
+
+        cairo_destroy(cr);
+        cairo_surface_destroy(surface);
+
+        return ret;
+}
+
+static void
+paint_svg(struct data *data)
+{
+        const struct frame_data *frame_data =
+                data->frame_data + data->current_image_num;
+
+        if (!frame_data->has_box)
+                return;
+
+        if (!get_cached_svg_texture(data,
+                                    abs(frame_data->box.w),
+                                    abs(frame_data->box.h)))
+                return;
+
+        SDL_Rect box = frame_data->box;
+        unmap_box(data, &box);
+
+        if (box.w < 0) {
+                box.x += box.w;
+                box.w = -box.w;
+        }
+        if (box.h < 0) {
+                box.y += box.h;
+                box.h = -box.h;
+        }
+
+        SDL_RenderCopy(data->renderer,
+                       data->svg_texture,
+                       NULL, /* src_rect */
+                       &box);
+}
+
+static void
 paint(struct data *data)
 {
         data->redraw_queued = false;
@@ -857,6 +1008,7 @@ paint(struct data *data)
                 paint_texture(data);
 
         paint_boxes(data);
+        paint_svg(data);
 
         SDL_RenderPresent(data->renderer);
 }
@@ -1035,6 +1187,65 @@ generate_images(const struct config *config,
 }
 
 static void
+set_svg_handle(struct data *data, RsvgHandle *handle)
+{
+        assert(data->svg_handle == NULL);
+
+        data->svg_handle = g_object_ref(handle);
+
+        gboolean has_width, has_height, has_viewbox;
+        RsvgLength width, height;
+        RsvgRectangle viewbox;
+
+        rsvg_handle_get_intrinsic_dimensions(handle,
+                                             &has_width,
+                                             &width,
+                                             &has_height,
+                                             &height,
+                                             &has_viewbox,
+                                             &viewbox);
+
+        if (has_width &&
+            has_height &&
+            width.unit != RSVG_UNIT_PERCENT &&
+            height.unit != RSVG_UNIT_PERCENT) {
+                /* We mostly only care about the proportions so it
+                 * doesn’t really matter what the units are.
+                 */
+                data->default_box_width = width.length;
+                data->default_box_height = height.length;
+        } else if (has_viewbox) {
+                data->default_box_width = viewbox.width;
+                data->default_box_height = viewbox.height;
+        }
+}
+
+static bool
+load_svg(struct data *data, const char *filename)
+{
+        GError *error = NULL;
+
+        RsvgHandle *handle = rsvg_handle_new_from_file(filename, &error);
+
+        if (handle == NULL) {
+                fprintf(stderr,
+                        "%s: %s\n",
+                        filename,
+                        error->message);
+
+                g_error_free(error);
+
+                return false;
+        }
+
+        set_svg_handle(data, handle);
+
+        g_object_unref(handle);
+
+        return true;
+}
+
+static void
 set_frame_data(struct data *data,
                double timestamp,
                int x1, int y1,
@@ -1094,8 +1305,8 @@ load_frame_data_from_svg_viewport(struct data *data,
 }
 
 static void
-load_frame_data_from_scene(struct data *data,
-                           const struct flt_scene *scene)
+load_data_from_scene(struct data *data,
+                     const struct flt_scene *scene)
 {
         struct flt_scene_object *object;
 
@@ -1112,7 +1323,12 @@ load_frame_data_from_scene(struct data *data,
                                 flt_container_of(object,
                                                  struct flt_scene_svg,
                                                  base);
+
                         load_frame_data_from_svg_viewport(data, svg);
+
+                        if (data->svg_handle == NULL)
+                                set_svg_handle(data, svg->handle);
+
                         break;
                 }
         }
@@ -1132,7 +1348,7 @@ load_script(struct data *data, const char *filename)
                 flt_error_free(error);
                 ret = false;
         } else {
-                load_frame_data_from_scene(data, scene);
+                load_data_from_scene(data, scene);
         }
 
         flt_scene_free(scene);
@@ -1178,7 +1394,7 @@ static bool
 parse_args(int argc, char **argv, struct config *config)
 {
         while (true) {
-                switch (getopt(argc, argv, "-s:e:r:w:h:l:")) {
+                switch (getopt(argc, argv, "-s:e:r:w:h:l:S:")) {
                 case 's':
                         if (!parse_time(optarg, &config->start_time))
                                 return false;
@@ -1208,6 +1424,10 @@ parse_args(int argc, char **argv, struct config *config)
 
                 case 'l':
                         config->script_to_load = optarg;
+                        break;
+
+                case 'S':
+                        config->svg_to_load = optarg;
                         break;
 
                 case 1:
@@ -1255,6 +1475,9 @@ main(int argc, char **argv)
         if (!parse_args(argc, argv, &data.config))
                 return EXIT_FAILURE;
 
+        data.default_box_width = data.config.default_box_width;
+        data.default_box_height = data.config.default_box_height;
+
         if (!generate_images(&data.config, &data.n_images)) {
                 return EXIT_FAILURE;
         }
@@ -1268,6 +1491,12 @@ main(int argc, char **argv)
                                      sizeof (struct frame_data));
 
         int ret = EXIT_SUCCESS;
+
+        if (data.config.svg_to_load &&
+            !load_svg(&data, data.config.svg_to_load)) {
+                ret = EXIT_FAILURE;
+                goto out;
+        }
 
         if (data.config.script_to_load &&
             !load_script(&data, data.config.script_to_load)) {
@@ -1287,7 +1516,11 @@ main(int argc, char **argv)
         write_rectangle(&data);
 
 out:
+        if (data.svg_handle)
+                g_object_unref(data.svg_handle);
+
         free_image(&data);
+        free_svg_texture(&data);
         destroy_sdl(&data);
 
         flt_free(data.frame_data);

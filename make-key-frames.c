@@ -1239,12 +1239,6 @@ main(int argc, char **argv)
                 goto out;
         }
 
-        if (data.n_images <= 0) {
-                fprintf(stderr, "Usage: make-key-frames <image>…\n");
-                ret = EXIT_FAILURE;
-                goto out;
-        }
-
         if (!init_sdl(&data)) {
                 ret = EXIT_FAILURE;
                 goto out;

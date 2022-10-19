@@ -96,33 +96,16 @@ interpolate_and_add_rectangle(struct flt_renderer *renderer,
         cairo_fill(cr);
 }
 
-static void
+static bool
 interpolate_and_add_svg(struct flt_renderer *renderer,
                         cairo_t *cr,
                         const struct flt_scene_svg *svg,
                         double i,
-                        const struct flt_scene_svg_key_frame *s,
-                        const struct flt_scene_svg_key_frame *e)
-{
-        int x = interpolate(i, s->x, e->x);
-        int y = interpolate(i, s->y, e->y);
-
-        cairo_save(cr);
-        cairo_translate(cr, x, y);
-        rsvg_handle_render_cairo(svg->handle, cr);
-        cairo_restore(cr);
-}
-
-static bool
-interpolate_and_add_svg_viewport(struct flt_renderer *renderer,
-                                 cairo_t *cr,
-                                 const struct flt_scene_svg *svg,
-                                 double i,
-                                 const struct
-                                 flt_scene_svg_viewport_key_frame *s,
-                                 const struct
-                                 flt_scene_svg_viewport_key_frame *e,
-                                 struct flt_error **error_out)
+                        const struct
+                        flt_scene_svg_key_frame *s,
+                        const struct
+                        flt_scene_svg_key_frame *e,
+                        struct flt_error **error_out)
 {
         double x1 = interpolate_double(i, s->x1, e->x1);
         double y1 = interpolate_double(i, s->y1, e->y1);
@@ -710,25 +693,13 @@ found_frame:
                                               end_frame);
                 break;
         case FLT_SCENE_OBJECT_TYPE_SVG:
-                interpolate_and_add_svg(renderer,
-                                        cr,
-                                        (const struct flt_scene_svg *) object,
-                                        i,
-                                        (const struct
-                                         flt_scene_svg_key_frame *)
-                                        s,
-                                        (const struct
-                                         flt_scene_svg_key_frame *)
-                                        end_frame);
-                break;
-        case FLT_SCENE_OBJECT_TYPE_SVG_VIEWPORT:
-                if (!interpolate_and_add_svg_viewport(renderer,
-                                                      cr,
-                                                      (const void *) object,
-                                                      i,
-                                                      (const void *) s,
-                                                      (const void *) end_frame,
-                                                      error))
+                if (!interpolate_and_add_svg(renderer,
+                                             cr,
+                                             (const void *) object,
+                                             i,
+                                             (const void *) s,
+                                             (const void *) end_frame,
+                                             error))
                         return FLT_RENDERER_RESULT_ERROR;
                 break;
         case FLT_SCENE_OBJECT_TYPE_SCORE:

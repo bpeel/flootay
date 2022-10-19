@@ -469,7 +469,7 @@ write_rectangle(struct data *data)
 
         flt_buffer_append_string(&buf,
                                  data->svg_handle ?
-                                 "svg_viewport" :
+                                 "svg" :
                                  "rectangle");
         flt_buffer_append_string(&buf, " {\n");
 
@@ -1299,10 +1299,10 @@ load_frame_data_from_rectangle(struct data *data,
 }
 
 static void
-load_frame_data_from_svg_viewport(struct data *data,
-                                  const struct flt_scene_svg *svg)
+load_frame_data_from_svg(struct data *data,
+                         const struct flt_scene_svg *svg)
 {
-        const struct flt_scene_svg_viewport_key_frame *key_frame;
+        const struct flt_scene_svg_key_frame *key_frame;
 
         flt_list_for_each(key_frame, &svg->base.key_frames, base.link) {
                 set_frame_data(data,
@@ -1328,13 +1328,13 @@ load_data_from_scene(struct data *data,
                                                  base);
                         load_frame_data_from_rectangle(data, rect);
                         break;
-                } else if (object->type == FLT_SCENE_OBJECT_TYPE_SVG_VIEWPORT) {
+                } else if (object->type == FLT_SCENE_OBJECT_TYPE_SVG) {
                         struct flt_scene_svg *svg =
                                 flt_container_of(object,
                                                  struct flt_scene_svg,
                                                  base);
 
-                        load_frame_data_from_svg_viewport(data, svg);
+                        load_frame_data_from_svg(data, svg);
 
                         if (data->svg_handle == NULL)
                                 set_svg_handle(data, svg->handle);

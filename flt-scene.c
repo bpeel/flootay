@@ -50,7 +50,6 @@ destroy_object(struct flt_scene_object *object)
         case FLT_SCENE_OBJECT_TYPE_TIME:
                 break;
         case FLT_SCENE_OBJECT_TYPE_SVG:
-        case FLT_SCENE_OBJECT_TYPE_SVG_VIEWPORT:
                 destroy_svg((struct flt_scene_svg *) object);
                 break;
         }

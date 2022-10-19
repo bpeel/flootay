@@ -236,14 +236,14 @@ You can render an SVG like this:
 
 svg {
   file "happy-face.svg"
-  key_frame 1:00 { x 30 y 20 }
+  key_frame 1:00 { x1 30 y1 20 x2 40 y2 30 }
   key_frame 1:20 { }
 }
 
 }}
 ```
 
-This will display the SVG `happy-face.svg` at 30,20 for 20 seconds starting from 1:00 in the input video. Any parameters not mentioned in the key frame will have the same values as the previous frame, so that means the SVG will stay at 30,20. You can also animate the position with something like this:
+This will display the SVG `happy-face.svg` fit into a rectangle at 30,20 with size 10,10 for 20 seconds starting from 1:00 in the input video. Any parameters not mentioned in the key frame will have the same values as the previous frame, so that means the SVG will stay at 30,20. You can also animate the position with something like this:
 
 
 ```
@@ -251,8 +251,8 @@ This will display the SVG `happy-face.svg` at 30,20 for 20 seconds starting from
 
 svg {
   file "happy-face.svg"
-  key_frame 1:00 { x 30 y 20 }
-  key_frame 1:20 { x 100 y 90 }
+  key_frame 1:00 { x1 30 y1 20 x2 40 y2 30 }
+  key_frame 1:20 { x1 100 y1 90 x2 110 y2 100 }
 }
 
 }}

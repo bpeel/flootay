@@ -88,7 +88,6 @@ static const char * const
 keywords[] = {
         [FLT_LEXER_KEYWORD_RECTANGLE] = "rectangle",
         [FLT_LEXER_KEYWORD_SVG] = "svg",
-        [FLT_LEXER_KEYWORD_SVG_VIEWPORT] = "svg_viewport",
         [FLT_LEXER_KEYWORD_SCORE] = "score",
         [FLT_LEXER_KEYWORD_GPX] = "gpx",
         [FLT_LEXER_KEYWORD_SPEED] = "speed",

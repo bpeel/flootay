@@ -467,7 +467,17 @@ write_rectangle(struct data *data)
 {
         struct flt_buffer buf = FLT_BUFFER_STATIC_INIT;
 
-        flt_buffer_append_string(&buf, "rectangle {\n");
+        flt_buffer_append_string(&buf,
+                                 data->svg_handle ?
+                                 "svg_viewport" :
+                                 "rectangle");
+        flt_buffer_append_string(&buf, " {\n");
+
+        if (data->config.svg_to_load) {
+                flt_buffer_append_string(&buf, "        file \"");
+                flt_buffer_append_string(&buf, data->config.svg_to_load);
+                flt_buffer_append_string(&buf, "\"\n");
+        }
 
         for (int i = 0; i < data->n_images; i++) {
                 const struct frame_data *frame = data->frame_data + i;

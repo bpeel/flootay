@@ -430,25 +430,6 @@ get_key_frame_line(struct data *data, int frame_num, struct flt_buffer *buf)
 }
 
 static void
-get_point_key_frame_line(struct data *data,
-                         int frame_num,
-                         struct flt_buffer *buf)
-{
-        const SDL_Rect *box = &data->frame_data[frame_num].box;
-        int x = box->x, y = box->y;
-
-        if (box->w < 0)
-                x += box->w;
-        if (box->h < 0)
-                y += box->h;
-
-        flt_buffer_append_printf(buf,
-                                 "        key_frame %f { x %i y %i }",
-                                 get_frame_time(data, frame_num),
-                                 x, y);
-}
-
-static void
 copy_box_to_clipboard(struct data *data)
 {
         struct flt_buffer buf = FLT_BUFFER_STATIC_INIT;
@@ -463,7 +444,7 @@ copy_box_to_clipboard(struct data *data)
 }
 
 static void
-write_rectangle(struct data *data)
+write_key_frames(struct data *data)
 {
         struct flt_buffer buf = FLT_BUFFER_STATIC_INIT;
 
@@ -486,32 +467,6 @@ write_rectangle(struct data *data)
                         continue;
 
                 get_key_frame_line(data, i, &buf);
-
-                flt_buffer_append_c(&buf, '\n');
-        }
-
-        flt_buffer_append_string(&buf, "}\n");
-
-        fputs((const char *) buf.data, stdout);
-        SDL_SetClipboardText((const char *) buf.data);
-
-        flt_buffer_destroy(&buf);
-}
-
-static void
-write_svg(struct data *data)
-{
-        struct flt_buffer buf = FLT_BUFFER_STATIC_INIT;
-
-        flt_buffer_append_string(&buf, "svg {\n");
-
-        for (int i = 0; i < data->n_images; i++) {
-                const struct frame_data *frame = data->frame_data + i;
-
-                if (!frame->has_box)
-                        continue;
-
-                get_point_key_frame_line(data, i, &buf);
 
                 flt_buffer_append_c(&buf, '\n');
         }
@@ -631,10 +586,7 @@ handle_key_event(struct data *data,
                 break;
 
         case SDLK_w:
-                if ((SDL_GetModState() & KMOD_SHIFT))
-                        write_svg(data);
-                else
-                        write_rectangle(data);
+                write_key_frames(data);
                 break;
         }
 }
@@ -1523,7 +1475,7 @@ main(int argc, char **argv)
 
         run_main_loop(&data);
 
-        write_rectangle(&data);
+        write_key_frames(&data);
 
 out:
         if (data.svg_handle)

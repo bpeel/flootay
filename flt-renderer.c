@@ -34,6 +34,7 @@ struct flt_renderer {
         struct flt_scene *scene;
         struct flt_map_renderer *map_renderer;
         cairo_pattern_t *map_point_pattern;
+        float gap;
 };
 
 struct flt_error_domain
@@ -167,15 +168,13 @@ interpolate_and_add_score(struct flt_renderer *renderer,
                           const struct flt_scene_score_key_frame *s,
                           const struct flt_scene_score_key_frame *e)
 {
-        float gap = renderer->scene->video_height / 15.0f;
-
         cairo_save(cr);
         cairo_set_font_size(cr, renderer->scene->video_height / 10.0f);
 
         cairo_font_extents_t extents;
 
         cairo_font_extents(cr, &extents);
-        cairo_move_to(cr, gap, extents.height);
+        cairo_move_to(cr, renderer->gap, extents.height);
 
         render_score_text(renderer, cr, SCORE_LABEL);
 
@@ -231,7 +230,7 @@ interpolate_and_add_score(struct flt_renderer *renderer,
         cairo_move_to(cr,
                       renderer->scene->video_width -
                       text_extents.x_advance -
-                      gap,
+                      renderer->gap,
                       extents.height);
         render_score_text(renderer, cr, SCORE_NAME);
 
@@ -247,13 +246,13 @@ add_speed(struct flt_renderer *renderer,
 {
         int speed_kmh = round(speed_ms * 3600 / 1000);
 
-        float gap = renderer->scene->video_height / 15.0f;
-
         cairo_save(cr);
 
         cairo_set_font_size(cr, renderer->scene->video_height / 12.0f);
 
-        cairo_move_to(cr, gap, renderer->scene->video_height - gap);
+        cairo_move_to(cr,
+                      renderer->gap,
+                      renderer->scene->video_height - renderer->gap);
 
         struct flt_buffer buf = FLT_BUFFER_STATIC_INIT;
 
@@ -283,8 +282,6 @@ add_elevation(struct flt_renderer *renderer,
               cairo_t *cr,
               double elevation)
 {
-        float gap = renderer->scene->video_height / 15.0f;
-
         cairo_save(cr);
 
         cairo_set_font_size(cr, renderer->scene->video_height / 12.0f);
@@ -308,9 +305,9 @@ add_elevation(struct flt_renderer *renderer,
 
         cairo_move_to(cr,
                       renderer->scene->video_width -
-                      gap -
+                      renderer->gap -
                       text_extents.x_advance,
-                      renderer->scene->video_height - gap);
+                      renderer->scene->video_height - renderer->gap);
 
         render_score_text(renderer, cr, (const char *) buf.data);
 
@@ -324,10 +321,10 @@ add_elevation(struct flt_renderer *renderer,
 
         cairo_move_to(cr,
                       renderer->scene->video_width -
-                      gap -
+                      renderer->gap -
                       text_extents.x_advance,
                       renderer->scene->video_height -
-                      gap +
+                      renderer->gap +
                       text_extents.height *
                       1.3);
 
@@ -341,8 +338,6 @@ add_distance(struct flt_renderer *renderer,
              cairo_t *cr,
              double distance)
 {
-        float gap = renderer->scene->video_height / 15.0f;
-
         cairo_save(cr);
 
         struct flt_buffer buf = FLT_BUFFER_STATIC_INIT;
@@ -386,7 +381,7 @@ add_distance(struct flt_renderer *renderer,
         cairo_move_to(cr,
                       renderer->scene->video_width / 2.0 -
                       total_x_advance / 2.0,
-                      renderer->scene->video_height - gap);
+                      renderer->scene->video_height - renderer->gap);
 
         render_score_text(renderer, cr, (const char *) buf.data);
 
@@ -398,7 +393,7 @@ add_distance(struct flt_renderer *renderer,
                       renderer->scene->video_width / 2.0 -
                       total_x_advance / 2.0 +
                       text_extents.x_advance,
-                      renderer->scene->video_height - gap);
+                      renderer->scene->video_height - renderer->gap);
 
         render_score_text(renderer, cr, units);
 
@@ -441,14 +436,17 @@ add_map(struct flt_renderer *renderer,
         bool ret = true;
 
         const float map_size_tile_units = 216.0f;
-        float gap = renderer->scene->video_height / 15.0f;
         float map_size = renderer->scene->video_height * 0.3;
         float map_scale = map_size / map_size_tile_units;
 
         cairo_save(cr);
         cairo_translate(cr,
-                        renderer->scene->video_width - gap - map_size / 2.0,
-                        renderer->scene->video_height - gap - map_size / 2.0);
+                        renderer->scene->video_width -
+                        renderer->gap -
+                        map_size / 2.0,
+                        renderer->scene->video_height -
+                        renderer->gap -
+                        map_size / 2.0);
         cairo_scale(cr, map_scale, map_scale);
 
         if (!flt_map_renderer_render(renderer->map_renderer,
@@ -541,8 +539,6 @@ interpolate_and_add_time(struct flt_renderer *renderer,
                 flt_buffer_append_printf(&buf, "%is", value);
         }
 
-        float gap = renderer->scene->video_height / 15.0f;
-
         cairo_save(cr);
 
         cairo_select_font_face(cr,
@@ -560,7 +556,7 @@ interpolate_and_add_time(struct flt_renderer *renderer,
         cairo_move_to(cr,
                       renderer->scene->video_width / 2.0 -
                       text_extents.x_advance / 2.0,
-                      gap + text_extents.height);
+                      renderer->gap + text_extents.height);
 
         render_score_text(renderer, cr, (const char *) buf.data);
 
@@ -764,6 +760,8 @@ flt_renderer_new(struct flt_scene *scene)
         struct flt_renderer *renderer = flt_calloc(sizeof *renderer);
 
         renderer->scene = scene;
+
+        renderer->gap = scene->video_height / 15.0f;
 
         return renderer;
 }

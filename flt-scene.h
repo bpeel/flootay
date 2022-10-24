@@ -24,6 +24,45 @@
 #include "flt-list.h"
 #include "flt-gpx.h"
 
+enum flt_scene_vertical_position {
+        FLT_SCENE_VERTICAL_POSITION_TOP = 0,
+        FLT_SCENE_VERTICAL_POSITION_BOTTOM = 1,
+};
+
+enum flt_scene_horizontal_position {
+        FLT_SCENE_HORIZONTAL_POSITION_LEFT = (0 << 1),
+        FLT_SCENE_HORIZONTAL_POSITION_MIDDLE = (1 << 1),
+        FLT_SCENE_HORIZONTAL_POSITION_RIGHT = (2 << 1),
+};
+
+enum flt_scene_position {
+        FLT_SCENE_POSITION_TOP_LEFT =
+        (FLT_SCENE_HORIZONTAL_POSITION_LEFT |
+         FLT_SCENE_VERTICAL_POSITION_TOP),
+        FLT_SCENE_POSITION_TOP_MIDDLE =
+        (FLT_SCENE_HORIZONTAL_POSITION_MIDDLE |
+         FLT_SCENE_VERTICAL_POSITION_TOP),
+        FLT_SCENE_POSITION_TOP_RIGHT =
+        (FLT_SCENE_HORIZONTAL_POSITION_RIGHT |
+         FLT_SCENE_VERTICAL_POSITION_TOP),
+        FLT_SCENE_POSITION_BOTTOM_LEFT =
+        (FLT_SCENE_HORIZONTAL_POSITION_LEFT |
+         FLT_SCENE_VERTICAL_POSITION_BOTTOM),
+        FLT_SCENE_POSITION_BOTTOM_MIDDLE =
+        (FLT_SCENE_HORIZONTAL_POSITION_MIDDLE |
+         FLT_SCENE_VERTICAL_POSITION_BOTTOM),
+        FLT_SCENE_POSITION_BOTTOM_RIGHT =
+        (FLT_SCENE_HORIZONTAL_POSITION_RIGHT |
+         FLT_SCENE_VERTICAL_POSITION_BOTTOM),
+};
+
+#define FLT_SCENE_GET_VERTICAL_POSITION(pos) \
+        ((enum flt_scene_vertical_position) ((pos) & 1))
+#define FLT_SCENE_GET_HORIZONTAL_POSITION(pos) \
+        ((enum flt_scene_horizontal_position) ((pos) & ~1))
+
+#define FLT_SCENE_N_POSITIONS (2 * 3)
+
 enum flt_scene_object_type {
         FLT_SCENE_OBJECT_TYPE_RECTANGLE,
         FLT_SCENE_OBJECT_TYPE_SVG,
@@ -104,6 +143,7 @@ enum flt_scene_gpx_object_type {
 struct flt_scene_gpx_object {
         struct flt_list link;
         enum flt_scene_gpx_object_type type;
+        enum flt_scene_position position;
 };
 
 struct flt_scene_gpx_distance {

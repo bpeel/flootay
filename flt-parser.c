@@ -53,6 +53,7 @@ enum flt_parser_value_type {
         FLT_PARSER_VALUE_TYPE_DOUBLE,
         FLT_PARSER_VALUE_TYPE_BOOL,
         FLT_PARSER_VALUE_TYPE_COLOR,
+        FLT_PARSER_VALUE_TYPE_POSITION,
 };
 
 typedef enum flt_parser_return
@@ -352,6 +353,52 @@ parse_color_property(struct flt_parser *parser,
 }
 
 static enum flt_parser_return
+parse_position_property(struct flt_parser *parser,
+                        const struct flt_parser_property *prop,
+                        void *object,
+                        struct flt_error **error)
+{
+        const struct flt_lexer_token *token;
+
+        enum flt_scene_position *field =
+                (enum flt_scene_position *) (((uint8_t *) object) +
+                                             prop->offset);
+        enum flt_scene_vertical_position v_pos =
+                FLT_SCENE_GET_VERTICAL_POSITION(*field);
+        enum flt_scene_horizontal_position h_pos =
+                FLT_SCENE_GET_HORIZONTAL_POSITION(*field);
+
+        token = flt_lexer_get_token(parser->lexer, error);
+
+        if (token == NULL)
+                return FLT_PARSER_RETURN_ERROR;
+
+        if (token->type == FLT_LEXER_TOKEN_TYPE_SYMBOL) {
+                switch (token->symbol_value) {
+                case FLT_LEXER_KEYWORD_TOP:
+                        *field = h_pos | FLT_SCENE_VERTICAL_POSITION_TOP;
+                        return FLT_PARSER_RETURN_OK;
+                case FLT_LEXER_KEYWORD_BOTTOM:
+                        *field = h_pos | FLT_SCENE_VERTICAL_POSITION_BOTTOM;
+                        return FLT_PARSER_RETURN_OK;
+                case FLT_LEXER_KEYWORD_LEFT:
+                        *field = v_pos | FLT_SCENE_HORIZONTAL_POSITION_LEFT;
+                        return FLT_PARSER_RETURN_OK;
+                case FLT_LEXER_KEYWORD_MIDDLE:
+                        *field = v_pos | FLT_SCENE_HORIZONTAL_POSITION_MIDDLE;
+                        return FLT_PARSER_RETURN_OK;
+                case FLT_LEXER_KEYWORD_RIGHT:
+                        *field = v_pos | FLT_SCENE_HORIZONTAL_POSITION_RIGHT;
+                        return FLT_PARSER_RETURN_OK;
+                }
+        }
+
+        flt_lexer_put_token(parser->lexer);
+
+        return FLT_PARSER_RETURN_NOT_MATCHED;
+}
+
+static enum flt_parser_return
 parse_properties(struct flt_parser *parser,
                  const struct flt_parser_property *props,
                  size_t n_props,
@@ -391,6 +438,12 @@ parse_properties(struct flt_parser *parser,
                                                    props + i,
                                                    object,
                                                    error);
+                        break;
+                case FLT_PARSER_VALUE_TYPE_POSITION:
+                        ret = parse_position_property(parser,
+                                                      props + i,
+                                                      object,
+                                                      error);
                         break;
                 }
 
@@ -1147,10 +1200,19 @@ parse_gpx_file(struct flt_parser *parser,
         return FLT_PARSER_RETURN_OK;
 }
 
+static const struct flt_parser_property
+base_gpx_object_props[] = {
+        {
+                offsetof(struct flt_scene_gpx_object, position),
+                FLT_PARSER_VALUE_TYPE_POSITION,
+        },
+};
+
 static enum flt_parser_return
 parse_gpx_object_with_props(struct flt_parser *parser,
                             enum flt_lexer_keyword keyword,
                             enum flt_scene_gpx_object_type type,
+                            enum flt_scene_position default_position,
                             size_t struct_size,
                             const struct flt_parser_property *props,
                             size_t n_props,
@@ -1168,6 +1230,7 @@ parse_gpx_object_with_props(struct flt_parser *parser,
         struct flt_scene_gpx_object *object = flt_calloc(struct_size);
 
         object->type = type;
+        object->position = default_position;
 
         struct flt_scene_gpx *gpx =
                 flt_container_of(parser->scene->objects.prev,
@@ -1187,6 +1250,19 @@ parse_gpx_object_with_props(struct flt_parser *parser,
                         break;
 
                 flt_lexer_put_token(parser->lexer);
+
+                switch (parse_properties(parser,
+                                         base_gpx_object_props,
+                                         FLT_N_ELEMENTS(base_gpx_object_props),
+                                         object,
+                                         error)) {
+                case FLT_PARSER_RETURN_OK:
+                        continue;
+                case FLT_PARSER_RETURN_NOT_MATCHED:
+                        break;
+                case FLT_PARSER_RETURN_ERROR:
+                        return FLT_PARSER_RETURN_ERROR;
+                }
 
                 switch (parse_properties(parser,
                                          props,
@@ -1215,12 +1291,14 @@ static enum flt_parser_return
 parse_gpx_object(struct flt_parser *parser,
                  enum flt_lexer_keyword keyword,
                  enum flt_scene_gpx_object_type type,
+                 enum flt_scene_position default_position,
                  size_t struct_size,
                  struct flt_error **error)
 {
         return parse_gpx_object_with_props(parser,
                                            keyword,
                                            type,
+                                           default_position,
                                            struct_size,
                                            NULL, /* props */
                                            0, /* n_props */
@@ -1234,6 +1312,7 @@ parse_gpx_speed(struct flt_parser *parser,
         return parse_gpx_object(parser,
                                 FLT_LEXER_KEYWORD_SPEED,
                                 FLT_SCENE_GPX_OBJECT_TYPE_SPEED,
+                                FLT_SCENE_POSITION_BOTTOM_LEFT,
                                 sizeof (struct flt_scene_gpx_object),
                                 error);
 }
@@ -1245,6 +1324,7 @@ parse_gpx_elevation(struct flt_parser *parser,
         return parse_gpx_object(parser,
                                 FLT_LEXER_KEYWORD_ELEVATION,
                                 FLT_SCENE_GPX_OBJECT_TYPE_ELEVATION,
+                                FLT_SCENE_POSITION_BOTTOM_RIGHT,
                                 sizeof (struct flt_scene_gpx_object),
                                 error);
 }
@@ -1268,6 +1348,7 @@ parse_gpx_distance(struct flt_parser *parser,
         return parse_gpx_object_with_props(parser,
                                            FLT_LEXER_KEYWORD_DISTANCE,
                                            FLT_SCENE_GPX_OBJECT_TYPE_DISTANCE,
+                                           FLT_SCENE_POSITION_BOTTOM_MIDDLE,
                                            struct_size,
                                            props,
                                            FLT_N_ELEMENTS(props),
@@ -1281,6 +1362,7 @@ parse_gpx_map(struct flt_parser *parser,
         return parse_gpx_object(parser,
                                 FLT_LEXER_KEYWORD_MAP,
                                 FLT_SCENE_GPX_OBJECT_TYPE_MAP,
+                                FLT_SCENE_POSITION_BOTTOM_RIGHT,
                                 sizeof (struct flt_scene_gpx_object),
                                 error);
 }

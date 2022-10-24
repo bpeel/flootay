@@ -120,6 +120,11 @@ keywords[] = {
         [FLT_LEXER_KEYWORD_OFFSET] = "offset",
         [FLT_LEXER_KEYWORD_MAP_URL_BASE] = "map_url_base",
         [FLT_LEXER_KEYWORD_MAP_API_KEY] = "map_api_key",
+        [FLT_LEXER_KEYWORD_TOP] = "top",
+        [FLT_LEXER_KEYWORD_BOTTOM] = "bottom",
+        [FLT_LEXER_KEYWORD_LEFT] = "left",
+        [FLT_LEXER_KEYWORD_MIDDLE] = "middle",
+        [FLT_LEXER_KEYWORD_RIGHT] = "right",
 };
 
 _Static_assert(FLT_N_ELEMENTS(keywords) == FLT_LEXER_N_KEYWORDS,

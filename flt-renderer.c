@@ -490,20 +490,35 @@ interpolate_and_add_gpx(struct flt_renderer *renderer,
                                &gpx_data))
                 return true;
 
-        if (gpx->show_speed)
-                add_speed(renderer, cr, gpx_data.speed);
-        if (gpx->show_elevation)
-                add_elevation(renderer, cr, gpx_data.elevation);
+        const struct flt_scene_gpx_object *object;
 
-        if (gpx->show_distance) {
-                add_distance(renderer,
-                             cr,
-                             gpx_data.distance + gpx->distance_offset);
+        flt_list_for_each(object, &gpx->objects, link) {
+                switch (object->type) {
+                case FLT_SCENE_GPX_OBJECT_TYPE_SPEED:
+                        add_speed(renderer, cr, gpx_data.speed);
+                        break;
+                case FLT_SCENE_GPX_OBJECT_TYPE_ELEVATION:
+                        add_elevation(renderer, cr, gpx_data.elevation);
+                        break;
+                case FLT_SCENE_GPX_OBJECT_TYPE_DISTANCE: {
+                        const struct flt_scene_gpx_distance *distance =
+                                flt_container_of(object,
+                                                 struct flt_scene_gpx_distance,
+                                                 base);
+                        add_distance(renderer,
+                                     cr,
+                                     gpx_data.distance + distance->offset);
+                        break;
+                }
+                case FLT_SCENE_GPX_OBJECT_TYPE_MAP:
+                        if (!add_map(renderer,
+                                     cr,
+                                     gpx_data.lat, gpx_data.lon,
+                                     error))
+                                return false;
+                        break;
+                }
         }
-
-        if (gpx->show_map &&
-            !add_map(renderer, cr, gpx_data.lat, gpx_data.lon, error))
-                return false;
 
         return true;
 }

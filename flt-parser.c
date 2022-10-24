@@ -21,6 +21,7 @@
 #include <limits.h>
 #include <float.h>
 #include <string.h>
+#include <assert.h>
 
 #include "flt-lexer.h"
 #include "flt-utf8.h"
@@ -1146,47 +1147,153 @@ parse_gpx_file(struct flt_parser *parser,
         return FLT_PARSER_RETURN_OK;
 }
 
-static const struct flt_parser_property
-gpx_props[] = {
-        {
-                offsetof(struct flt_scene_gpx, show_speed),
-                FLT_PARSER_VALUE_TYPE_BOOL,
-                FLT_LEXER_KEYWORD_SPEED,
-        },
-        {
-                offsetof(struct flt_scene_gpx, show_elevation),
-                FLT_PARSER_VALUE_TYPE_BOOL,
-                FLT_LEXER_KEYWORD_ELEVATION,
-        },
-        {
-                offsetof(struct flt_scene_gpx, show_distance),
-                FLT_PARSER_VALUE_TYPE_BOOL,
-                FLT_LEXER_KEYWORD_DISTANCE,
-        },
-        {
-                offsetof(struct flt_scene_gpx, show_map),
-                FLT_PARSER_VALUE_TYPE_BOOL,
-                FLT_LEXER_KEYWORD_MAP,
-        },
-        {
-                offsetof(struct flt_scene_gpx, distance_offset),
-                FLT_PARSER_VALUE_TYPE_DOUBLE,
-                FLT_LEXER_KEYWORD_DISTANCE_OFFSET,
-                .min_double_value = -DBL_MAX, .max_double_value = DBL_MAX,
-        },
-};
+static enum flt_parser_return
+parse_gpx_object_with_props(struct flt_parser *parser,
+                            enum flt_lexer_keyword keyword,
+                            enum flt_scene_gpx_object_type type,
+                            size_t struct_size,
+                            const struct flt_parser_property *props,
+                            size_t n_props,
+                            struct flt_error **error)
+{
+        const struct flt_lexer_token *token;
+
+        check_item_keyword(parser, keyword, error);
+
+        require_token(parser,
+                      FLT_LEXER_TOKEN_TYPE_OPEN_BRACKET,
+                      "expected ‘{’",
+                      error);
+
+        struct flt_scene_gpx_object *object = flt_calloc(struct_size);
+
+        object->type = type;
+
+        struct flt_scene_gpx *gpx =
+                flt_container_of(parser->scene->objects.prev,
+                                 struct flt_scene_gpx,
+                                 base.link);
+        assert(gpx->base.type == FLT_SCENE_OBJECT_TYPE_GPX);
+
+        flt_list_insert(gpx->objects.prev, &object->link);
+
+        while (true) {
+                token = flt_lexer_get_token(parser->lexer, error);
+
+                if (token == NULL)
+                        return FLT_PARSER_RETURN_ERROR;
+
+                if (token->type == FLT_LEXER_TOKEN_TYPE_CLOSE_BRACKET)
+                        break;
+
+                flt_lexer_put_token(parser->lexer);
+
+                switch (parse_properties(parser,
+                                         props,
+                                         n_props,
+                                         object,
+                                         error)) {
+                case FLT_PARSER_RETURN_OK:
+                        continue;
+                case FLT_PARSER_RETURN_NOT_MATCHED:
+                        break;
+                case FLT_PARSER_RETURN_ERROR:
+                        return FLT_PARSER_RETURN_ERROR;
+                }
+
+                set_error(parser,
+                          error,
+                          "Expected gpx object item (like a position)");
+
+                return FLT_PARSER_RETURN_ERROR;
+        }
+
+        return FLT_PARSER_RETURN_OK;
+}
 
 static enum flt_parser_return
-parse_gpx_base(struct flt_parser *parser,
-               bool show_speed,
-               bool show_elevation,
-               bool show_distance,
-               bool show_map,
-               struct flt_error **error)
+parse_gpx_object(struct flt_parser *parser,
+                 enum flt_lexer_keyword keyword,
+                 enum flt_scene_gpx_object_type type,
+                 size_t struct_size,
+                 struct flt_error **error)
 {
-        int gpx_line_num = flt_lexer_get_line_num(parser->lexer);
+        return parse_gpx_object_with_props(parser,
+                                           keyword,
+                                           type,
+                                           struct_size,
+                                           NULL, /* props */
+                                           0, /* n_props */
+                                           error);
+}
 
+static enum flt_parser_return
+parse_gpx_speed(struct flt_parser *parser,
+                struct flt_error **error)
+{
+        return parse_gpx_object(parser,
+                                FLT_LEXER_KEYWORD_SPEED,
+                                FLT_SCENE_GPX_OBJECT_TYPE_SPEED,
+                                sizeof (struct flt_scene_gpx_object),
+                                error);
+}
+
+static enum flt_parser_return
+parse_gpx_elevation(struct flt_parser *parser,
+                    struct flt_error **error)
+{
+        return parse_gpx_object(parser,
+                                FLT_LEXER_KEYWORD_ELEVATION,
+                                FLT_SCENE_GPX_OBJECT_TYPE_ELEVATION,
+                                sizeof (struct flt_scene_gpx_object),
+                                error);
+}
+
+static enum flt_parser_return
+parse_gpx_distance(struct flt_parser *parser,
+                   struct flt_error **error)
+{
+        const size_t struct_size = sizeof (struct flt_scene_gpx_distance);
+
+        static const struct flt_parser_property props[] = {
+                {
+                        offsetof(struct flt_scene_gpx_distance, offset),
+                        FLT_PARSER_VALUE_TYPE_DOUBLE,
+                        FLT_LEXER_KEYWORD_OFFSET,
+                        .min_double_value = -DBL_MAX,
+                        .max_double_value = DBL_MAX,
+                },
+        };
+
+        return parse_gpx_object_with_props(parser,
+                                           FLT_LEXER_KEYWORD_DISTANCE,
+                                           FLT_SCENE_GPX_OBJECT_TYPE_DISTANCE,
+                                           struct_size,
+                                           props,
+                                           FLT_N_ELEMENTS(props),
+                                           error);
+}
+
+static enum flt_parser_return
+parse_gpx_map(struct flt_parser *parser,
+              struct flt_error **error)
+{
+        return parse_gpx_object(parser,
+                                FLT_LEXER_KEYWORD_MAP,
+                                FLT_SCENE_GPX_OBJECT_TYPE_MAP,
+                                sizeof (struct flt_scene_gpx_object),
+                                error);
+}
+
+static enum flt_parser_return
+parse_gpx(struct flt_parser *parser,
+          struct flt_error **error)
+{
         const struct flt_lexer_token *token;
+
+        check_item_keyword(parser, FLT_LEXER_KEYWORD_GPX, error);
+
+        int gpx_line_num = flt_lexer_get_line_num(parser->lexer);
 
         require_token(parser,
                       FLT_LEXER_TOKEN_TYPE_OPEN_BRACKET,
@@ -1197,12 +1304,10 @@ parse_gpx_base(struct flt_parser *parser,
 
         gpx->base.type = FLT_SCENE_OBJECT_TYPE_GPX;
 
-        gpx->show_speed = show_speed;
-        gpx->show_elevation = show_elevation;
-        gpx->show_map = show_map;
-
         flt_list_init(&gpx->base.key_frames);
         flt_list_insert(parser->scene->objects.prev, &gpx->base.link);
+
+        flt_list_init(&gpx->objects);
 
         while (true) {
                 token = flt_lexer_get_token(parser->lexer, error);
@@ -1217,25 +1322,16 @@ parse_gpx_base(struct flt_parser *parser,
 
                 static const item_parse_func funcs[] = {
                         parse_gpx_key_frame,
+                        parse_gpx_speed,
+                        parse_gpx_elevation,
+                        parse_gpx_distance,
+                        parse_gpx_map,
                 };
 
                 switch (parse_items(parser,
                                     funcs,
                                     FLT_N_ELEMENTS(funcs),
                                     error)) {
-                case FLT_PARSER_RETURN_OK:
-                        continue;
-                case FLT_PARSER_RETURN_NOT_MATCHED:
-                        break;
-                case FLT_PARSER_RETURN_ERROR:
-                        return FLT_PARSER_RETURN_ERROR;
-                }
-
-                switch (parse_properties(parser,
-                                         gpx_props,
-                                         FLT_N_ELEMENTS(gpx_props),
-                                         gpx,
-                                         error)) {
                 case FLT_PARSER_RETURN_OK:
                         continue;
                 case FLT_PARSER_RETURN_NOT_MATCHED:
@@ -1268,6 +1364,14 @@ parse_gpx_base(struct flt_parser *parser,
                 return FLT_PARSER_RETURN_ERROR;
         }
 
+        if (flt_list_empty(&gpx->objects)) {
+                set_error_with_line(parser,
+                                    error,
+                                    gpx_line_num,
+                                    "gpx has no objects");
+                return FLT_PARSER_RETURN_ERROR;
+        }
+
         if (gpx->file == NULL) {
                 set_error_with_line(parser,
                                     error,
@@ -1277,86 +1381,6 @@ parse_gpx_base(struct flt_parser *parser,
         }
 
         return FLT_PARSER_RETURN_OK;
-}
-
-static enum flt_parser_return
-parse_gpx(struct flt_parser *parser,
-            struct flt_error **error)
-{
-        const struct flt_lexer_token *token;
-
-        check_item_keyword(parser, FLT_LEXER_KEYWORD_GPX, error);
-
-        return parse_gpx_base(parser,
-                              false, /* show_speed */
-                              false, /* show_elevation */
-                              false, /* show_distance */
-                              false, /* show_map */
-                              error);
-}
-
-static enum flt_parser_return
-parse_speed(struct flt_parser *parser,
-            struct flt_error **error)
-{
-        const struct flt_lexer_token *token;
-
-        check_item_keyword(parser, FLT_LEXER_KEYWORD_SPEED, error);
-
-        return parse_gpx_base(parser,
-                              true, /* show_speed */
-                              false, /* show_elevation */
-                              false, /* show_distance */
-                              false, /* show_map */
-                              error);
-}
-
-static enum flt_parser_return
-parse_elevation(struct flt_parser *parser,
-                struct flt_error **error)
-{
-        const struct flt_lexer_token *token;
-
-        check_item_keyword(parser, FLT_LEXER_KEYWORD_ELEVATION, error);
-
-        return parse_gpx_base(parser,
-                              false, /* show_speed */
-                              true, /* show_elevation */
-                              false, /* show_distance */
-                              false, /* show_map */
-                              error);
-}
-
-static enum flt_parser_return
-parse_distance(struct flt_parser *parser,
-               struct flt_error **error)
-{
-        const struct flt_lexer_token *token;
-
-        check_item_keyword(parser, FLT_LEXER_KEYWORD_DISTANCE, error);
-
-        return parse_gpx_base(parser,
-                              false, /* show_speed */
-                              false, /* show_elevation */
-                              true, /* show_distance */
-                              false, /* show_map */
-                              error);
-}
-
-static enum flt_parser_return
-parse_map(struct flt_parser *parser,
-          struct flt_error **error)
-{
-        const struct flt_lexer_token *token;
-
-        check_item_keyword(parser, FLT_LEXER_KEYWORD_MAP, error);
-
-        return parse_gpx_base(parser,
-                              false, /* show_speed */
-                              false, /* show_elevation */
-                              false, /* show_distance */
-                              true, /* show_map */
-                              error);
 }
 
 static const struct flt_parser_property
@@ -1755,10 +1779,6 @@ parse_file(struct flt_parser *parser,
                         parse_svg,
                         parse_score,
                         parse_gpx,
-                        parse_speed,
-                        parse_elevation,
-                        parse_distance,
-                        parse_map,
                         parse_time,
                         parse_curve,
                 };

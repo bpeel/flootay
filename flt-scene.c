@@ -38,6 +38,16 @@ destroy_svg(struct flt_scene_svg *svg)
 }
 
 static void
+destroy_gpx(struct flt_scene_gpx *gpx)
+{
+        struct flt_scene_gpx_object *object, *tmp;
+
+        flt_list_for_each_safe(object, tmp, &gpx->objects, link) {
+                flt_free(object);
+        }
+}
+
+static void
 destroy_object(struct flt_scene_object *object)
 {
         destroy_key_frames(&object->key_frames);
@@ -46,8 +56,10 @@ destroy_object(struct flt_scene_object *object)
         case FLT_SCENE_OBJECT_TYPE_RECTANGLE:
         case FLT_SCENE_OBJECT_TYPE_SCORE:
         case FLT_SCENE_OBJECT_TYPE_CURVE:
-        case FLT_SCENE_OBJECT_TYPE_GPX:
         case FLT_SCENE_OBJECT_TYPE_TIME:
+                break;
+        case FLT_SCENE_OBJECT_TYPE_GPX:
+                destroy_gpx((struct flt_scene_gpx *) object);
                 break;
         case FLT_SCENE_OBJECT_TYPE_SVG:
                 destroy_svg((struct flt_scene_svg *) object);

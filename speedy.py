@@ -903,17 +903,19 @@ def get_video_gpx_offsets(script):
 def get_speed_script_for_video(script,
                                video,
                                gpx_offset):
-    parts = ["speed {\n"]
+    parts = ["gpx {\n"
+             "        speed { }\n"]
 
     if script.show_elevation:
-        parts.append("        elevation\n")
+        parts.append("        elevation { }\n")
     if script.show_distance:
-        parts.append("        distance\n")
-    if script.distance_offset is not None:
-        parts.append("        distance_offset {}\n".format(
-            script.distance_offset))
+        parts.append("        distance {\n")
+        if script.distance_offset is not None:
+            parts.append("                offset {}\n".format(
+                script.distance_offset))
+        parts.append("        }\n")
     if script.show_map:
-        parts.append("        map\n")
+        parts.append("        map { }\n")
 
     timestamp = gpx_offset[0] + video.start_time
 

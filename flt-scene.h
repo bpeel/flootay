@@ -94,14 +94,27 @@ struct flt_scene_time_key_frame {
         double value;
 };
 
+enum flt_scene_gpx_object_type {
+        FLT_SCENE_GPX_OBJECT_TYPE_SPEED,
+        FLT_SCENE_GPX_OBJECT_TYPE_ELEVATION,
+        FLT_SCENE_GPX_OBJECT_TYPE_DISTANCE,
+        FLT_SCENE_GPX_OBJECT_TYPE_MAP,
+};
+
+struct flt_scene_gpx_object {
+        struct flt_list link;
+        enum flt_scene_gpx_object_type type;
+};
+
+struct flt_scene_gpx_distance {
+        struct flt_scene_gpx_object base;
+        double offset;
+};
+
 struct flt_scene_gpx {
         struct flt_scene_object base;
         const struct flt_scene_gpx_file *file;
-        double distance_offset;
-        bool show_speed;
-        bool show_elevation;
-        bool show_distance;
-        bool show_map;
+        struct flt_list objects;
 };
 
 struct flt_scene_gpx_key_frame {

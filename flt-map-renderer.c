@@ -21,13 +21,12 @@
 #include <stdint.h>
 #include <stdbool.h>
 #include <math.h>
-#include <unistd.h>
 #include <sys/stat.h>
 #include <errno.h>
 #include <string.h>
 #include <stdio.h>
 #include <stdlib.h>
-#include <sys/wait.h>
+#include <curl/curl.h>
 
 #include "flt-util.h"
 #include "flt-buffer.h"
@@ -49,6 +48,9 @@ struct flt_map_renderer {
 
         char *url_base;
         char *api_key;
+
+        CURL *curl;
+        FILE *tile_output;
 };
 
 struct cached_tile {
@@ -61,6 +63,14 @@ struct cached_tile {
 
 struct flt_error_domain
 flt_map_renderer_error;
+
+static size_t
+write_tile_data_cb(char *ptr, size_t size, size_t nmemb, void *userdata)
+{
+        struct flt_map_renderer *renderer = userdata;
+
+        return fwrite(ptr, size, nmemb, renderer->tile_output);
+}
 
 struct flt_map_renderer *
 flt_map_renderer_new(const char *url_base,
@@ -84,6 +94,16 @@ flt_map_renderer_new(const char *url_base,
 
         if (api_key)
                 renderer->api_key = flt_strdup(api_key);
+
+        renderer->curl = curl_easy_init();
+        curl_easy_setopt(renderer->curl, CURLOPT_FOLLOWLOCATION, 1l);
+        curl_easy_setopt(renderer->curl, CURLOPT_FAILONERROR, 1l);
+        curl_easy_setopt(renderer->curl,
+                         CURLOPT_WRITEFUNCTION,
+                         write_tile_data_cb);
+        curl_easy_setopt(renderer->curl,
+                         CURLOPT_WRITEDATA,
+                         renderer);
 
         return renderer;
 }
@@ -241,6 +261,21 @@ download_tile(struct flt_map_renderer *renderer,
                 return false;
 
         char *filename = get_tile_filename(zoom, x, y);
+
+        bool ret = true;
+
+        renderer->tile_output = fopen(filename, "wb");
+
+        if (renderer->tile_output == NULL) {
+                flt_file_error_set(error,
+                                   errno,
+                                   "%s: %s",
+                                   filename,
+                                   strerror(errno));
+                ret = false;
+                goto out;
+        }
+
         struct flt_buffer url_buf = FLT_BUFFER_STATIC_INIT;
 
         flt_buffer_append_printf(&url_buf,
@@ -255,64 +290,27 @@ download_tile(struct flt_map_renderer *renderer,
                                          renderer->api_key);
         }
 
-        char *args[] = {
-                "curl",
-                "--fail",
-                "--location",
-                "--silent",
-                "--output", filename,
-                (char *) url_buf.data,
-                NULL
-        };
-
-        bool ret = true;
-
-        pid_t pid = fork();
-
-        if (pid == -1) {
-                flt_file_error_set(error,
-                                   errno,
-                                   "fork failed: %s",
-                                   strerror(errno));
-                ret = false;
-        } else if (pid == 0) {
-                execvp(args[0], args);
-
-                fprintf(stderr,
-                        "exec failed: %s: %s\n",
-                        args[0],
-                        strerror(errno));
-
-                exit(EXIT_FAILURE);
-
-                return false;
-        } else {
-                int status;
-
-                if (waitpid(pid, &status, 0 /* options */) == -1) {
-                        flt_file_error_set(error,
-                                           errno,
-                                           "waitpid failed: %s",
-                                           strerror(errno));
-                        ret = false;
-                } else if (!WIFEXITED(status)) {
-                        flt_file_error_set(error,
-                                           errno,
-                                           "%s exited abnormally",
-                                           args[0]);
-                        ret = false;
-                } else if (WEXITSTATUS(status) != EXIT_SUCCESS) {
-                        flt_set_error(error,
-                                      &flt_map_renderer_error,
-                                      FLT_MAP_RENDERER_ERROR_FETCH_FAILED,
-                                      "%s exited with code %i",
-                                      args[0],
-                                      WEXITSTATUS(status));
-                        ret = false;
-                }
-        }
+        curl_easy_setopt(renderer->curl, CURLOPT_URL, (char *) url_buf.data);
 
         flt_buffer_destroy(&url_buf);
+
+        CURLcode res = curl_easy_perform(renderer->curl);
+
+        if (res != CURLE_OK) {
+                flt_set_error(error,
+                              &flt_map_renderer_error,
+                              FLT_MAP_RENDERER_ERROR_FETCH_FAILED,
+                              "Error downloading tile: %s",
+                              curl_easy_strerror(res));
+                ret = false;
+        }
+
+out:
+        if (renderer->tile_output) {
+                fclose(renderer->tile_output);
+                renderer->tile_output = NULL;
+        }
+
         flt_free(filename);
 
         return ret;
@@ -531,6 +529,7 @@ free_tile_cache(struct flt_map_renderer *renderer)
 void
 flt_map_renderer_free(struct flt_map_renderer *renderer)
 {
+        curl_easy_cleanup(renderer->curl);
         flt_free(renderer->url_base);
         flt_free(renderer->api_key);
         free_tile_cache(renderer);

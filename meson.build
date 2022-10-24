@@ -18,8 +18,9 @@ sdl_image_dep = dependency('SDL2_image')
 cairo_dep = dependency('cairo')
 rsvg_dep = dependency('librsvg-2.0')
 expat_dep = dependency('expat')
+curl_dep = dependency('libcurl')
 
-flootay_deps = [m_dep, cairo_dep, rsvg_dep, expat_dep]
+flootay_deps = [m_dep, cairo_dep, rsvg_dep, expat_dep, curl_dep]
 
 flootay_lib = library('flootay',
                       ['flootay-lib.c',
@@ -87,7 +88,7 @@ executable('test-map-renderer',
             'flt-file-error.c',
             'flt-error.c',
             'flt-map-renderer.c'],
-            dependencies: [cairo_dep, m_dep])
+            dependencies: [cairo_dep, m_dep, curl_dep])
 
 test_lexer_src = [
         'flt-util.c',

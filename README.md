@@ -8,14 +8,14 @@ First install the necessary dependencies. On Fedora this can be done like this:
 
 ```bash
 sudo dnf install meson ninja-build SDL2{,_image}-devel cairo-devel \
-                 librsvg2-devel expat-devel
+                 librsvg2-devel expat-devel libcurl-devel
 ```
 
 Or on Ubuntu:
 
 ```bash
 sudo apt install gcc ninja-build meson git libsdl2{-image,}-dev \
-                 libcairo2-dev librsvg2-dev libexpat1-dev
+                 libcairo2-dev librsvg2-dev libexpat1-dev libcurl-dev
 ```
 
 In order to run the tools you will also need to [install ffmpeg](https://computingforgeeks.com/how-to-install-ffmpeg-on-fedora/). On Fedora this will involve enabling the RPM fusion repository in order to get the various codecs.

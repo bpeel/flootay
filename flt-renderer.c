@@ -26,7 +26,6 @@
 #include "flt-buffer.h"
 #include "flt-map-renderer.h"
 
-#define SCORE_LABEL "SCORE "
 #define ELEVATION_LABEL "ELEVATION"
 #define SCORE_SLIDE_TIME 0.5
 #define MAP_POINT_SIZE 24.0
@@ -294,11 +293,16 @@ interpolate_and_add_score(struct flt_renderer *renderer,
         cairo_save(cr);
         set_font(cr, &renderer->score_font);
 
+        const char *score_label = score->label ? score->label : "SCORE";
+
         cairo_font_extents_t font_extents;
         cairo_font_extents(cr, &font_extents);
 
         cairo_text_extents_t label_extents;
-        cairo_text_extents(cr, SCORE_LABEL, &label_extents);
+        cairo_text_extents(cr, score_label, &label_extents);
+
+        cairo_text_extents_t space_extents;
+        cairo_text_extents(cr, " ", &space_extents);
 
         cairo_text_extents_t template_extents;
         cairo_text_extents(cr, "00", &template_extents);
@@ -306,13 +310,16 @@ interpolate_and_add_score(struct flt_renderer *renderer,
         double base_x, base_y;
         get_position(renderer,
                      score->position,
-                     label_extents.x_advance + template_extents.x_advance,
+                     label_extents.x_advance +
+                     space_extents.x_advance +
+                     template_extents.x_advance,
                      font_extents.height,
                      &base_x, &base_y);
 
         cairo_move_to(cr, base_x, base_y + font_extents.ascent);
 
-        render_score_text(renderer, cr, SCORE_LABEL);
+        render_score_text(renderer, cr, score_label);
+        cairo_rel_move_to(cr, space_extents.x_advance, 0.0);
 
         struct flt_buffer buf = FLT_BUFFER_STATIC_INIT;
 

@@ -30,11 +30,21 @@
 #define SCORE_SLIDE_TIME 0.5
 #define MAP_POINT_SIZE 24.0
 
+struct font_with_size {
+        cairo_font_face_t *face;
+        double size;
+};
+
 struct flt_renderer {
         struct flt_scene *scene;
         struct flt_map_renderer *map_renderer;
         cairo_pattern_t *map_point_pattern;
         float gap;
+
+        struct font_with_size digits_font;
+        struct font_with_size units_font;
+        struct font_with_size label_font;
+        struct font_with_size score_font;
 };
 
 struct flt_error_domain
@@ -69,6 +79,13 @@ set_source_from_color(cairo_t *cr, uint32_t color)
                              ((color >> 16) & 0xff) / 255.0,
                              ((color >> 8) & 0xff) / 255.0,
                              (color & 0xff) / 255.0);
+}
+
+static void
+set_font(cairo_t *cr, const struct font_with_size *font)
+{
+        cairo_set_font_face(cr, font->face);
+        cairo_set_font_size(cr, font->size);
 }
 
 static void
@@ -169,7 +186,7 @@ interpolate_and_add_score(struct flt_renderer *renderer,
                           const struct flt_scene_score_key_frame *e)
 {
         cairo_save(cr);
-        cairo_set_font_size(cr, renderer->scene->video_height / 10.0f);
+        set_font(cr, &renderer->score_font);
 
         cairo_font_extents_t extents;
 
@@ -248,8 +265,6 @@ add_speed(struct flt_renderer *renderer,
 
         cairo_save(cr);
 
-        cairo_set_font_size(cr, renderer->scene->video_height / 12.0f);
-
         cairo_move_to(cr,
                       renderer->gap,
                       renderer->scene->video_height - renderer->gap);
@@ -258,19 +273,13 @@ add_speed(struct flt_renderer *renderer,
 
         flt_buffer_append_printf(&buf, "%2i", speed_kmh);
 
-        cairo_save(cr);
-        cairo_select_font_face(cr,
-                               "monospace",
-                               CAIRO_FONT_SLANT_NORMAL,
-                               CAIRO_FONT_WEIGHT_NORMAL);
+        set_font(cr, &renderer->digits_font);
 
         render_score_text(renderer, cr, (const char *) buf.data);
 
-        cairo_restore(cr);
-
         flt_buffer_destroy(&buf);
 
-        cairo_set_font_size(cr, renderer->scene->video_height / 24.0f);
+        set_font(cr, &renderer->units_font);
 
         render_score_text(renderer, cr, " km/h");
 
@@ -284,18 +293,11 @@ add_elevation(struct flt_renderer *renderer,
 {
         cairo_save(cr);
 
-        cairo_set_font_size(cr, renderer->scene->video_height / 12.0f);
-
         struct flt_buffer buf = FLT_BUFFER_STATIC_INIT;
 
         flt_buffer_append_printf(&buf, "%2i", (int) round(elevation));
 
-        cairo_save(cr);
-
-        cairo_select_font_face(cr,
-                               "monospace",
-                               CAIRO_FONT_SLANT_NORMAL,
-                               CAIRO_FONT_WEIGHT_NORMAL);
+        set_font(cr, &renderer->digits_font);
 
         cairo_text_extents_t text_extents;
 
@@ -311,11 +313,9 @@ add_elevation(struct flt_renderer *renderer,
 
         render_score_text(renderer, cr, (const char *) buf.data);
 
-        cairo_restore(cr);
-
         flt_buffer_destroy(&buf);
 
-        cairo_set_font_size(cr, renderer->scene->video_height / 30.0f);
+        set_font(cr, &renderer->label_font);
 
         cairo_text_extents(cr, ELEVATION_LABEL, &text_extents);
 
@@ -355,21 +355,17 @@ add_distance(struct flt_renderer *renderer,
                 units = " km";
         }
 
-        cairo_set_font_size(cr, renderer->scene->video_height / 24.0f);
+        set_font(cr, &renderer->units_font);
 
         cairo_text_extents_t units_extents;
 
-        cairo_text_extents(cr, units, &units_extents);
-
         cairo_save(cr);
+
+        cairo_text_extents(cr, units, &units_extents);
 
         cairo_text_extents_t text_extents;
 
-        cairo_select_font_face(cr,
-                               "monospace",
-                               CAIRO_FONT_SLANT_NORMAL,
-                               CAIRO_FONT_WEIGHT_NORMAL);
-        cairo_set_font_size(cr, renderer->scene->video_height / 12.0f);
+        set_font(cr, &renderer->digits_font);
 
         cairo_text_extents(cr,
                            (const char *) buf.data,
@@ -556,11 +552,7 @@ interpolate_and_add_time(struct flt_renderer *renderer,
 
         cairo_save(cr);
 
-        cairo_select_font_face(cr,
-                               "monospace",
-                               CAIRO_FONT_SLANT_NORMAL,
-                               CAIRO_FONT_WEIGHT_NORMAL);
-        cairo_set_font_size(cr, renderer->scene->video_height / 12.0f);
+        set_font(cr, &renderer->digits_font);
 
         cairo_text_extents_t text_extents;
 
@@ -778,6 +770,26 @@ flt_renderer_new(struct flt_scene *scene)
 
         renderer->gap = scene->video_height / 15.0f;
 
+        renderer->digits_font.face =
+                cairo_toy_font_face_create("monospace",
+                                           CAIRO_FONT_SLANT_NORMAL,
+                                           CAIRO_FONT_WEIGHT_NORMAL);
+        renderer->digits_font.size = scene->video_height / 12.0f;
+
+        renderer->units_font.face =
+                cairo_toy_font_face_create("",
+                                           CAIRO_FONT_SLANT_NORMAL,
+                                           CAIRO_FONT_WEIGHT_NORMAL);
+        renderer->units_font.size = scene->video_height / 24.0f;
+
+        renderer->label_font.face =
+                cairo_font_face_reference(renderer->units_font.face);
+        renderer->label_font.size = scene->video_height / 30.0f;
+
+        renderer->score_font.face =
+                cairo_font_face_reference(renderer->units_font.face);
+        renderer->score_font.size = scene->video_height / 10.0f;
+
         return renderer;
 }
 
@@ -812,9 +824,23 @@ flt_renderer_render(struct flt_renderer *renderer,
         return ret;
 }
 
+static void
+destroy_font_with_size(struct font_with_size *font)
+{
+        if (font->face) {
+                cairo_font_face_destroy(font->face);
+                font->face = NULL;
+        }
+}
+
 void
 flt_renderer_free(struct flt_renderer *renderer)
 {
+        destroy_font_with_size(&renderer->digits_font);
+        destroy_font_with_size(&renderer->units_font);
+        destroy_font_with_size(&renderer->label_font);
+        destroy_font_with_size(&renderer->score_font);
+
         if (renderer->map_point_pattern)
                 cairo_pattern_destroy(renderer->map_point_pattern);
         if (renderer->map_renderer)

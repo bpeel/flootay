@@ -155,6 +155,11 @@ struct flt_scene_gpx_object {
 struct flt_scene_gpx_speed {
         struct flt_scene_gpx_object base;
         uint32_t color;
+        RsvgHandle *dial;
+        RsvgHandle *needle;
+        double width;
+        double height;
+        double full_speed;
 };
 
 struct flt_scene_gpx_elevation {

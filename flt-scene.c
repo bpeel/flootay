@@ -38,11 +38,31 @@ destroy_svg(struct flt_scene_svg *svg)
 }
 
 static void
+destroy_gpx_speed(struct flt_scene_gpx_speed *speed)
+{
+        if (speed->dial)
+                g_object_unref(speed->dial);
+        if (speed->needle)
+                g_object_unref(speed->needle);
+}
+
+static void
 destroy_gpx(struct flt_scene_gpx *gpx)
 {
         struct flt_scene_gpx_object *object, *tmp;
 
         flt_list_for_each_safe(object, tmp, &gpx->objects, link) {
+                switch (object->type) {
+                case FLT_SCENE_GPX_OBJECT_TYPE_SPEED:
+                        destroy_gpx_speed((struct flt_scene_gpx_speed *)
+                                          object);
+                        break;
+                case FLT_SCENE_GPX_OBJECT_TYPE_ELEVATION:
+                case FLT_SCENE_GPX_OBJECT_TYPE_DISTANCE:
+                case FLT_SCENE_GPX_OBJECT_TYPE_MAP:
+                        break;
+                }
+
                 flt_free(object);
         }
 }

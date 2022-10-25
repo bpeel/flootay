@@ -127,6 +127,11 @@ keywords[] = {
         [FLT_LEXER_KEYWORD_RIGHT] = "right",
         [FLT_LEXER_KEYWORD_LABEL] = "label",
         [FLT_LEXER_KEYWORD_TEXT] = "text",
+        [FLT_LEXER_KEYWORD_DIAL] = "dial",
+        [FLT_LEXER_KEYWORD_NEEDLE] = "needle",
+        [FLT_LEXER_KEYWORD_WIDTH] = "width",
+        [FLT_LEXER_KEYWORD_HEIGHT] = "height",
+        [FLT_LEXER_KEYWORD_FULL_SPEED] = "full_speed",
 };
 
 _Static_assert(FLT_N_ELEMENTS(keywords) == FLT_LEXER_N_KEYWORDS,

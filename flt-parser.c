@@ -1355,6 +1355,9 @@ parse_gpx_speed(struct flt_parser *parser,
                         .position = FLT_SCENE_POSITION_BOTTOM_LEFT,
                 },
                 .color = DEFAULT_TEXT_COLOR,
+                .width = -1.0,
+                .height = -1.0,
+                .full_speed = -1.0,
         };
 
         static const struct flt_parser_property props[] = {
@@ -1363,16 +1366,90 @@ parse_gpx_speed(struct flt_parser *parser,
                         FLT_PARSER_VALUE_TYPE_COLOR,
                         FLT_LEXER_KEYWORD_COLOR,
                 },
+                {
+                        offsetof(struct flt_scene_gpx_speed, dial),
+                        FLT_PARSER_VALUE_TYPE_SVG,
+                        FLT_LEXER_KEYWORD_DIAL,
+                },
+                {
+                        offsetof(struct flt_scene_gpx_speed, needle),
+                        FLT_PARSER_VALUE_TYPE_SVG,
+                        FLT_LEXER_KEYWORD_NEEDLE,
+                },
+                {
+                        offsetof(struct flt_scene_gpx_speed, width),
+                        FLT_PARSER_VALUE_TYPE_DOUBLE,
+                        FLT_LEXER_KEYWORD_WIDTH,
+                        .min_double_value = DBL_MIN, /* non-zero */
+                        .max_double_value = DBL_MAX,
+                },
+                {
+                        offsetof(struct flt_scene_gpx_speed, height),
+                        FLT_PARSER_VALUE_TYPE_DOUBLE,
+                        FLT_LEXER_KEYWORD_HEIGHT,
+                        .min_double_value = DBL_MIN, /* non-zero */
+                        .max_double_value = DBL_MAX,
+                },
+                {
+                        offsetof(struct flt_scene_gpx_speed, full_speed),
+                        FLT_PARSER_VALUE_TYPE_DOUBLE,
+                        FLT_LEXER_KEYWORD_FULL_SPEED,
+                        .min_double_value = DBL_MIN, /* non-zero */
+                        .max_double_value = DBL_MAX,
+                },
         };
 
-        return parse_gpx_object(parser,
-                                FLT_LEXER_KEYWORD_SPEED,
-                                FLT_SCENE_GPX_OBJECT_TYPE_SPEED,
-                                &default_values,
-                                sizeof default_values,
-                                props,
-                                FLT_N_ELEMENTS(props),
-                                error);
+        int speed_line_num = flt_lexer_get_line_num(parser->lexer);
+
+        enum flt_parser_return ret =
+                parse_gpx_object(parser,
+                                 FLT_LEXER_KEYWORD_SPEED,
+                                 FLT_SCENE_GPX_OBJECT_TYPE_SPEED,
+                                 &default_values,
+                                 sizeof default_values,
+                                 props,
+                                 FLT_N_ELEMENTS(props),
+                                 error);
+
+        if (ret != FLT_PARSER_RETURN_OK)
+                return ret;
+
+        const struct flt_scene_gpx *gpx =
+                flt_container_of(parser->scene->objects.prev,
+                                 struct flt_scene_gpx,
+                                 base.link);
+        assert(gpx->base.type == FLT_SCENE_OBJECT_TYPE_GPX);
+
+        const struct flt_scene_gpx_speed *speed =
+                flt_container_of(gpx->objects.prev,
+                                 struct flt_scene_gpx_speed,
+                                 base.link);
+        assert(speed->base.type == FLT_SCENE_GPX_OBJECT_TYPE_SPEED);
+
+        int item_count = 0;
+
+        if (speed->dial)
+                item_count++;
+        if (speed->needle)
+                item_count++;
+        if (speed->width >= 0.0)
+                item_count++;
+        if (speed->height >= 0.0)
+                item_count++;
+        if (speed->full_speed >= 0.0)
+                item_count++;
+
+        if (item_count != 0 && item_count != 5) {
+                set_error_with_line(parser,
+                                    error,
+                                    speed_line_num,
+                                    "If any of dial, needle, width, height or "
+                                    "full_speed are set then they all need to "
+                                    "be set");
+                return FLT_PARSER_RETURN_ERROR;
+        }
+
+        return FLT_PARSER_RETURN_OK;
 }
 
 static enum flt_parser_return

@@ -708,6 +708,19 @@ interpolate_and_add_curve(struct flt_renderer *renderer,
         cairo_restore(cr);
 }
 
+static void
+add_text(struct flt_renderer *renderer,
+         cairo_t *cr,
+         const struct flt_scene_text *text)
+{
+        render_text_parts(renderer,
+                          cr,
+                          text->position,
+                          &renderer->score_font,
+                          text->text,
+                          NULL);
+}
+
 static enum flt_renderer_result
 interpolate_and_add_object(struct flt_renderer *renderer,
                            cairo_t *cr,
@@ -815,6 +828,9 @@ found_frame:
                                           end_frame);
                 break;
         case FLT_SCENE_OBJECT_TYPE_TEXT:
+                add_text(renderer,
+                         cr,
+                         (const struct flt_scene_text *) object);
                 break;
         }
 

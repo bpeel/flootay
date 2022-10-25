@@ -27,7 +27,6 @@
 #include "flt-map-renderer.h"
 
 #define SCORE_LABEL "SCORE "
-#define SCORE_NAME "LYON"
 #define ELEVATION_LABEL "ELEVATION"
 #define SCORE_SLIDE_TIME 0.5
 #define MAP_POINT_SIZE 24.0
@@ -347,16 +346,6 @@ interpolate_and_add_score(struct flt_renderer *renderer,
                 flt_buffer_append_printf(&buf, "%i", s->value);
                 render_score_text(renderer, cr, (const char *) buf.data);
         }
-
-        cairo_text_extents_t text_extents;
-
-        cairo_text_extents(cr, SCORE_NAME, &text_extents);
-        cairo_move_to(cr,
-                      renderer->scene->video_width -
-                      text_extents.x_advance -
-                      renderer->gap,
-                      extents.height);
-        render_score_text(renderer, cr, SCORE_NAME);
 
         cairo_restore(cr);
 

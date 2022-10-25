@@ -54,6 +54,7 @@ enum flt_parser_value_type {
         FLT_PARSER_VALUE_TYPE_BOOL,
         FLT_PARSER_VALUE_TYPE_COLOR,
         FLT_PARSER_VALUE_TYPE_POSITION,
+        FLT_PARSER_VALUE_TYPE_SVG,
 };
 
 #define DEFAULT_TEXT_COLOR 0xffffff
@@ -400,6 +401,64 @@ parse_position_property(struct flt_parser *parser,
         return FLT_PARSER_RETURN_NOT_MATCHED;
 }
 
+static char *
+get_relative_filename(struct flt_parser *parser,
+                      const char *filename)
+{
+        if (filename[0] == '/' ||
+            parser->base_dir == NULL ||
+            parser->base_dir[0] == '\0' ||
+            !strcmp(parser->base_dir, "."))
+                return flt_strdup(filename);
+        else
+                return flt_strconcat(parser->base_dir, "/", filename, NULL);
+}
+
+static enum flt_parser_return
+parse_svg_property(struct flt_parser *parser,
+                        const struct flt_parser_property *prop,
+                        void *object,
+                        struct flt_error **error)
+{
+        const struct flt_lexer_token *token;
+
+        check_item_keyword(parser, prop->prop_keyword, error);
+
+        require_token(parser,
+                      FLT_LEXER_TOKEN_TYPE_STRING,
+                      "expected filename",
+                      error);
+
+        RsvgHandle **field =
+                (RsvgHandle **) (((uint8_t *) object) + prop->offset);
+
+        if (*field != NULL) {
+                set_multiple_property_values_error(parser, prop, error);
+                return FLT_PARSER_RETURN_ERROR;
+        }
+
+        char *filename = get_relative_filename(parser, token->string_value);
+
+        GError *svg_error = NULL;
+
+        *field = rsvg_handle_new_from_file(filename, &svg_error);
+
+        flt_free(filename);
+
+        if (*field == NULL) {
+                set_error(parser,
+                          error,
+                          "%s",
+                          svg_error->message);
+
+                g_error_free(svg_error);
+
+                return FLT_PARSER_RETURN_ERROR;
+        }
+
+        return FLT_PARSER_RETURN_OK;
+}
+
 static enum flt_parser_return
 parse_properties(struct flt_parser *parser,
                  const struct flt_parser_property *props,
@@ -446,6 +505,12 @@ parse_properties(struct flt_parser *parser,
                                                       props + i,
                                                       object,
                                                       error);
+                        break;
+                case FLT_PARSER_VALUE_TYPE_SVG:
+                        ret = parse_svg_property(parser,
+                                                 props + i,
+                                                 object,
+                                                 error);
                         break;
                 }
 
@@ -888,62 +953,6 @@ parse_score(struct flt_parser *parser,
         return FLT_PARSER_RETURN_OK;
 }
 
-static char *
-get_relative_filename(struct flt_parser *parser,
-                      const char *filename)
-{
-        if (filename[0] == '/' ||
-            parser->base_dir == NULL ||
-            parser->base_dir[0] == '\0' ||
-            !strcmp(parser->base_dir, "."))
-                return flt_strdup(filename);
-        else
-                return flt_strconcat(parser->base_dir, "/", filename, NULL);
- }
-
-static enum flt_parser_return
-parse_svg_file(struct flt_parser *parser,
-               struct flt_scene_svg *svg,
-               struct flt_error **error)
-{
-        const struct flt_lexer_token *token;
-
-        check_item_keyword(parser, FLT_LEXER_KEYWORD_FILE, error);
-
-        require_token(parser,
-                      FLT_LEXER_TOKEN_TYPE_STRING,
-                      "expected filename",
-                      error);
-
-        if (svg->handle != NULL) {
-                set_error(parser,
-                          error,
-                          "SVG object already has a file");
-                return FLT_PARSER_RETURN_ERROR;
-        }
-
-        char *filename = get_relative_filename(parser, token->string_value);
-
-        GError *svg_error = NULL;
-
-        svg->handle = rsvg_handle_new_from_file(filename, &svg_error);
-
-        flt_free(filename);
-
-        if (svg->handle == NULL) {
-                set_error(parser,
-                          error,
-                          "%s",
-                          svg_error->message);
-
-                g_error_free(svg_error);
-
-                return FLT_PARSER_RETURN_ERROR;
-        }
-
-        return FLT_PARSER_RETURN_OK;
-}
-
 static const struct flt_parser_property
 svg_key_frame_props[] = {
         {
@@ -1031,6 +1040,15 @@ parse_svg_key_frame(struct flt_parser *parser,
         return FLT_PARSER_RETURN_OK;
 }
 
+static const struct flt_parser_property
+svg_props[] = {
+        {
+                offsetof(struct flt_scene_svg, handle),
+                FLT_PARSER_VALUE_TYPE_SVG,
+                FLT_LEXER_KEYWORD_FILE,
+        },
+};
+
 static enum flt_parser_return
 parse_svg(struct flt_parser *parser,
                    struct flt_error **error)
@@ -1080,7 +1098,11 @@ parse_svg(struct flt_parser *parser,
                         return FLT_PARSER_RETURN_ERROR;
                 }
 
-                switch (parse_svg_file(parser, svg, error)) {
+                switch (parse_properties(parser,
+                                         svg_props,
+                                         FLT_N_ELEMENTS(svg_props),
+                                         svg,
+                                         error)) {
                 case FLT_PARSER_RETURN_OK:
                         continue;
                 case FLT_PARSER_RETURN_NOT_MATCHED:

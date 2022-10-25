@@ -126,6 +126,7 @@ struct flt_scene_score_key_frame {
 
 struct flt_scene_time {
         struct flt_scene_object base;
+        enum flt_scene_position position;
 };
 
 struct flt_scene_time_key_frame {

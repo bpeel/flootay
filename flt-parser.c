@@ -1747,6 +1747,14 @@ parse_time_key_frame(struct flt_parser *parser,
         return FLT_PARSER_RETURN_OK;
 }
 
+static const struct flt_parser_property
+time_props[] = {
+        {
+                offsetof(struct flt_scene_time, position),
+                FLT_PARSER_VALUE_TYPE_POSITION,
+        },
+};
+
 static enum flt_parser_return
 parse_time(struct flt_parser *parser,
             struct flt_error **error)
@@ -1765,6 +1773,7 @@ parse_time(struct flt_parser *parser,
         struct flt_scene_time *time = flt_calloc(sizeof *time);
 
         time->base.type = FLT_SCENE_OBJECT_TYPE_TIME;
+        time->position = FLT_SCENE_POSITION_TOP_MIDDLE;
 
         flt_list_init(&time->base.key_frames);
         flt_list_insert(parser->scene->objects.prev, &time->base.link);
@@ -1788,6 +1797,19 @@ parse_time(struct flt_parser *parser,
                                     funcs,
                                     FLT_N_ELEMENTS(funcs),
                                     error)) {
+                case FLT_PARSER_RETURN_OK:
+                        continue;
+                case FLT_PARSER_RETURN_NOT_MATCHED:
+                        break;
+                case FLT_PARSER_RETURN_ERROR:
+                        return FLT_PARSER_RETURN_ERROR;
+                }
+
+                switch (parse_properties(parser,
+                                         time_props,
+                                         FLT_N_ELEMENTS(time_props),
+                                         time,
+                                         error)) {
                 case FLT_PARSER_RETURN_OK:
                         continue;
                 case FLT_PARSER_RETURN_NOT_MATCHED:

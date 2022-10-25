@@ -117,6 +117,7 @@ struct flt_scene_svg_key_frame {
 
 struct flt_scene_score {
         struct flt_scene_object base;
+        enum flt_scene_position position;
 };
 
 struct flt_scene_score_key_frame {

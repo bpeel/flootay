@@ -785,6 +785,14 @@ parse_score_key_frame(struct flt_parser *parser,
         return FLT_PARSER_RETURN_OK;
 }
 
+static const struct flt_parser_property
+score_props[] = {
+        {
+                offsetof(struct flt_scene_score, position),
+                FLT_PARSER_VALUE_TYPE_POSITION,
+        },
+};
+
 static enum flt_parser_return
 parse_score(struct flt_parser *parser,
                 struct flt_error **error)
@@ -803,6 +811,7 @@ parse_score(struct flt_parser *parser,
         struct flt_scene_score *score = flt_alloc(sizeof *score);
 
         score->base.type = FLT_SCENE_OBJECT_TYPE_SCORE;
+        score->position = FLT_SCENE_POSITION_TOP_LEFT;
 
         flt_list_init(&score->base.key_frames);
         flt_list_insert(parser->scene->objects.prev, &score->base.link);
@@ -826,6 +835,19 @@ parse_score(struct flt_parser *parser,
                                     funcs,
                                     FLT_N_ELEMENTS(funcs),
                                     error)) {
+                case FLT_PARSER_RETURN_OK:
+                        continue;
+                case FLT_PARSER_RETURN_NOT_MATCHED:
+                        break;
+                case FLT_PARSER_RETURN_ERROR:
+                        return FLT_PARSER_RETURN_ERROR;
+                }
+
+                switch (parse_properties(parser,
+                                         score_props,
+                                         FLT_N_ELEMENTS(score_props),
+                                         score,
+                                         error)) {
                 case FLT_PARSER_RETURN_OK:
                         continue;
                 case FLT_PARSER_RETURN_NOT_MATCHED:

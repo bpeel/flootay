@@ -56,6 +56,8 @@ enum flt_parser_value_type {
         FLT_PARSER_VALUE_TYPE_POSITION,
 };
 
+#define DEFAULT_TEXT_COLOR 0xffffff
+
 typedef enum flt_parser_return
 (* item_parse_func)(struct flt_parser *parser,
                     struct flt_error **error);
@@ -796,6 +798,11 @@ score_props[] = {
                 FLT_PARSER_VALUE_TYPE_STRING,
                 FLT_LEXER_KEYWORD_LABEL,
         },
+        {
+                offsetof(struct flt_scene_score, color),
+                FLT_PARSER_VALUE_TYPE_COLOR,
+                FLT_LEXER_KEYWORD_COLOR,
+        },
 };
 
 static enum flt_parser_return
@@ -818,6 +825,7 @@ parse_score(struct flt_parser *parser,
         score->base.type = FLT_SCENE_OBJECT_TYPE_SCORE;
         score->position = FLT_SCENE_POSITION_TOP_LEFT;
         score->label = NULL;
+        score->color = DEFAULT_TEXT_COLOR;
 
         flt_list_init(&score->base.key_frames);
         flt_list_insert(parser->scene->objects.prev, &score->base.link);
@@ -1237,14 +1245,14 @@ base_gpx_object_props[] = {
 };
 
 static enum flt_parser_return
-parse_gpx_object_with_props(struct flt_parser *parser,
-                            enum flt_lexer_keyword keyword,
-                            enum flt_scene_gpx_object_type type,
-                            enum flt_scene_position default_position,
-                            size_t struct_size,
-                            const struct flt_parser_property *props,
-                            size_t n_props,
-                            struct flt_error **error)
+parse_gpx_object(struct flt_parser *parser,
+                 enum flt_lexer_keyword keyword,
+                 enum flt_scene_gpx_object_type type,
+                 const void *default_values,
+                 size_t struct_size,
+                 const struct flt_parser_property *props,
+                 size_t n_props,
+                 struct flt_error **error)
 {
         const struct flt_lexer_token *token;
 
@@ -1255,10 +1263,11 @@ parse_gpx_object_with_props(struct flt_parser *parser,
                       "expected ‘{’",
                       error);
 
-        struct flt_scene_gpx_object *object = flt_calloc(struct_size);
+        struct flt_scene_gpx_object *object = flt_alloc(struct_size);
+
+        memcpy(object, default_values, struct_size);
 
         object->type = type;
-        object->position = default_position;
 
         struct flt_scene_gpx *gpx =
                 flt_container_of(parser->scene->objects.prev,
@@ -1316,32 +1325,31 @@ parse_gpx_object_with_props(struct flt_parser *parser,
 }
 
 static enum flt_parser_return
-parse_gpx_object(struct flt_parser *parser,
-                 enum flt_lexer_keyword keyword,
-                 enum flt_scene_gpx_object_type type,
-                 enum flt_scene_position default_position,
-                 size_t struct_size,
-                 struct flt_error **error)
-{
-        return parse_gpx_object_with_props(parser,
-                                           keyword,
-                                           type,
-                                           default_position,
-                                           struct_size,
-                                           NULL, /* props */
-                                           0, /* n_props */
-                                           error);
-}
-
-static enum flt_parser_return
 parse_gpx_speed(struct flt_parser *parser,
                 struct flt_error **error)
 {
+        static const struct flt_scene_gpx_speed default_values = {
+                .base = {
+                        .position = FLT_SCENE_POSITION_BOTTOM_LEFT,
+                },
+                .color = DEFAULT_TEXT_COLOR,
+        };
+
+        static const struct flt_parser_property props[] = {
+                {
+                        offsetof(struct flt_scene_gpx_speed, color),
+                        FLT_PARSER_VALUE_TYPE_COLOR,
+                        FLT_LEXER_KEYWORD_COLOR,
+                },
+        };
+
         return parse_gpx_object(parser,
                                 FLT_LEXER_KEYWORD_SPEED,
                                 FLT_SCENE_GPX_OBJECT_TYPE_SPEED,
-                                FLT_SCENE_POSITION_BOTTOM_LEFT,
-                                sizeof (struct flt_scene_gpx_object),
+                                &default_values,
+                                sizeof default_values,
+                                props,
+                                FLT_N_ELEMENTS(props),
                                 error);
 }
 
@@ -1349,11 +1357,28 @@ static enum flt_parser_return
 parse_gpx_elevation(struct flt_parser *parser,
                     struct flt_error **error)
 {
+        static const struct flt_scene_gpx_elevation default_values = {
+                .base = {
+                        .position = FLT_SCENE_POSITION_BOTTOM_RIGHT,
+                },
+                .color = DEFAULT_TEXT_COLOR,
+        };
+
+        static const struct flt_parser_property props[] = {
+                {
+                        offsetof(struct flt_scene_gpx_elevation, color),
+                        FLT_PARSER_VALUE_TYPE_COLOR,
+                        FLT_LEXER_KEYWORD_COLOR,
+                },
+        };
+
         return parse_gpx_object(parser,
                                 FLT_LEXER_KEYWORD_ELEVATION,
                                 FLT_SCENE_GPX_OBJECT_TYPE_ELEVATION,
-                                FLT_SCENE_POSITION_BOTTOM_RIGHT,
-                                sizeof (struct flt_scene_gpx_object),
+                                &default_values,
+                                sizeof default_values,
+                                props,
+                                FLT_N_ELEMENTS(props),
                                 error);
 }
 
@@ -1361,7 +1386,12 @@ static enum flt_parser_return
 parse_gpx_distance(struct flt_parser *parser,
                    struct flt_error **error)
 {
-        const size_t struct_size = sizeof (struct flt_scene_gpx_distance);
+        static const struct flt_scene_gpx_distance default_values = {
+                .base = {
+                        .position = FLT_SCENE_POSITION_BOTTOM_MIDDLE,
+                },
+                .color = DEFAULT_TEXT_COLOR,
+        };
 
         static const struct flt_parser_property props[] = {
                 {
@@ -1371,27 +1401,38 @@ parse_gpx_distance(struct flt_parser *parser,
                         .min_double_value = -DBL_MAX,
                         .max_double_value = DBL_MAX,
                 },
+                {
+                        offsetof(struct flt_scene_gpx_distance, color),
+                        FLT_PARSER_VALUE_TYPE_COLOR,
+                        FLT_LEXER_KEYWORD_COLOR,
+                },
         };
 
-        return parse_gpx_object_with_props(parser,
-                                           FLT_LEXER_KEYWORD_DISTANCE,
-                                           FLT_SCENE_GPX_OBJECT_TYPE_DISTANCE,
-                                           FLT_SCENE_POSITION_BOTTOM_MIDDLE,
-                                           struct_size,
-                                           props,
-                                           FLT_N_ELEMENTS(props),
-                                           error);
+        return parse_gpx_object(parser,
+                                FLT_LEXER_KEYWORD_DISTANCE,
+                                FLT_SCENE_GPX_OBJECT_TYPE_DISTANCE,
+                                &default_values,
+                                sizeof default_values,
+                                props,
+                                FLT_N_ELEMENTS(props),
+                                error);
 }
 
 static enum flt_parser_return
 parse_gpx_map(struct flt_parser *parser,
               struct flt_error **error)
 {
+        static const struct flt_scene_gpx_object default_values = {
+                .position = FLT_SCENE_POSITION_BOTTOM_RIGHT,
+        };
+
         return parse_gpx_object(parser,
                                 FLT_LEXER_KEYWORD_MAP,
                                 FLT_SCENE_GPX_OBJECT_TYPE_MAP,
-                                FLT_SCENE_POSITION_BOTTOM_RIGHT,
-                                sizeof (struct flt_scene_gpx_object),
+                                &default_values,
+                                sizeof default_values,
+                                NULL, /* props */
+                                0, /* n_props */
                                 error);
 }
 
@@ -1781,6 +1822,11 @@ time_props[] = {
                 offsetof(struct flt_scene_time, position),
                 FLT_PARSER_VALUE_TYPE_POSITION,
         },
+        {
+                offsetof(struct flt_scene_time, color),
+                FLT_PARSER_VALUE_TYPE_COLOR,
+                FLT_LEXER_KEYWORD_COLOR,
+        },
 };
 
 static enum flt_parser_return
@@ -1802,6 +1848,7 @@ parse_time(struct flt_parser *parser,
 
         time->base.type = FLT_SCENE_OBJECT_TYPE_TIME;
         time->position = FLT_SCENE_POSITION_TOP_MIDDLE;
+        time->color = DEFAULT_TEXT_COLOR;
 
         flt_list_init(&time->base.key_frames);
         flt_list_insert(parser->scene->objects.prev, &time->base.link);
@@ -1903,6 +1950,11 @@ text_props[] = {
                 FLT_PARSER_VALUE_TYPE_STRING,
                 FLT_LEXER_KEYWORD_TEXT,
         },
+        {
+                offsetof(struct flt_scene_text, color),
+                FLT_PARSER_VALUE_TYPE_COLOR,
+                FLT_LEXER_KEYWORD_COLOR,
+        },
 };
 
 static enum flt_parser_return
@@ -1925,6 +1977,7 @@ parse_text(struct flt_parser *parser,
         text->base.type = FLT_SCENE_OBJECT_TYPE_TEXT;
         text->position = FLT_SCENE_POSITION_TOP_RIGHT;
         text->text = NULL;
+        text->color = DEFAULT_TEXT_COLOR;
 
         flt_list_init(&text->base.key_frames);
         flt_list_insert(parser->scene->objects.prev, &text->base.link);

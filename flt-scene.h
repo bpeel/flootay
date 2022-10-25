@@ -120,6 +120,7 @@ struct flt_scene_score {
         struct flt_scene_object base;
         enum flt_scene_position position;
         char *label;
+        uint32_t color;
 };
 
 struct flt_scene_score_key_frame {
@@ -130,6 +131,7 @@ struct flt_scene_score_key_frame {
 struct flt_scene_time {
         struct flt_scene_object base;
         enum flt_scene_position position;
+        uint32_t color;
 };
 
 struct flt_scene_time_key_frame {
@@ -150,9 +152,20 @@ struct flt_scene_gpx_object {
         enum flt_scene_position position;
 };
 
+struct flt_scene_gpx_speed {
+        struct flt_scene_gpx_object base;
+        uint32_t color;
+};
+
+struct flt_scene_gpx_elevation {
+        struct flt_scene_gpx_object base;
+        uint32_t color;
+};
+
 struct flt_scene_gpx_distance {
         struct flt_scene_gpx_object base;
         double offset;
+        uint32_t color;
 };
 
 struct flt_scene_gpx {
@@ -186,6 +199,7 @@ struct flt_scene_text {
         struct flt_scene_object base;
         enum flt_scene_position position;
         char *text;
+        uint32_t color;
 };
 
 struct flt_scene_text_key_frame {

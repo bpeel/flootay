@@ -294,10 +294,23 @@ interpolate_and_add_score(struct flt_renderer *renderer,
         cairo_save(cr);
         set_font(cr, &renderer->score_font);
 
-        cairo_font_extents_t extents;
+        cairo_font_extents_t font_extents;
+        cairo_font_extents(cr, &font_extents);
 
-        cairo_font_extents(cr, &extents);
-        cairo_move_to(cr, renderer->gap, extents.height);
+        cairo_text_extents_t label_extents;
+        cairo_text_extents(cr, SCORE_LABEL, &label_extents);
+
+        cairo_text_extents_t template_extents;
+        cairo_text_extents(cr, "00", &template_extents);
+
+        double base_x, base_y;
+        get_position(renderer,
+                     score->position,
+                     label_extents.x_advance + template_extents.x_advance,
+                     font_extents.height,
+                     &base_x, &base_y);
+
+        cairo_move_to(cr, base_x, base_y + font_extents.ascent);
 
         render_score_text(renderer, cr, SCORE_LABEL);
 
@@ -311,20 +324,20 @@ interpolate_and_add_score(struct flt_renderer *renderer,
                 cairo_save(cr);
                 cairo_rectangle(cr,
                                 0,
-                                score_y - extents.ascent,
+                                base_y,
                                 renderer->scene->video_width,
-                                extents.ascent + extents.descent);
+                                font_extents.height);
                 cairo_clip(cr);
 
                 double offset = ((e->base.timestamp - timestamp) *
-                                 extents.height /
+                                 font_extents.height /
                                  SCORE_SLIDE_TIME);
                 int top_value, bottom_value;
 
                 if (e->value > s->value) {
                         top_value = s->value;
                         bottom_value = e->value;
-                        offset = extents.height - offset;
+                        offset = font_extents.height - offset;
                 } else {
                         top_value = e->value;
                         bottom_value = s->value;
@@ -332,7 +345,7 @@ interpolate_and_add_score(struct flt_renderer *renderer,
 
                 cairo_move_to(cr,
                               score_x,
-                              score_y + extents.height - offset);
+                              score_y + font_extents.height - offset);
                 flt_buffer_append_printf(&buf, "%i", bottom_value);
                 render_score_text(renderer, cr, (const char *) buf.data);
 

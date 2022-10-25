@@ -202,6 +202,7 @@ interpolate_and_add_svg(struct flt_renderer *renderer,
 static void
 render_score_text(struct flt_renderer *renderer,
                   cairo_t *cr,
+                  uint32_t color,
                   const char *text)
 {
         double after_x, after_y;
@@ -213,7 +214,7 @@ render_score_text(struct flt_renderer *renderer,
         cairo_set_source_rgb(cr, 0.0, 0.0, 0.0);
         cairo_set_line_join(cr, CAIRO_LINE_JOIN_ROUND);
         cairo_stroke_preserve(cr);
-        cairo_set_source_rgb(cr, 1.0, 1.0, 1.0);
+        set_source_from_color(cr, color);
         cairo_fill(cr);
         cairo_restore(cr);
 
@@ -224,13 +225,14 @@ static FLT_NULL_TERMINATED void
 render_text_parts(struct flt_renderer *renderer,
                   cairo_t *cr,
                   enum flt_scene_position position,
+                  uint32_t color,
                   ...)
 {
         cairo_save(cr);
 
         va_list ap, copy;
 
-        va_start(ap, position);
+        va_start(ap, color);
         va_copy(copy, ap);
 
         double ascent = 0.0, height = 0.0, x_advance = 0.0;
@@ -274,7 +276,10 @@ render_text_parts(struct flt_renderer *renderer,
                         break;
 
                 set_font(cr, font);
-                render_score_text(renderer, cr, va_arg(copy, const char *));
+                render_score_text(renderer,
+                                  cr,
+                                  color,
+                                  va_arg(copy, const char *));
         }
 
         va_end(copy);
@@ -318,7 +323,7 @@ interpolate_and_add_score(struct flt_renderer *renderer,
 
         cairo_move_to(cr, base_x, base_y + font_extents.ascent);
 
-        render_score_text(renderer, cr, score_label);
+        render_score_text(renderer, cr, score->color, score_label);
         cairo_rel_move_to(cr, space_extents.x_advance, 0.0);
 
         struct flt_buffer buf = FLT_BUFFER_STATIC_INIT;
@@ -354,17 +359,26 @@ interpolate_and_add_score(struct flt_renderer *renderer,
                               score_x,
                               score_y + font_extents.height - offset);
                 flt_buffer_append_printf(&buf, "%i", bottom_value);
-                render_score_text(renderer, cr, (const char *) buf.data);
+                render_score_text(renderer,
+                                  cr,
+                                  score->color,
+                                  (const char *) buf.data);
 
                 cairo_move_to(cr, score_x, score_y - offset);
                 flt_buffer_set_length(&buf, 0);
                 flt_buffer_append_printf(&buf, "%i", top_value);
-                render_score_text(renderer, cr, (const char *) buf.data);
+                render_score_text(renderer,
+                                  cr,
+                                  score->color,
+                                  (const char *) buf.data);
 
                 cairo_restore(cr);
         } else {
                 flt_buffer_append_printf(&buf, "%i", s->value);
-                render_score_text(renderer, cr, (const char *) buf.data);
+                render_score_text(renderer,
+                                  cr,
+                                  score->color,
+                                  (const char *) buf.data);
         }
 
         cairo_restore(cr);
@@ -375,7 +389,7 @@ interpolate_and_add_score(struct flt_renderer *renderer,
 static void
 add_speed(struct flt_renderer *renderer,
           cairo_t *cr,
-          enum flt_scene_position position,
+          const struct flt_scene_gpx_speed *speed,
           double speed_ms)
 {
         int speed_kmh = round(speed_ms * 3600 / 1000);
@@ -386,7 +400,8 @@ add_speed(struct flt_renderer *renderer,
 
         render_text_parts(renderer,
                           cr,
-                          position,
+                          speed->base.position,
+                          speed->color,
                           &renderer->digits_font,
                           (const char *) buf.data,
                           &renderer->units_font,
@@ -399,7 +414,7 @@ add_speed(struct flt_renderer *renderer,
 static void
 add_elevation(struct flt_renderer *renderer,
               cairo_t *cr,
-              enum flt_scene_position position,
+              const struct flt_scene_gpx_elevation *elevation_obj,
               double elevation)
 {
         struct flt_buffer buf = FLT_BUFFER_STATIC_INIT;
@@ -408,7 +423,8 @@ add_elevation(struct flt_renderer *renderer,
 
         render_text_parts(renderer,
                           cr,
-                          position,
+                          elevation_obj->base.position,
+                          elevation_obj->color,
                           &renderer->digits_font,
                           (const char  *) buf.data,
                           NULL);
@@ -417,7 +433,8 @@ add_elevation(struct flt_renderer *renderer,
 
         render_text_parts(renderer,
                           cr,
-                          position,
+                          elevation_obj->base.position,
+                          elevation_obj->color,
                           &renderer->label_font,
                           ELEVATION_LABEL,
                           NULL);
@@ -426,11 +443,13 @@ add_elevation(struct flt_renderer *renderer,
 static void
 add_distance(struct flt_renderer *renderer,
              cairo_t *cr,
-             enum flt_scene_position position,
+             const struct flt_scene_gpx_distance *distance_obj,
              double distance)
 {
         struct flt_buffer buf = FLT_BUFFER_STATIC_INIT;
         const char *units;
+
+        distance += distance_obj->offset;
 
         if (distance < 1000.0) {
                 flt_buffer_append_printf(&buf,
@@ -446,7 +465,8 @@ add_distance(struct flt_renderer *renderer,
 
         render_text_parts(renderer,
                           cr,
-                          position,
+                          distance_obj->base.position,
+                          distance_obj->color,
                           &renderer->digits_font,
                           (const char *) buf.data,
                           &renderer->units_font,
@@ -557,26 +577,23 @@ interpolate_and_add_gpx(struct flt_renderer *renderer,
                 case FLT_SCENE_GPX_OBJECT_TYPE_SPEED:
                         add_speed(renderer,
                                   cr,
-                                  object->position,
+                                  (const struct flt_scene_gpx_speed *) object,
                                   gpx_data.speed);
                         break;
                 case FLT_SCENE_GPX_OBJECT_TYPE_ELEVATION:
                         add_elevation(renderer,
                                       cr,
-                                      object->position,
+                                      (const struct flt_scene_gpx_elevation *)
+                                      object,
                                       gpx_data.elevation);
                         break;
-                case FLT_SCENE_GPX_OBJECT_TYPE_DISTANCE: {
-                        const struct flt_scene_gpx_distance *distance =
-                                flt_container_of(object,
-                                                 struct flt_scene_gpx_distance,
-                                                 base);
+                case FLT_SCENE_GPX_OBJECT_TYPE_DISTANCE:
                         add_distance(renderer,
                                      cr,
-                                     object->position,
-                                     gpx_data.distance + distance->offset);
+                                     (const struct flt_scene_gpx_distance *)
+                                     object,
+                                     gpx_data.distance);
                         break;
-                }
                 case FLT_SCENE_GPX_OBJECT_TYPE_MAP:
                         if (!add_map(renderer,
                                      cr,
@@ -626,6 +643,7 @@ interpolate_and_add_time(struct flt_renderer *renderer,
         render_text_parts(renderer,
                           cr,
                           time->position,
+                          time->color,
                           &renderer->digits_font,
                           (const char *) buf.data,
                           NULL);
@@ -721,6 +739,7 @@ add_text(struct flt_renderer *renderer,
         render_text_parts(renderer,
                           cr,
                           text->position,
+                          text->color,
                           &renderer->score_font,
                           text->text,
                           NULL);

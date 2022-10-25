@@ -580,6 +580,7 @@ interpolate_and_add_gpx(struct flt_renderer *renderer,
 static void
 interpolate_and_add_time(struct flt_renderer *renderer,
                          cairo_t *cr,
+                         const struct flt_scene_time *time,
                          double i,
                          const struct flt_scene_time_key_frame *s,
                          const struct flt_scene_time_key_frame *e)
@@ -608,24 +609,12 @@ interpolate_and_add_time(struct flt_renderer *renderer,
                 flt_buffer_append_printf(&buf, "%is", value);
         }
 
-        cairo_save(cr);
-
-        set_font(cr, &renderer->digits_font);
-
-        cairo_text_extents_t text_extents;
-
-        cairo_text_extents(cr,
-                           (const char *) buf.data,
-                           &text_extents);
-
-        cairo_move_to(cr,
-                      renderer->scene->video_width / 2.0 -
-                      text_extents.x_advance / 2.0,
-                      renderer->gap + text_extents.height);
-
-        render_score_text(renderer, cr, (const char *) buf.data);
-
-        cairo_restore(cr);
+        render_text_parts(renderer,
+                          cr,
+                          time->position,
+                          &renderer->digits_font,
+                          (const char *) buf.data,
+                          NULL);
 
         flt_buffer_destroy(&buf);
 }
@@ -793,6 +782,8 @@ found_frame:
         case FLT_SCENE_OBJECT_TYPE_TIME:
                 interpolate_and_add_time(renderer,
                                          cr,
+                                         (const struct flt_scene_time *)
+                                         object,
                                          i,
                                          (const struct
                                           flt_scene_time_key_frame *)

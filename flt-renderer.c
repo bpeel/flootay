@@ -158,6 +158,31 @@ interpolate_and_add_rectangle(struct flt_renderer *renderer,
 }
 
 static bool
+render_svg(RsvgHandle *handle,
+           cairo_t *cr,
+           const RsvgRectangle *viewport,
+           struct flt_error **error_out)
+{
+        GError *error = NULL;
+
+        if (!rsvg_handle_render_document(handle,
+                                         cr,
+                                         viewport,
+                                         &error)) {
+                flt_set_error(error_out,
+                              &flt_renderer_error,
+                              FLT_RENDERER_ERROR_SVG,
+                              "%s",
+                              error->message);
+                g_error_free(error);
+
+                return false;
+        }
+
+        return true;
+}
+
+static bool
 interpolate_and_add_svg(struct flt_renderer *renderer,
                         cairo_t *cr,
                         const struct flt_scene_svg *svg,
@@ -166,7 +191,7 @@ interpolate_and_add_svg(struct flt_renderer *renderer,
                         flt_scene_svg_key_frame *s,
                         const struct
                         flt_scene_svg_key_frame *e,
-                        struct flt_error **error_out)
+                        struct flt_error **error)
 {
         double x1 = interpolate_double(i, s->x1, e->x1);
         double y1 = interpolate_double(i, s->y1, e->y1);
@@ -180,23 +205,7 @@ interpolate_and_add_svg(struct flt_renderer *renderer,
                 .height = fabs(y2 - y1),
         };
 
-        GError *error = NULL;
-
-        if (!rsvg_handle_render_document(svg->handle,
-                                         cr,
-                                         &viewport,
-                                         &error)) {
-                flt_set_error(error_out,
-                              &flt_renderer_error,
-                              FLT_RENDERER_ERROR_SVG,
-                              "%s",
-                              error->message);
-                g_error_free(error);
-
-                return false;
-        }
-
-        return true;
+        return render_svg(svg->handle, cr, &viewport, error);
 }
 
 static void
@@ -383,11 +392,49 @@ interpolate_and_add_score(struct flt_renderer *renderer,
         flt_buffer_destroy(&buf);
 }
 
+static bool
+add_speed_dial(struct flt_renderer *renderer,
+               cairo_t *cr,
+               const struct flt_scene_gpx_speed *speed,
+               double speed_ms,
+               struct flt_error **error)
+{
+        RsvgRectangle viewport = {
+                .width = speed->width,
+                .height = speed->height,
+        };
+
+        get_position(renderer,
+                     speed->base.position,
+                     viewport.width,
+                     viewport.height,
+                     &viewport.x,
+                     &viewport.y);
+
+        if (!render_svg(speed->dial, cr, &viewport, error))
+                return false;
+
+        cairo_save(cr);
+
+        double rotation_x = viewport.x + viewport.width / 2.0;
+        double rotation_y = viewport.y + viewport.height / 2.0;
+
+        cairo_translate(cr, rotation_x, rotation_y);
+        cairo_rotate(cr, speed_ms * 2.0 * M_PI / speed->full_speed);
+        cairo_translate(cr, -rotation_x, -rotation_y);
+
+        bool ret = render_svg(speed->needle, cr, &viewport, error);
+
+        cairo_restore(cr);
+
+        return ret;
+}
+
 static void
-add_speed(struct flt_renderer *renderer,
-          cairo_t *cr,
-          const struct flt_scene_gpx_speed *speed,
-          double speed_ms)
+add_speed_digits(struct flt_renderer *renderer,
+                 cairo_t *cr,
+                 const struct flt_scene_gpx_speed *speed,
+                 double speed_ms)
 {
         int speed_kmh = round(speed_ms * 3600 / 1000);
 
@@ -406,6 +453,21 @@ add_speed(struct flt_renderer *renderer,
                           NULL);
 
         flt_buffer_destroy(&buf);
+}
+
+static bool
+add_speed(struct flt_renderer *renderer,
+          cairo_t *cr,
+          const struct flt_scene_gpx_speed *speed,
+          double speed_ms,
+          struct flt_error **error)
+{
+        if (speed->dial) {
+                return add_speed_dial(renderer, cr, speed, speed_ms, error);
+        } else {
+                add_speed_digits(renderer, cr, speed, speed_ms);
+                return true;
+        }
 }
 
 static void
@@ -572,10 +634,13 @@ interpolate_and_add_gpx(struct flt_renderer *renderer,
         flt_list_for_each(object, &gpx->objects, link) {
                 switch (object->type) {
                 case FLT_SCENE_GPX_OBJECT_TYPE_SPEED:
-                        add_speed(renderer,
-                                  cr,
-                                  (const struct flt_scene_gpx_speed *) object,
-                                  gpx_data.speed);
+                        if (!add_speed(renderer,
+                                       cr,
+                                       (const struct flt_scene_gpx_speed *)
+                                       object,
+                                       gpx_data.speed,
+                                       error))
+                                return false;
                         break;
                 case FLT_SCENE_GPX_OBJECT_TYPE_ELEVATION:
                         add_elevation(renderer,

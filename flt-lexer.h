@@ -71,6 +71,7 @@ enum flt_lexer_keyword {
         FLT_LEXER_KEYWORD_LEFT,
         FLT_LEXER_KEYWORD_MIDDLE,
         FLT_LEXER_KEYWORD_RIGHT,
+        FLT_LEXER_KEYWORD_LABEL,
 
         FLT_LEXER_N_KEYWORDS,
 };

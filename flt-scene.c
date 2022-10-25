@@ -48,13 +48,18 @@ destroy_gpx(struct flt_scene_gpx *gpx)
 }
 
 static void
+destroy_score(struct flt_scene_score *score)
+{
+        flt_free(score->label);
+}
+
+static void
 destroy_object(struct flt_scene_object *object)
 {
         destroy_key_frames(&object->key_frames);
 
         switch (object->type) {
         case FLT_SCENE_OBJECT_TYPE_RECTANGLE:
-        case FLT_SCENE_OBJECT_TYPE_SCORE:
         case FLT_SCENE_OBJECT_TYPE_CURVE:
         case FLT_SCENE_OBJECT_TYPE_TIME:
                 break;
@@ -63,6 +68,9 @@ destroy_object(struct flt_scene_object *object)
                 break;
         case FLT_SCENE_OBJECT_TYPE_SVG:
                 destroy_svg((struct flt_scene_svg *) object);
+                break;
+        case FLT_SCENE_OBJECT_TYPE_SCORE:
+                destroy_score((struct flt_scene_score *) object);
                 break;
         }
 

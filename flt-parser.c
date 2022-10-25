@@ -791,6 +791,11 @@ score_props[] = {
                 offsetof(struct flt_scene_score, position),
                 FLT_PARSER_VALUE_TYPE_POSITION,
         },
+        {
+                offsetof(struct flt_scene_score, label),
+                FLT_PARSER_VALUE_TYPE_STRING,
+                FLT_LEXER_KEYWORD_LABEL,
+        },
 };
 
 static enum flt_parser_return
@@ -812,6 +817,7 @@ parse_score(struct flt_parser *parser,
 
         score->base.type = FLT_SCENE_OBJECT_TYPE_SCORE;
         score->position = FLT_SCENE_POSITION_TOP_LEFT;
+        score->label = NULL;
 
         flt_list_init(&score->base.key_frames);
         flt_list_insert(parser->scene->objects.prev, &score->base.link);

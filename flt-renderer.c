@@ -19,6 +19,8 @@
 #include "flt-renderer.h"
 
 #include <math.h>
+#include <stdarg.h>
+#include <assert.h>
 
 #include "flt-util.h"
 #include "flt-buffer.h"
@@ -39,6 +41,7 @@ struct flt_renderer {
         struct flt_scene *scene;
         struct flt_map_renderer *map_renderer;
         cairo_pattern_t *map_point_pattern;
+        double position_offsets[FLT_SCENE_N_POSITIONS];
         float gap;
 
         struct font_with_size digits_font;
@@ -86,6 +89,48 @@ set_font(cairo_t *cr, const struct font_with_size *font)
 {
         cairo_set_font_face(cr, font->face);
         cairo_set_font_size(cr, font->size);
+}
+
+static void
+get_position(struct flt_renderer *renderer,
+             enum flt_scene_position position,
+             double width,
+             double height,
+             double *x_out,
+             double *y_out)
+{
+        assert(position >= 0 && position < FLT_SCENE_N_POSITIONS);
+
+        *x_out = 0.0;
+        *y_out = 0.0;
+
+        switch (FLT_SCENE_GET_HORIZONTAL_POSITION(position)) {
+        case FLT_SCENE_HORIZONTAL_POSITION_LEFT:
+                *x_out = renderer->gap;
+                break;
+        case FLT_SCENE_HORIZONTAL_POSITION_MIDDLE:
+                *x_out = renderer->scene->video_width / 2.0 - width / 2.0;
+                break;
+        case FLT_SCENE_HORIZONTAL_POSITION_RIGHT:
+                *x_out = renderer->scene->video_width - renderer->gap - width;
+                break;
+        }
+
+        double offset = renderer->position_offsets[position];
+
+        switch (FLT_SCENE_GET_VERTICAL_POSITION(position)) {
+        case FLT_SCENE_VERTICAL_POSITION_TOP:
+                *y_out = renderer->gap + offset;
+                break;
+        case FLT_SCENE_VERTICAL_POSITION_BOTTOM:
+                *y_out = (renderer->scene->video_height -
+                          renderer->gap -
+                          offset -
+                          height);
+                break;
+        }
+
+        renderer->position_offsets[position] += height;
 }
 
 static void
@@ -177,6 +222,68 @@ render_score_text(struct flt_renderer *renderer,
         cairo_move_to(cr, after_x, after_y);
 }
 
+static FLT_NULL_TERMINATED void
+render_text_parts(struct flt_renderer *renderer,
+                  cairo_t *cr,
+                  enum flt_scene_position position,
+                  ...)
+{
+        cairo_save(cr);
+
+        va_list ap, copy;
+
+        va_start(ap, position);
+        va_copy(copy, ap);
+
+        double ascent = 0.0, height = 0.0, x_advance = 0.0;
+
+        while (true) {
+                const struct font_with_size *font =
+                        va_arg(ap, const struct font_with_size *);
+
+                if (font == NULL)
+                        break;
+
+                set_font(cr, font);
+
+                const char *text = va_arg(ap, const char *);
+
+                cairo_text_extents_t text_extents;
+                cairo_text_extents(cr, text, &text_extents);
+                x_advance += text_extents.x_advance;
+
+                cairo_font_extents_t font_extents;
+                cairo_font_extents(cr, &font_extents);
+                if (font_extents.ascent > ascent)
+                        ascent = font_extents.ascent;
+                if (font_extents.height > height)
+                        height = font_extents.height;
+        }
+
+        va_end(ap);
+
+        double x, y;
+
+        get_position(renderer, position, x_advance, height, &x, &y);
+
+        cairo_move_to(cr, x, y + ascent);
+
+        while (true) {
+                const struct font_with_size *font =
+                        va_arg(copy, const struct font_with_size *);
+
+                if (font == NULL)
+                        break;
+
+                set_font(cr, font);
+                render_score_text(renderer, cr, va_arg(copy, const char *));
+        }
+
+        va_end(copy);
+
+        cairo_restore(cr);
+}
+
 static void
 interpolate_and_add_score(struct flt_renderer *renderer,
                           cairo_t *cr,
@@ -259,87 +366,60 @@ interpolate_and_add_score(struct flt_renderer *renderer,
 static void
 add_speed(struct flt_renderer *renderer,
           cairo_t *cr,
+          enum flt_scene_position position,
           double speed_ms)
 {
         int speed_kmh = round(speed_ms * 3600 / 1000);
-
-        cairo_save(cr);
-
-        cairo_move_to(cr,
-                      renderer->gap,
-                      renderer->scene->video_height - renderer->gap);
 
         struct flt_buffer buf = FLT_BUFFER_STATIC_INIT;
 
         flt_buffer_append_printf(&buf, "%2i", speed_kmh);
 
-        set_font(cr, &renderer->digits_font);
-
-        render_score_text(renderer, cr, (const char *) buf.data);
+        render_text_parts(renderer,
+                          cr,
+                          position,
+                          &renderer->digits_font,
+                          (const char *) buf.data,
+                          &renderer->units_font,
+                          " km/h",
+                          NULL);
 
         flt_buffer_destroy(&buf);
-
-        set_font(cr, &renderer->units_font);
-
-        render_score_text(renderer, cr, " km/h");
-
-        cairo_restore(cr);
 }
 
 static void
 add_elevation(struct flt_renderer *renderer,
               cairo_t *cr,
+              enum flt_scene_position position,
               double elevation)
 {
-        cairo_save(cr);
-
         struct flt_buffer buf = FLT_BUFFER_STATIC_INIT;
 
         flt_buffer_append_printf(&buf, "%2i", (int) round(elevation));
 
-        set_font(cr, &renderer->digits_font);
-
-        cairo_text_extents_t text_extents;
-
-        cairo_text_extents(cr,
-                           (const char *) buf.data,
-                           &text_extents);
-
-        cairo_move_to(cr,
-                      renderer->scene->video_width -
-                      renderer->gap -
-                      text_extents.x_advance,
-                      renderer->scene->video_height - renderer->gap);
-
-        render_score_text(renderer, cr, (const char *) buf.data);
+        render_text_parts(renderer,
+                          cr,
+                          position,
+                          &renderer->digits_font,
+                          (const char  *) buf.data,
+                          NULL);
 
         flt_buffer_destroy(&buf);
 
-        set_font(cr, &renderer->label_font);
-
-        cairo_text_extents(cr, ELEVATION_LABEL, &text_extents);
-
-        cairo_move_to(cr,
-                      renderer->scene->video_width -
-                      renderer->gap -
-                      text_extents.x_advance,
-                      renderer->scene->video_height -
-                      renderer->gap +
-                      text_extents.height *
-                      1.3);
-
-        render_score_text(renderer, cr, ELEVATION_LABEL);
-
-        cairo_restore(cr);
+        render_text_parts(renderer,
+                          cr,
+                          position,
+                          &renderer->label_font,
+                          ELEVATION_LABEL,
+                          NULL);
 }
 
 static void
 add_distance(struct flt_renderer *renderer,
              cairo_t *cr,
+             enum flt_scene_position position,
              double distance)
 {
-        cairo_save(cr);
-
         struct flt_buffer buf = FLT_BUFFER_STATIC_INIT;
         const char *units;
 
@@ -355,45 +435,16 @@ add_distance(struct flt_renderer *renderer,
                 units = " km";
         }
 
-        set_font(cr, &renderer->units_font);
-
-        cairo_text_extents_t units_extents;
-
-        cairo_save(cr);
-
-        cairo_text_extents(cr, units, &units_extents);
-
-        cairo_text_extents_t text_extents;
-
-        set_font(cr, &renderer->digits_font);
-
-        cairo_text_extents(cr,
-                           (const char *) buf.data,
-                           &text_extents);
-
-        double total_x_advance = (units_extents.x_advance +
-                                  text_extents.x_advance);
-
-        cairo_move_to(cr,
-                      renderer->scene->video_width / 2.0 -
-                      total_x_advance / 2.0,
-                      renderer->scene->video_height - renderer->gap);
-
-        render_score_text(renderer, cr, (const char *) buf.data);
-
-        cairo_restore(cr);
+        render_text_parts(renderer,
+                          cr,
+                          position,
+                          &renderer->digits_font,
+                          (const char *) buf.data,
+                          &renderer->units_font,
+                          units,
+                          NULL);
 
         flt_buffer_destroy(&buf);
-
-        cairo_move_to(cr,
-                      renderer->scene->video_width / 2.0 -
-                      total_x_advance / 2.0 +
-                      text_extents.x_advance,
-                      renderer->scene->video_height - renderer->gap);
-
-        render_score_text(renderer, cr, units);
-
-        cairo_restore(cr);
 }
 
 static bool
@@ -491,10 +542,16 @@ interpolate_and_add_gpx(struct flt_renderer *renderer,
         flt_list_for_each(object, &gpx->objects, link) {
                 switch (object->type) {
                 case FLT_SCENE_GPX_OBJECT_TYPE_SPEED:
-                        add_speed(renderer, cr, gpx_data.speed);
+                        add_speed(renderer,
+                                  cr,
+                                  object->position,
+                                  gpx_data.speed);
                         break;
                 case FLT_SCENE_GPX_OBJECT_TYPE_ELEVATION:
-                        add_elevation(renderer, cr, gpx_data.elevation);
+                        add_elevation(renderer,
+                                      cr,
+                                      object->position,
+                                      gpx_data.elevation);
                         break;
                 case FLT_SCENE_GPX_OBJECT_TYPE_DISTANCE: {
                         const struct flt_scene_gpx_distance *distance =
@@ -503,6 +560,7 @@ interpolate_and_add_gpx(struct flt_renderer *renderer,
                                                  base);
                         add_distance(renderer,
                                      cr,
+                                     object->position,
                                      gpx_data.distance + distance->offset);
                         break;
                 }
@@ -802,6 +860,11 @@ flt_renderer_render(struct flt_renderer *renderer,
         const struct flt_scene_object *object;
 
         enum flt_renderer_result ret = FLT_RENDERER_RESULT_EMPTY;
+
+        /* Reset all of the position offsets to 0.0 */
+        memset(renderer->position_offsets,
+               0,
+               sizeof renderer->position_offsets);
 
         flt_list_for_each(object, &renderer->scene->objects, link) {
                 switch (interpolate_and_add_object(renderer,

@@ -85,6 +85,7 @@ class Script:
         self.default_speed = 1.0 / 3.0
         self.silent = False
         self.distance_offset = None
+        self.dial = False
 
 Svg = collections.namedtuple('Svg', ['video',
                                      'filename',
@@ -276,6 +277,10 @@ def parse_script(infile):
 
         if line == "time":
             script.show_time = True
+            continue
+
+        if line == "dial":
+            script.dial = True
             continue
 
         if line == "twitter":
@@ -904,7 +909,24 @@ def get_speed_script_for_video(script,
                                video,
                                gpx_offset):
     parts = ["gpx {\n"
-             "        speed { }\n"]
+             "        speed {\n"]
+
+    if script.dial:
+        parts.append("                dial \"{}\"\n".format(
+            os.path.join(os.path.dirname(sys.argv[0]), "dial.svg")))
+        parts.append("                needle \"{}\"\n".format(
+            os.path.join(os.path.dirname(sys.argv[0]), "needle.svg")))
+        parts.append(("                width {}\n"
+                      "                height {}\n"
+                      "                full_speed {}\n").format(
+                          script.height / 5.0,
+                          script.height / 5.0,
+                          # max speed on the dial is 40km/h for a
+                          # rotation of 270°. We need to convert that
+                          # to a scale of 360° in m/s
+                          40.0 * 360 / 270 * 1000 / 3600))
+
+    parts.append("        }\n")
 
     if script.show_elevation:
         parts.append("        elevation { }\n")

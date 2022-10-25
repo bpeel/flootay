@@ -459,6 +459,7 @@ add_distance(struct flt_renderer *renderer,
 static bool
 add_map(struct flt_renderer *renderer,
         cairo_t *cr,
+        enum flt_scene_position position,
         double lat, double lon,
         struct flt_error **error)
 {
@@ -495,14 +496,17 @@ add_map(struct flt_renderer *renderer,
         float map_size = renderer->scene->video_height * 0.3;
         float map_scale = map_size / map_size_tile_units;
 
+        double map_x, map_y;
+
+        get_position(renderer,
+                     position,
+                     map_size, map_size,
+                     &map_x, &map_y);
+
         cairo_save(cr);
         cairo_translate(cr,
-                        renderer->scene->video_width -
-                        renderer->gap -
-                        map_size / 2.0,
-                        renderer->scene->video_height -
-                        renderer->gap -
-                        map_size / 2.0);
+                        map_x + map_size / 2.0,
+                        map_y + map_size / 2.0);
         cairo_scale(cr, map_scale, map_scale);
 
         if (!flt_map_renderer_render(renderer->map_renderer,
@@ -576,6 +580,7 @@ interpolate_and_add_gpx(struct flt_renderer *renderer,
                 case FLT_SCENE_GPX_OBJECT_TYPE_MAP:
                         if (!add_map(renderer,
                                      cr,
+                                     object->position,
                                      gpx_data.lat, gpx_data.lon,
                                      error))
                                 return false;

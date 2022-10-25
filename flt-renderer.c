@@ -814,6 +814,8 @@ found_frame:
                                            flt_scene_curve_key_frame *)
                                           end_frame);
                 break;
+        case FLT_SCENE_OBJECT_TYPE_TEXT:
+                break;
         }
 
         return FLT_RENDERER_RESULT_OK;

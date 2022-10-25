@@ -70,6 +70,7 @@ enum flt_scene_object_type {
         FLT_SCENE_OBJECT_TYPE_GPX,
         FLT_SCENE_OBJECT_TYPE_TIME,
         FLT_SCENE_OBJECT_TYPE_CURVE,
+        FLT_SCENE_OBJECT_TYPE_TEXT,
 };
 
 struct flt_scene_gpx_file {
@@ -179,6 +180,16 @@ struct flt_scene_curve_key_frame {
         double t;
         struct flt_scene_point points[4];
         double stroke_width;
+};
+
+struct flt_scene_text {
+        struct flt_scene_object base;
+        enum flt_scene_position position;
+        char *text;
+};
+
+struct flt_scene_text_key_frame {
+        struct flt_scene_key_frame base;
 };
 
 struct flt_scene {

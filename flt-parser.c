@@ -1864,6 +1864,137 @@ parse_time(struct flt_parser *parser,
         return FLT_PARSER_RETURN_OK;
 }
 
+static enum flt_parser_return
+parse_text_key_frame(struct flt_parser *parser,
+                     struct flt_error **error)
+{
+        struct flt_scene_key_frame *base_key_frame;
+
+        const size_t struct_size =
+                sizeof (struct flt_scene_text_key_frame);
+
+        enum flt_parser_return base_ret =
+                parse_base_key_frame(parser,
+                                     struct_size,
+                                     &base_key_frame,
+                                     error);
+
+        if (base_ret != FLT_PARSER_RETURN_OK)
+                return base_ret;
+
+        const struct flt_lexer_token *token;
+
+        require_token(parser,
+                      FLT_LEXER_TOKEN_TYPE_CLOSE_BRACKET,
+                      "expected ‘}’",
+                      error);
+
+        return FLT_PARSER_RETURN_OK;
+}
+
+static const struct flt_parser_property
+text_props[] = {
+        {
+                offsetof(struct flt_scene_text, position),
+                FLT_PARSER_VALUE_TYPE_POSITION,
+        },
+        {
+                offsetof(struct flt_scene_text, text),
+                FLT_PARSER_VALUE_TYPE_STRING,
+                FLT_LEXER_KEYWORD_TEXT,
+        },
+};
+
+static enum flt_parser_return
+parse_text(struct flt_parser *parser,
+           struct flt_error **error)
+{
+        const struct flt_lexer_token *token;
+
+        check_item_keyword(parser, FLT_LEXER_KEYWORD_TEXT, error);
+
+        int text_line_num = flt_lexer_get_line_num(parser->lexer);
+
+        require_token(parser,
+                      FLT_LEXER_TOKEN_TYPE_OPEN_BRACKET,
+                      "expected ‘{’",
+                      error);
+
+        struct flt_scene_text *text = flt_alloc(sizeof *text);
+
+        text->base.type = FLT_SCENE_OBJECT_TYPE_TEXT;
+        text->position = FLT_SCENE_POSITION_TOP_RIGHT;
+        text->text = NULL;
+
+        flt_list_init(&text->base.key_frames);
+        flt_list_insert(parser->scene->objects.prev, &text->base.link);
+
+        while (true) {
+                token = flt_lexer_get_token(parser->lexer, error);
+
+                if (token == NULL)
+                        return FLT_PARSER_RETURN_ERROR;
+
+                if (token->type == FLT_LEXER_TOKEN_TYPE_CLOSE_BRACKET)
+                        break;
+
+                flt_lexer_put_token(parser->lexer);
+
+                static const item_parse_func funcs[] = {
+                        parse_text_key_frame,
+                };
+
+                switch (parse_items(parser,
+                                    funcs,
+                                    FLT_N_ELEMENTS(funcs),
+                                    error)) {
+                case FLT_PARSER_RETURN_OK:
+                        continue;
+                case FLT_PARSER_RETURN_NOT_MATCHED:
+                        break;
+                case FLT_PARSER_RETURN_ERROR:
+                        return FLT_PARSER_RETURN_ERROR;
+                }
+
+                switch (parse_properties(parser,
+                                         text_props,
+                                         FLT_N_ELEMENTS(text_props),
+                                         text,
+                                         error)) {
+                case FLT_PARSER_RETURN_OK:
+                        continue;
+                case FLT_PARSER_RETURN_NOT_MATCHED:
+                        break;
+                case FLT_PARSER_RETURN_ERROR:
+                        return FLT_PARSER_RETURN_ERROR;
+                }
+
+                set_error(parser,
+                          error,
+                          "Expected text item (like a key_frame)");
+
+                return FLT_PARSER_RETURN_ERROR;
+        }
+
+        if (flt_list_empty(&text->base.key_frames)) {
+                set_error_with_line(parser,
+                                    error,
+                                    text_line_num,
+                                    "text has no key frames");
+                return FLT_PARSER_RETURN_ERROR;
+        }
+
+        if (text->text == NULL) {
+                set_error_with_line(parser,
+                                    error,
+                                    text_line_num,
+                                    "text object has no text property");
+                return FLT_PARSER_RETURN_ERROR;
+        }
+
+        return FLT_PARSER_RETURN_OK;
+}
+
 static const struct flt_parser_property
 file_props[] = {
         {
@@ -1913,6 +2044,7 @@ parse_file(struct flt_parser *parser,
                         parse_gpx,
                         parse_time,
                         parse_curve,
+                        parse_text,
                 };
 
                 switch (parse_items(parser,

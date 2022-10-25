@@ -54,6 +54,12 @@ destroy_score(struct flt_scene_score *score)
 }
 
 static void
+destroy_text(struct flt_scene_text *text)
+{
+        flt_free(text->text);
+}
+
+static void
 destroy_object(struct flt_scene_object *object)
 {
         destroy_key_frames(&object->key_frames);
@@ -71,6 +77,9 @@ destroy_object(struct flt_scene_object *object)
                 break;
         case FLT_SCENE_OBJECT_TYPE_SCORE:
                 destroy_score((struct flt_scene_score *) object);
+                break;
+        case FLT_SCENE_OBJECT_TYPE_TEXT:
+                destroy_text((struct flt_scene_text *) object);
                 break;
         }
 

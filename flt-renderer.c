@@ -200,10 +200,10 @@ interpolate_and_add_svg(struct flt_renderer *renderer,
 }
 
 static void
-render_score_text(struct flt_renderer *renderer,
-                  cairo_t *cr,
-                  uint32_t color,
-                  const char *text)
+render_text(struct flt_renderer *renderer,
+            cairo_t *cr,
+            uint32_t color,
+            const char *text)
 {
         double after_x, after_y;
 
@@ -276,10 +276,7 @@ render_text_parts(struct flt_renderer *renderer,
                         break;
 
                 set_font(cr, font);
-                render_score_text(renderer,
-                                  cr,
-                                  color,
-                                  va_arg(copy, const char *));
+                render_text(renderer, cr, color, va_arg(copy, const char *));
         }
 
         va_end(copy);
@@ -323,7 +320,7 @@ interpolate_and_add_score(struct flt_renderer *renderer,
 
         cairo_move_to(cr, base_x, base_y + font_extents.ascent);
 
-        render_score_text(renderer, cr, score->color, score_label);
+        render_text(renderer, cr, score->color, score_label);
         cairo_rel_move_to(cr, space_extents.x_advance, 0.0);
 
         struct flt_buffer buf = FLT_BUFFER_STATIC_INIT;
@@ -359,26 +356,26 @@ interpolate_and_add_score(struct flt_renderer *renderer,
                               score_x,
                               score_y + font_extents.height - offset);
                 flt_buffer_append_printf(&buf, "%i", bottom_value);
-                render_score_text(renderer,
-                                  cr,
-                                  score->color,
-                                  (const char *) buf.data);
+                render_text(renderer,
+                            cr,
+                            score->color,
+                            (const char *) buf.data);
 
                 cairo_move_to(cr, score_x, score_y - offset);
                 flt_buffer_set_length(&buf, 0);
                 flt_buffer_append_printf(&buf, "%i", top_value);
-                render_score_text(renderer,
-                                  cr,
-                                  score->color,
-                                  (const char *) buf.data);
+                render_text(renderer,
+                            cr,
+                            score->color,
+                            (const char *) buf.data);
 
                 cairo_restore(cr);
         } else {
                 flt_buffer_append_printf(&buf, "%i", s->value);
-                render_score_text(renderer,
-                                  cr,
-                                  score->color,
-                                  (const char *) buf.data);
+                render_text(renderer,
+                            cr,
+                            score->color,
+                            (const char *) buf.data);
         }
 
         cairo_restore(cr);

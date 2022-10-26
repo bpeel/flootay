@@ -86,6 +86,7 @@ class Script:
         self.silent = False
         self.distance_offset = None
         self.dial = False
+        self.text_color = None
 
 Svg = collections.namedtuple('Svg', ['video',
                                      'filename',
@@ -171,6 +172,7 @@ def parse_script(infile):
     flootay_file_re = re.compile(r'flootay_file\s+(?P<filename>.*?)\s*$')
     distance_offset_re = re.compile(r'distance_offset\s+'
                                     r'(?P<offset>-?[0-9]+(?:\.[0-9]+)?)$')
+    text_color_re = re.compile(r'text_color\s+(?P<color>.*)')
 
     raw_videos = {}
     script = Script()
@@ -339,6 +341,11 @@ def parse_script(infile):
         md = distance_offset_re.match(line)
         if md:
             script.distance_offset = float(md.group('offset'))
+            continue
+
+        md = text_color_re.match(line)
+        if md:
+            script.text_color = md.group('color')
             continue
 
         md = gpx_offset_re.match(line)
@@ -817,17 +824,21 @@ def write_sound_script(f, total_video_time, sound_clips):
 
     print("", file=f)
 
-def write_score_script(f, scores, videos, video_speeds):
-    if len(scores) <= 0:
+def write_score_script(f, script, video_speeds):
+    if len(script.scores) <= 0:
         return
 
     print("score {", file=f)
 
+    if script.text_color is not None:
+        print("        color {}\n".format(script.text_color),
+              file=f)
+
     value = 0
 
-    for score in scores:
+    for score in script.scores:
         value += score.diff
-        time = get_output_time(videos,
+        time = get_output_time(script.videos,
                                video_speeds,
                                score.video.raw_video,
                                score.time)
@@ -908,36 +919,48 @@ def get_video_gpx_offsets(script):
 def get_speed_script_for_video(script,
                                video,
                                gpx_offset):
-    parts = ["gpx {\n"
-             "        speed {\n"]
+    parts = ["gpx {\n"]
+
+    def add_part(name, extra=None):
+        parts.append("        {} {{\n".format(name))
+        if script.text_color is not None:
+            parts.append("        color {}\n".format(script.text_color))
+        if extra is not None:
+            parts.append(extra)
+        parts.append("        }\n")
 
     if script.dial:
-        parts.append("                dial \"{}\"\n".format(
-            os.path.join(os.path.dirname(sys.argv[0]), "dial.svg")))
-        parts.append("                needle \"{}\"\n".format(
-            os.path.join(os.path.dirname(sys.argv[0]), "needle.svg")))
-        parts.append(("                width {}\n"
-                      "                height {}\n"
-                      "                full_speed {}\n").format(
-                          script.height / 5.0,
-                          script.height / 5.0,
-                          # max speed on the dial is 40km/h for a
-                          # rotation of 270°. We need to convert that
-                          # to a scale of 360° in m/s
-                          40.0 * 360 / 270 * 1000 / 3600))
+        speed_extra = ("                dial \"{}\"\n"
+                       "                needle \"{}\"\n"
+                       "                width {}\n"
+                       "                height {}\n"
+                       "                full_speed {}\n").format(
+                           os.path.join(os.path.dirname(sys.argv[0]),
+                                        "dial.svg"),
+                           os.path.join(os.path.dirname(sys.argv[0]),
+                                        "needle.svg"),
+                           script.height / 5.0,
+                           script.height / 5.0,
+                           # max speed on the dial is 40km/h for a
+                           # rotation of 270°. We need to convert that
+                           # to a scale of 360° in m/s
+                           40.0 * 360 / 270 * 1000 / 3600)
+    else:
+        speed_extra = None
 
-    parts.append("        }\n")
+    add_part("speed", speed_extra)
 
     if script.show_elevation:
-        parts.append("        elevation { }\n")
+        add_part("elevation")
     if script.show_distance:
-        parts.append("        distance {\n")
         if script.distance_offset is not None:
-            parts.append("                offset {}\n".format(
+            distance_extra = ("        offset {}\n".format(
                 script.distance_offset))
-        parts.append("        }\n")
+        else:
+            distance_extra = None
+        add_part("distance", distance_extra)
     if script.show_map:
-        parts.append("        map { }\n")
+        parts.append("        map {}\n")
 
     timestamp = gpx_offset[0] + video.start_time
 
@@ -974,8 +997,12 @@ def add_time_scripts(script):
 
         length = video.length()
 
-        video.script.append(("time {{\n"
-                             "        key_frame {} {{ time {} }}\n"
+        video.script.append("time {\n")
+
+        if script.text_color is not None:
+            video.script.append("        color {}\n".format(script.text_color))
+
+        video.script.append(("        key_frame {} {{ time {} }}\n"
                              "        key_frame {} {{ time {} }}\n"
                              "}}\n").format(video.start_time,
                                             timestamp,
@@ -1043,7 +1070,7 @@ flootay_header = (("#!{}\n"
 
 with open("overlay.flt", "wt", encoding="utf-8") as f:
     print(flootay_header, file=f)
-    write_score_script(f, script.scores, script.videos, video_speeds)
+    write_score_script(f, script, video_speeds)
     write_svg_script(f, script, video_speeds)
 
 os.chmod("overlay.flt", 0o775)

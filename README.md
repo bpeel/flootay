@@ -137,6 +137,10 @@ for x in *.MP4; do
 done
 ```
 
+### Dial
+
+If you put the word `dial` somewhere in the script then the speedometer will be displayed as a speed dial instead of showing the digits. The dial is built out of the SVGs `dial.svg` and `needle.svg` which you can modify if you want to customize the image.
+
 ### Skipping videos
 
 If some of the videos aren’t correlated to the GPX file, you can add `no_gpx` somewhere after that video. That way it won’t have the speedometer displayed on top of that video and the video won’t affect the offset calculation for the GPX file.

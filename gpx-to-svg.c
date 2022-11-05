@@ -20,16 +20,22 @@
 #include <stdio.h>
 #include <expat.h>
 #include <stdbool.h>
+#include <errno.h>
 #include <string.h>
+#include <limits.h>
+#include <float.h>
+#include <unistd.h>
 
 #define TILE_SIZE 256
-#define CENTER_LAT 45.77358932670189
-#define CENTER_LON 4.892918591894951
-#define ZOOM 13
-#define IMAGE_WIDTH 1920
-#define IMAGE_HEIGHT 1080
+
+struct config {
+        double lat, lon;
+        int width, height;
+        int zoom;
+};
 
 struct data {
+        struct config config;
         int left_x;
         int top_y;
         bool is_first;
@@ -98,8 +104,8 @@ start_element_cb(void *user_data, const XML_Char *name, const XML_Char **atts)
                                 lon = strtod(att[1], NULL);
                 }
 
-                int x = lon_to_pixel_x(lon, ZOOM) - data->left_x;
-                int y = lat_to_pixel_y(lat, ZOOM) - data->top_y;
+                int x = lon_to_pixel_x(lon, data->config.zoom) - data->left_x;
+                int y = lat_to_pixel_y(lat, data->config.zoom) - data->top_y;
 
                 if (data->is_first)
                         data->is_first = false;
@@ -120,15 +126,140 @@ end_element_cb(void *user_data, const XML_Char *name)
 {
 }
 
+static bool
+parse_positive_int(const char *str, int *value_out)
+{
+        errno = 0;
+
+        char *tail;
+
+        long value = strtol(str, &tail, 10);
+
+        if (value <= 0 || value > INT_MAX || errno || *tail)
+                return false;
+
+        *value_out = value;
+
+        return true;
+}
+
+static bool
+parse_coordinate(const char *arg, struct config *config)
+{
+        const char *part;
+        double *value_out;
+        double min_value, max_value;
+
+        if (config->lat == DBL_MAX) {
+                value_out = &config->lat;
+                min_value = -90.0;
+                max_value = 90.0;
+                part = "latitude";
+        } else if (config->lon == DBL_MAX) {
+                value_out = &config->lon;
+                min_value = -180.0;
+                max_value = 180.0;
+                part = "longitude";
+        } else {
+                fprintf(stderr, "Too many coordinates specified\n");
+                return false;
+        }
+
+        errno = 0;
+        char *tail;
+        *value_out = strtod(optarg, &tail);
+
+        if (errno ||
+            (!isnormal(*value_out) && *value_out != 0.0) ||
+            *tail ||
+            *value_out < min_value ||
+            *value_out > max_value) {
+                fprintf(stderr,
+                        "invalid %s: %s\n",
+                        part,
+                        optarg);
+                return false;
+        }
+
+        return true;
+}
+
+static bool
+process_options(int argc, char **argv, struct config *config)
+{
+        config->lat = DBL_MAX;
+        config->lon = DBL_MAX;
+        config->width = 1920;
+        config->height = 1080;
+        config->zoom = 17;
+
+        while (true) {
+                switch (getopt(argc, argv, "-w:h:z:")) {
+                case 'w':
+                        if (!parse_positive_int(optarg, &config->width)) {
+                                fprintf(stderr,
+                                        "invalid width: %s\n",
+                                        optarg);
+                                return false;
+                        }
+                        break;
+                case 'h':
+                        if (!parse_positive_int(optarg, &config->height)) {
+                                fprintf(stderr,
+                                        "invalid height: %s\n",
+                                        optarg);
+                                return false;
+                        }
+                        break;
+                case 'z':
+                        if (!parse_positive_int(optarg, &config->zoom)) {
+                                fprintf(stderr,
+                                        "invalid zoom: %s\n",
+                                        optarg);
+                                return false;
+                        }
+                        break;
+                case 1:
+                        if (!parse_coordinate(optarg, config))
+                                return false;
+                        break;
+
+                case -1:
+                        goto done;
+
+                default:
+                        return false;
+                }
+        }
+
+done:
+        if (config->lat == DBL_MAX) {
+                config->lat = 45.767615;
+                config->lon = 4.834434;
+        } else if (config->lon == DBL_MAX) {
+                fprintf(stderr,
+                        "latitude specified without longitude\n");
+                return false;
+        }
+
+        return true;
+}
+
 int
 main(int argc, char **argv)
 {
         struct data data = {
-                .left_x = lon_to_pixel_x(CENTER_LON, ZOOM) - IMAGE_WIDTH / 2,
-                .top_y = lat_to_pixel_y(CENTER_LAT, ZOOM) - IMAGE_HEIGHT / 2,
                 .is_first = true,
                 .is_segment_start = true,
         };
+
+        if (!process_options(argc, argv, &data.config))
+                return EXIT_FAILURE;
+
+        data.left_x = (lon_to_pixel_x(data.config.lon, data.config.zoom) -
+                       data.config.width / 2);
+        data.top_y = (lat_to_pixel_y(data.config.lat, data.config.zoom) -
+                      data.config.height / 2);
 
         char buf[512];
         XML_Parser parser = XML_ParserCreate(NULL);

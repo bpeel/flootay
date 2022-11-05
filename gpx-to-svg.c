@@ -32,10 +32,12 @@ struct config {
         double lat, lon;
         int width, height;
         int zoom;
+        const char *output_filename;
 };
 
 struct data {
         struct config config;
+        FILE *output_file;
         int left_x;
         int top_y;
         bool is_first;
@@ -110,12 +112,13 @@ start_element_cb(void *user_data, const XML_Char *name, const XML_Char **atts)
                 if (data->is_first)
                         data->is_first = false;
                 else
-                        fputc(' ', stdout);
+                        fputc(' ', data->output_file);
 
-                printf("%c %i %i",
-                       data->is_segment_start ? 'M' : 'L',
-                       x,
-                       y);
+                fprintf(data->output_file,
+                        "%c %i %i",
+                        data->is_segment_start ? 'M' : 'L',
+                        x,
+                        y);
 
                 data->is_segment_start = false;
         }
@@ -194,7 +197,7 @@ process_options(int argc, char **argv, struct config *config)
         config->zoom = 17;
 
         while (true) {
-                switch (getopt(argc, argv, "-w:h:z:")) {
+                switch (getopt(argc, argv, "-w:h:z:o:")) {
                 case 'w':
                         if (!parse_positive_int(optarg, &config->width)) {
                                 fprintf(stderr,
@@ -218,6 +221,9 @@ process_options(int argc, char **argv, struct config *config)
                                         optarg);
                                 return false;
                         }
+                        break;
+                case 'o':
+                        config->output_filename = optarg;
                         break;
                 case 1:
                         if (!parse_coordinate(optarg, config))
@@ -261,6 +267,20 @@ main(int argc, char **argv)
         data.top_y = (lat_to_pixel_y(data.config.lat, data.config.zoom) -
                       data.config.height / 2);
 
+        if (data.config.output_filename) {
+                data.output_file = fopen(data.config.output_filename, "w");
+
+                if (data.output_file == NULL) {
+                        fprintf(stderr,
+                                "%s: %s\n",
+                                data.config.output_filename,
+                                strerror(errno));
+                        return EXIT_FAILURE;
+                }
+        } else {
+                data.output_file = stdout;
+        }
+
         char buf[512];
         XML_Parser parser = XML_ParserCreate(NULL);
         int ret = EXIT_SUCCESS;
@@ -294,9 +314,12 @@ main(int argc, char **argv)
         } while (!done);
 
         if (!data.is_first)
-                fputc('\n', stdout);
+                fputc('\n', data.output_file);
 
         XML_ParserFree(parser);
+
+        if (data.config.output_filename)
+                fclose(data.output_file);
 
         return ret;
 }

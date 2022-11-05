@@ -251,6 +251,32 @@ done:
         return true;
 }
 
+static void
+write_svg_header(struct data *data)
+{
+        fprintf(data->output_file,
+                "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n"
+                "<svg\n"
+                "  width=\"%i\"\n"
+                "  height=\"%i\"\n"
+                "  viewBox=\"0 0 %i %i\"\n"
+                "  version=\"1.1\"\n"
+                "  xmlns=\"http://www.w3.org/2000/svg\">\n"
+                "  <path d=\"",
+                data->config.width,
+                data->config.height,
+                data->config.width,
+                data->config.height);
+}
+
+static void
+write_svg_footer(struct data *data)
+{
+        fputs("\" />\n"
+              "</svg>\n",
+              data->output_file);
+}
+
 int
 main(int argc, char **argv)
 {
@@ -280,6 +306,8 @@ main(int argc, char **argv)
         } else {
                 data.output_file = stdout;
         }
+
+        write_svg_header(&data);
 
         char buf[512];
         XML_Parser parser = XML_ParserCreate(NULL);
@@ -317,6 +345,8 @@ main(int argc, char **argv)
                 fputc('\n', data.output_file);
 
         XML_ParserFree(parser);
+
+        write_svg_footer(&data);
 
         if (data.config.output_filename)
                 fclose(data.output_file);

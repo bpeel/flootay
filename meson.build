@@ -102,3 +102,15 @@ test_lexer_src = [
 ]
 test_lexer = executable('test-lexer', test_lexer_src)
 test('lexer', test_lexer)
+
+executable('time-to-pos',
+           ['flt-buffer.c',
+            'flt-child-proc.c',
+            'flt-error.c',
+            'flt-file-error.c',
+            'flt-get-video-length.c',
+            'flt-gpx.c',
+            'flt-parse-time.c',
+            'flt-util.c',
+            'time-to-pos.c'],
+           dependencies: [m_dep, expat_dep])

@@ -74,6 +74,7 @@ executable('generate-sound',
             'flt-util.c',
             'flt-child-proc.c',
             'flt-buffer.c',
+            'flt-get-video-length.c',
             'flt-list.c'],
             dependencies: [m_dep])
 

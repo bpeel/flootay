@@ -31,6 +31,7 @@
 #include "flt-util.h"
 #include "flt-child-proc.h"
 #include "flt-list.h"
+#include "flt-get-video-length.h"
 
 #define SAMPLE_RATE 48000
 #define CHANNELS 2
@@ -103,45 +104,6 @@ free_running_sounds(struct flt_list *list)
         flt_list_for_each_safe(sound, tmp, list, link) {
                 free_running_sound(sound);
         }
-}
-
-static bool
-get_sound_length(const char *filename,
-                 double *length_out)
-{
-        const char * const argv[] = {
-                "-i",
-                filename,
-                "-show_entries", "format=duration",
-                "-v", "quiet",
-                "-of", "csv=p=0",
-                NULL,
-        };
-
-        char *output = flt_child_proc_get_output(NULL, /* source_dir */
-                                                 "ffprobe",
-                                                 argv);
-
-        if (output == NULL)
-                return false;
-
-        char *tail;
-
-        errno = 0;
-        *length_out = strtod(output, &tail);
-        char end = *tail;
-
-        flt_free(output);
-
-        if (errno ||
-            end != '\n' ||
-            !isnormal(*length_out) ||
-            *length_out < 0.0) {
-                fprintf(stderr, "invalid length returned for %s\n", filename);
-                return false;
-        }
-
-        return true;
 }
 
 static double
@@ -622,8 +584,8 @@ process_options(int argc, char **argv, struct config *config)
 
                         sound->filename = flt_strdup(optarg);
 
-                        if (!get_sound_length(sound->filename,
-                                              &sound->length))
+                        if (!flt_get_video_length(sound->filename,
+                                                  &sound->length))
                                 return false;
 
                         sound_template = default_sound;
@@ -640,8 +602,8 @@ process_options(int argc, char **argv, struct config *config)
 
                         sound->filename = flt_strdup(optarg);
 
-                        if (!get_sound_length(sound->filename,
-                                              &sound->length))
+                        if (!flt_get_video_length(sound->filename,
+                                                  &sound->length))
                                 return false;
 
                         sound_template = default_sound;

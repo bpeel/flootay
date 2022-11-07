@@ -21,7 +21,6 @@
 #include <expat.h>
 #include <stdint.h>
 #include <ctype.h>
-#include <time.h>
 #include <string.h>
 #include <errno.h>
 #include <stdio.h>
@@ -31,6 +30,7 @@
 #include "flt-util.h"
 #include "flt-buffer.h"
 #include "flt-file-error.h"
+#include "flt-parse-time.h"
 
 /* Don’t use the point if the timestamp is more than 5 seconds from
  * what we are looking for.
@@ -128,22 +128,6 @@ report_xml_error(struct flt_gpx_parser *parser)
         report_error(parser, str);
 }
 
-static int
-parse_digits(const char *digits,
-             int n_digits)
-{
-        int value = 0;
-
-        for (int i = 0; i < n_digits; i++) {
-                if (digits[i] < '0' || digits[i] > '9')
-                        return -1;
-
-                value = (value * 10) + digits[i] - '0';
-        }
-
-        return value;
-}
-
 static bool
 is_space(char ch)
 {
@@ -153,86 +137,17 @@ is_space(char ch)
 static bool
 parse_time(struct flt_gpx_parser *parser)
 {
-        const char *time_str = (const char *) parser->buf.data;
+        struct flt_error *error = NULL;
 
-        while (is_space(*time_str))
-                time_str++;
-
-        int year = parse_digits(time_str, 4);
-        time_str += 4;
-        if (year == -1 || *(time_str++) != '-')
-                goto fail;
-
-        int month = parse_digits(time_str, 2);
-        time_str += 2;
-        if (month == -1 || *(time_str++) != '-')
-                goto fail;
-
-        int day = parse_digits(time_str, 2);
-        time_str += 2;
-        if (day == -1 || *(time_str++) != 'T')
-                goto fail;
-
-        int hour = parse_digits(time_str, 2);
-        time_str += 2;
-        if (hour == -1 || *(time_str++) != ':')
-                goto fail;
-
-        int minute = parse_digits(time_str, 2);
-        time_str += 2;
-        if (minute == -1 || *(time_str++) != ':')
-                goto fail;
-
-        int second = parse_digits(time_str, 2);
-        time_str += 2;
-        if (second == -1)
-                goto fail;
-
-        int sub_second_divisor = 1;
-        int sub_second_dividend = 0;
-
-        if (*time_str == '.') {
-                for (time_str++;
-                     *time_str >= '0' && *time_str <= '9';
-                     time_str++) {
-                        sub_second_dividend = (sub_second_dividend * 10 +
-                                               *time_str - '0');
-                        sub_second_divisor *= 10;
-                }
-        }
-
-        if (*time_str != 'Z') {
-                report_error(parser, "timezone is not Z");
+        if (!flt_parse_time((const char *) parser->buf.data,
+                            &parser->time,
+                            &error)) {
+                report_error(parser, error->message);
+                flt_error_free(error);
                 return false;
         }
 
-        for (time_str++; is_space(*time_str); time_str++);
-
-        if (*time_str != '\0')
-                goto fail;
-
-        struct tm tm = {
-                .tm_sec = second,
-                .tm_min = minute,
-                .tm_hour = hour,
-                .tm_mday = day,
-                .tm_mon = month - 1,
-                .tm_year = year - 1900,
-                .tm_isdst = 0,
-        };
-
-        time_t t = timegm(&tm);
-
-        if (t == (time_t) -1)
-                goto fail;
-
-        parser->time = t + sub_second_dividend / (double) sub_second_divisor;
-
         return true;
-
-fail:
-        report_error(parser, "invalid time");
-        return false;
 }
 
 static bool

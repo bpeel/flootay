@@ -56,13 +56,19 @@ flt_parse_time(const char *time_str,
 
         int year = parse_digits(time_str, 4);
         time_str += 4;
-        if (year == -1 || *(time_str++) != '-')
+        if (year == -1)
                 goto fail;
+
+        if (*time_str == '-')
+                time_str++;
 
         int month = parse_digits(time_str, 2);
         time_str += 2;
-        if (month == -1 || *(time_str++) != '-')
+        if (month == -1)
                 goto fail;
+
+        if (*time_str == '-')
+                time_str++;
 
         int day = parse_digits(time_str, 2);
         time_str += 2;

@@ -378,6 +378,48 @@ get_pos_from_gpx(const char *gpx_filename,
         return ret;
 }
 
+static void
+encode_coords(double lat,
+              double lon,
+              char *digits,
+              size_t n_digits)
+{
+        /* https://wiki.openstreetmap.org/wiki/Shortlink */
+
+        static const char codes[] = ("ABCDEFGHIJKLMNOPQRSTUVWXYZ"
+                                     "abcdefghijklmnopqrstuvwxyz"
+                                     "0123456789"
+                                     "_~");
+
+        uint32_t lat_bits = (lat + 90.0) * (UINT32_MAX + 1.0) / 180.0;
+        uint32_t lon_bits = (lon + 180.0) * (UINT32_MAX + 1.0) / 360.0;
+        uint64_t combined_bits = 0;
+
+        for (int i = 0; i < sizeof (lat_bits) * 8; i++) {
+                combined_bits = ((combined_bits << 2) |
+                                 ((lon_bits >> 30) & 0x2) |
+                                 (lat_bits >> 31));
+                lat_bits <<= 1;
+                lon_bits <<= 1;
+        }
+
+        for (unsigned i = 0; i < n_digits; i++) {
+                digits[i] = codes[combined_bits >> 58];
+                combined_bits <<= 6;
+        }
+}
+
+static void
+print_url(double lat, double lon)
+{
+        char code[11];
+
+        encode_coords(lat, lon, code, sizeof code - 1);
+        code[sizeof code - 1] = '\0';
+
+        printf("https://osm.org/go/%s?layers=C&m\n", code);
+}
+
 int
 main(int argc, char **argv)
 {
@@ -422,6 +464,8 @@ main(int argc, char **argv)
 
         printf("%f,%f\n",
                lat, lon);
+
+        print_url(lat, lon);
 
         return EXIT_SUCCESS;
 }

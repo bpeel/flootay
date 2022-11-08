@@ -31,6 +31,8 @@
 #include "flt-parse-time.h"
 #include "flt-get-video-length.h"
 #include "flt-gpx.h"
+#include "flt-lexer.h"
+#include "flt-list.h"
 
 struct config {
         const char *gpx_filename;
@@ -80,6 +82,81 @@ error:
         return false;
 }
 
+struct parse_timestamp_data {
+        struct flt_source source;
+        const char *data;
+        size_t pos, size;
+};
+
+static bool
+parse_timestamp_source_cb(struct flt_source *source,
+                          void *ptr,
+                          size_t *length,
+                          struct flt_error **error)
+{
+        struct parse_timestamp_data *data =
+                flt_container_of(source, struct parse_timestamp_data, source);
+
+        if (*length + data->pos > data->size)
+                *length = data->size - data->pos;
+
+        memcpy(ptr, data->data + data->pos, *length);
+
+        data->pos += *length;
+
+        return true;
+}
+
+static bool
+parse_timestamp(const char *str, double *timestamp_out)
+{
+        struct parse_timestamp_data data = {
+                .source = {
+                        .read_source = parse_timestamp_source_cb,
+                },
+                .data = str,
+                .pos = 0,
+                .size = strlen(str),
+        };
+
+        bool ret = true;
+
+        struct flt_lexer *lexer = flt_lexer_new(&data.source);
+        struct flt_error *error = NULL;
+
+        const struct flt_lexer_token *token =
+                flt_lexer_get_token(lexer, &error);
+
+        if (token == NULL) {
+                fprintf(stderr,
+                        "invalid timestamp: %s\n",
+                        error->message);
+                ret = false;
+                flt_error_free(error);
+        } else {
+                switch (token->type) {
+                case FLT_LEXER_TOKEN_TYPE_NUMBER:
+                        *timestamp_out = token->number_value;
+                        break;
+                case FLT_LEXER_TOKEN_TYPE_FLOAT:
+                        *timestamp_out = (token->number_value +
+                                          token->fraction /
+                                          (double) FLT_LEXER_FRACTION_RANGE);
+                        break;
+                default:
+                        fprintf(stderr,
+                                "invalid timestamp: %s\n",
+                                str);
+                        ret = false;
+                        break;
+                }
+        }
+
+        flt_lexer_free(lexer);
+
+        return ret;
+}
+
 static bool
 process_options(int argc, char **argv, struct config *config)
 {
@@ -101,21 +178,9 @@ process_options(int argc, char **argv, struct config *config)
                         } else if (config->timestamp != DBL_MAX) {
                                 fprintf(stderr, "extra argument: %s\n", optarg);
                                 return false;
-                        } else {
-                                errno = 0;
-                                char *tail;
-                                config->timestamp = strtod(optarg, &tail);
-
-                                if (errno ||
-                                    (!isnormal(config->timestamp) &&
-                                     config->timestamp != 0.0) ||
-                                    config->timestamp < 0.0 ||
-                                    *tail) {
-                                        fprintf(stderr,
-                                                "invalid timestamp: %s\n",
-                                                optarg);
-                                        return false;
-                                }
+                        } else if (!parse_timestamp(optarg,
+                                                    &config->timestamp)) {
+                                return false;
                         }
                         break;
 

@@ -207,7 +207,29 @@ done:
 }
 
 static bool
-parse_video_offset_output(char *output,
+parse_time_with_length(const char *time_str,
+                       size_t length,
+                       double *timestamp_out)
+{
+        if (memchr(time_str, '\0', length))
+                return false;
+
+        char *time_str_copy = flt_strndup(time_str, length);
+
+        struct flt_error *error = NULL;
+
+        bool ret = flt_parse_time(time_str_copy, timestamp_out, &error);
+
+        flt_free(time_str_copy);
+
+        if (ret)
+                flt_error_free(error);
+
+        return ret;
+}
+
+static bool
+parse_video_offset_output(const char *output,
                           int *part_out,
                           double *offset_out)
 {
@@ -232,15 +254,12 @@ parse_video_offset_output(char *output,
         int time_len = strlen(tail);
 
         if (time_len > 0 && tail[time_len - 1] == '\n')
-                tail[time_len - 1] = '\0';
+                time_len--;
 
         double timestamp;
-        struct flt_error *error = NULL;
 
-        if (!flt_parse_time(tail, &timestamp, &error)) {
-                flt_error_free(error);
+        if (!parse_time_with_length(tail, time_len, &timestamp))
                 return false;
-        }
 
         *part_out = part;
         *offset_out = timestamp - offset;

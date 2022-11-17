@@ -884,32 +884,27 @@ def filename_sort_key(filename):
             '.mp4')
 
 def get_video_gpx_offsets(script):
-    raw_footage = dict((os.path.basename(video.raw_video.filename),
-                        video.raw_video.length)
-                       for video in script.videos
-                       if video.use_gpx)
-    sorted_filenames = list(sorted(raw_footage.keys(), key=filename_sort_key))
+    mp4_re = re.compile(r'\.mp4$', re.IGNORECASE)
+
+    all_mp4 = [(fn, get_sound_length(fn))
+               for fn in os.listdir()
+               if mp4_re.search(fn)]
+    all_mp4.sort()
 
     last_offset = None
     offsets = {}
-    found_count = 0
 
-    for filename in sorted_filenames:
+    for filename, length in all_mp4:
         if filename in script.gpx_offsets:
             last_offset = script.gpx_offsets[filename]
-            found_count += 1
 
         if last_offset is not None:
             offsets[filename] = last_offset
-            last_offset = (last_offset[0] + raw_footage[filename],
+            last_offset = (last_offset[0] + length,
                            last_offset[1])
 
-    if found_count != len(script.gpx_offsets):
-        raise Exception("At least one gpx_offset couldn’t be found in "
-                        "raw footage")
-
-    for filename in reversed(sorted_filenames):
-        last_offset = (last_offset[0] - raw_footage[filename], last_offset[1])
+    for filename, length in reversed(all_mp4):
+        last_offset = (last_offset[0] - length, last_offset[1])
 
         if filename not in offsets:
             offsets[filename] = last_offset

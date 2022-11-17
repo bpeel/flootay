@@ -35,7 +35,6 @@
 #include "flt-list.h"
 
 struct config {
-        const char *gpx_filename;
         int video_num, video_part;
         double timestamp;
 };
@@ -160,17 +159,12 @@ parse_timestamp(const char *str, double *timestamp_out)
 static bool
 process_options(int argc, char **argv, struct config *config)
 {
-        config->gpx_filename = "speed.gpx";
-
         config->video_num = -1;
         config->video_part = -1;
         config->timestamp = DBL_MAX;
 
         while (true) {
-                switch (getopt(argc, argv, "-g:")) {
-                case 'g':
-                        config->gpx_filename = optarg;
-                        break;
+                switch (getopt(argc, argv, "-:")) {
                 case 1:
                         if (config->video_num < 0) {
                                 if (!parse_video_filename(config, optarg))
@@ -231,7 +225,8 @@ parse_time_with_length(const char *time_str,
 static bool
 parse_video_offset_output(const char *output,
                           int *part_out,
-                          double *offset_out)
+                          double *offset_out,
+                          char **gpx_file_out)
 {
         errno = 0;
         char *tail;
@@ -251,15 +246,29 @@ parse_video_offset_output(const char *output,
         while (*tail == ' ')
                 tail++;
 
-        int time_len = strlen(tail);
+        const char *time_str = tail;
 
-        if (time_len > 0 && tail[time_len - 1] == '\n')
-                time_len--;
+        tail = strchr(time_str, ' ');
+
+        if (tail == NULL)
+                return false;
 
         double timestamp;
 
-        if (!parse_time_with_length(tail, time_len, &timestamp))
+        if (!parse_time_with_length(time_str, tail - time_str, &timestamp))
                 return false;
+
+        const char *filename = tail + 1;
+
+        tail = strchr(filename, '\n');
+
+        if (tail == NULL)
+                return false;
+
+        if (tail > filename)
+                *gpx_file_out = flt_strndup(filename, tail - filename);
+        else
+                *gpx_file_out = flt_strdup("speed.gpx");
 
         *part_out = part;
         *offset_out = timestamp - offset;
@@ -270,7 +279,8 @@ parse_video_offset_output(const char *output,
 static bool
 get_video_offset(int video_num,
                  int *part_out,
-                 double *offset_out)
+                 double *offset_out,
+                 char **gpx_file)
 {
         struct flt_buffer buf = FLT_BUFFER_STATIC_INIT;
 
@@ -278,8 +288,9 @@ get_video_offset(int video_num,
                                  "sed -rn -e "
                                  "'s/^gpx_offset +GH([0-9]{2})%04d\\.MP4 +"
                                  "([0-9]+(\\.[0-9]+)?) +"
-                                 "([^ ]+)"
-                                 ".*/\\1 \\2 \\4/p' "
+                                 "([^ ]+) *"
+                                 "([^ ]*) *$/"
+                                 "\\1 \\2 \\4 \\5/p' "
                                  "*.script | "
                                  "head -n 1",
                                  video_num);
@@ -303,7 +314,10 @@ get_video_offset(int video_num,
                 fprintf(stderr,
                         "no output received when trying to get gpx offset\n");
                 ret = false;
-        } else if (!parse_video_offset_output(output, part_out, offset_out)) {
+        } else if (!parse_video_offset_output(output,
+                                              part_out,
+                                              offset_out,
+                                              gpx_file)) {
                 fprintf(stderr,
                         "invalid output received when trying to get gpx "
                         "offset:\n"
@@ -449,11 +463,16 @@ main(int argc, char **argv)
 
         int video_offset_part;
         double timestamp;
+        char *gpx_filename = NULL;
+        int ret = EXIT_SUCCESS;
 
         if (!get_video_offset(config.video_num,
                               &video_offset_part,
-                              &timestamp))
-                return EXIT_FAILURE;
+                              &timestamp,
+                              &gpx_filename)) {
+                ret = EXIT_FAILURE;
+                goto out;
+        }
 
         if (video_offset_part > config.video_part) {
                 fprintf(stderr,
@@ -461,7 +480,8 @@ main(int argc, char **argv)
                         "is less than chosen video (%i)\n",
                         video_offset_part,
                         config.video_part);
-                return EXIT_FAILURE;
+                ret = EXIT_FAILURE;
+                goto out;
         }
 
         double part_lengths;
@@ -469,22 +489,29 @@ main(int argc, char **argv)
         if (!get_part_lengths(config.video_num,
                               video_offset_part,
                               config.video_part - video_offset_part,
-                              &part_lengths))
-                return EXIT_FAILURE;
+                              &part_lengths)) {
+                ret = EXIT_FAILURE;
+                goto out;
+        }
 
         timestamp += part_lengths;
 
         double lat, lon;
 
-        if (!get_pos_from_gpx(config.gpx_filename,
+        if (!get_pos_from_gpx(gpx_filename,
                               timestamp + config.timestamp,
-                              &lat, &lon))
-                return EXIT_FAILURE;
+                              &lat, &lon)) {
+                ret = EXIT_FAILURE;
+                goto out;
+        }
 
         printf("%f,%f\n",
                lat, lon);
 
         print_url(lat, lon);
 
-        return EXIT_SUCCESS;
+out:
+        flt_free(gpx_filename);
+
+        return ret;
 }

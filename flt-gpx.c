@@ -303,7 +303,7 @@ parse_lat_lon(struct flt_gpx_parser *parser,
                         }
                         found_lon = true;
                 }
-       }
+        }
 
         if (!found_lat) {
                 report_error(parser, "missing lat attribute");

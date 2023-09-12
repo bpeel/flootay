@@ -116,3 +116,16 @@ executable('time-to-pos',
             'flt-util.c',
             'time-to-pos.c'],
            dependencies: [m_dep, expat_dep])
+
+executable('photos',
+           ['flt-gpx.c',
+            'flt-parse-time.c',
+            'flt-error.c',
+            'flt-util.c',
+            'flt-buffer.c',
+            'flt-file-error.c',
+            'flt-list.c',
+            'flt-get-video-length.c',
+            'flt-child-proc.c',
+            'photos.c'],
+           dependencies: [m_dep, expat_dep])

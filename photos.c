@@ -27,8 +27,6 @@
 #include "flt-list.h"
 #include "flt-get-video-length.h"
 
-#define PHOTO_DISTANCE 3.0
-
 struct video {
         struct flt_list link;
         const char *filename;
@@ -39,6 +37,7 @@ struct config {
         const char *gpx_filename;
         double gpx_offset;
         struct flt_list videos;
+        double photo_distance;
 };
 
 static void
@@ -120,7 +119,7 @@ print_photos(const struct config *config,
         for (size_t i = 0; i < n_points; i++) {
                 const struct flt_gpx_point *point = points + i;
 
-                if (point->distance - last_distance >= PHOTO_DISTANCE) {
+                if (point->distance - last_distance >= config->photo_distance) {
                         const struct video *video;
                         double offset;
 
@@ -185,10 +184,11 @@ process_options(int argc, char **argv, struct config *config)
 
         config->gpx_filename = NULL;
         config->gpx_offset = 0.0;
+        config->photo_distance = 3.0;
         flt_list_init(&config->videos);
 
         while (true) {
-                switch (getopt(argc, argv, "-g:o:")) {
+                switch (getopt(argc, argv, "-g:o:d:")) {
                 case 1:
                         if (!parse_video(config, optarg))
                                 goto error;
@@ -205,6 +205,22 @@ process_options(int argc, char **argv, struct config *config)
 
                         if (errno ||
                             !isnormal(config->gpx_offset) ||
+                            *tail) {
+                                fprintf(stderr,
+                                        "invalid offset: %s\n",
+                                        optarg);
+                                goto error;
+                        }
+                        break;
+
+                case 'd':
+                        errno = 0;
+
+                        config->photo_distance = strtod(optarg, &tail);
+
+                        if (errno ||
+                            !isnormal(config->photo_distance) ||
+                            config->photo_distance <= 0.0 ||
                             *tail) {
                                 fprintf(stderr,
                                         "invalid offset: %s\n",

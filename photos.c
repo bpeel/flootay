@@ -133,7 +133,7 @@ print_photos(const struct config *config,
 
                         printf("ffmpeg -ss %f -i \"%s\" "
                                "-frames 1 "
-                               "photo-%03zu.jpg\n",
+                               "photo-%04zu.jpg\n",
                                offset,
                                video->filename,
                                i);
@@ -145,7 +145,7 @@ print_photos(const struct config *config,
                         printf("\" "
                                "-GPSLatitude=%f "
                                "-GPSLongitude=%f "
-                               "photo-%03zu.jpg\n",
+                               "photo-%04zu.jpg\n",
                                point->lat,
                                point->lon,
                                i);

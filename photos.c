@@ -144,11 +144,14 @@ print_photos(const struct config *config,
 
                         printf("\" "
                                "-GPSLatitude=%f "
-                               "-GPSLongitude=%f "
-                               "photo-%04zu.jpg\n",
+                               "-GPSLongitude=%f ",
                                point->lat,
-                               point->lon,
-                               i);
+                               point->lon);
+
+                        if (point->course >= 0.0)
+                                printf("-GPSImgDirection=%f ", point->course);
+
+                        printf("photo-%04zu.jpg\n", i);
 
                         last_distance = point->distance;
                 }

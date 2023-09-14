@@ -138,7 +138,7 @@ print_photos(const struct config *config,
                                video->filename,
                                i);
 
-                        printf("exiftool -alldates=\"");
+                        printf("exiftool -overwrite_original -alldates=\"");
 
                         print_timestamp(point->time);
 

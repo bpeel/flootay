@@ -55,6 +55,7 @@ enum parse_state {
         PARSE_STATE_IN_TIME,
         PARSE_STATE_IN_SPEED,
         PARSE_STATE_IN_ELE,
+        PARSE_STATE_IN_COURSE,
         PARSE_STATE_IN_EXTENSIONS,
         PARSE_STATE_IN_TRACK_POINT_EXTENSION,
         PARSE_STATE_IN_EXTENSION_SPEED,
@@ -95,6 +96,11 @@ struct flt_gpx_parser {
          * attributes.
          */
         float lat, lon;
+        /* Angle in clockwise degrees from north that the GPS was
+         * moving in or a negative value if we haven’t found the
+         * course yet.
+         */
+        float course;
 
         struct flt_error *error;
 };
@@ -213,6 +219,19 @@ parse_ele(struct flt_gpx_parser *parser)
         return true;
 }
 
+static bool
+parse_course(struct flt_gpx_parser *parser)
+{
+        if (!parse_float_range((const char *) parser->buf.data,
+                               0.0, 360.0,
+                               &parser->course)) {
+                report_error(parser, "invalid course");
+                return false;
+        }
+
+        return true;
+}
+
 static double
 distance_between_points(const struct flt_gpx_point *a,
                         const struct flt_gpx_point *b)
@@ -245,6 +264,7 @@ add_point(struct flt_gpx_parser *parser)
         point->lon = parser->lon;
         point->time = parser->time;
         point->elevation = parser->elevation;
+        point->course = parser->course;
 
         double distance, time_diff;
 
@@ -360,6 +380,7 @@ start_element_cb(void *user_data,
                                 return;
 
                         parser->time = -1.0;
+                        parser->course = -1.0;
                         parser->has_speed = false;
                         parser->has_elevation = false;
                         parser->parse_state = PARSE_STATE_IN_TRKPT;
@@ -375,8 +396,8 @@ start_element_cb(void *user_data,
                         parser->parse_state = PARSE_STATE_IN_SPEED;
                 else if (is_gpx_element(name, "ele"))
                         parser->parse_state = PARSE_STATE_IN_ELE;
-                else if (is_gpx_element(name, "ele"))
-                        parser->parse_state = PARSE_STATE_IN_ELE;
+                else if (is_gpx_element(name, "course"))
+                        parser->parse_state = PARSE_STATE_IN_COURSE;
                 else if (is_gpx_element(name, "extensions"))
                         parser->parse_state = PARSE_STATE_IN_EXTENSIONS;
                 else
@@ -386,6 +407,7 @@ start_element_cb(void *user_data,
         case PARSE_STATE_IN_TIME:
         case PARSE_STATE_IN_SPEED:
         case PARSE_STATE_IN_ELE:
+        case PARSE_STATE_IN_COURSE:
         case PARSE_STATE_IN_EXTENSION_SPEED:
                 report_error(parser, "unexpected element start");
                 return;
@@ -452,6 +474,12 @@ end_element_cb(void *user_data,
                 parser->parse_state = PARSE_STATE_IN_TRKPT;
                 return;
 
+        case PARSE_STATE_IN_COURSE:
+                if (!parse_course(parser))
+                        return;
+                parser->parse_state = PARSE_STATE_IN_TRKPT;
+                return;
+
         case PARSE_STATE_IN_EXTENSIONS:
                 parser->parse_state = PARSE_STATE_IN_TRKPT;
                 return;
@@ -487,6 +515,7 @@ character_data_cb(void *user_data,
         case PARSE_STATE_IN_TIME:
         case PARSE_STATE_IN_SPEED:
         case PARSE_STATE_IN_ELE:
+        case PARSE_STATE_IN_COURSE:
         case PARSE_STATE_IN_EXTENSION_SPEED:
                 flt_buffer_append(&parser->buf, s, len);
                 flt_buffer_append_c(&parser->buf, '\0');

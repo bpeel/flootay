@@ -43,6 +43,11 @@ struct flt_gpx_point {
         float elevation;
         /* Cumulative distance between all the points */
         float distance;
+        /* Angle in clockwise degrees from north that the GPS was
+         * moving in or a negative value if the point didn’t have a
+         * course in the data
+         */
+        float course;
 };
 
 struct flt_gpx_data {

@@ -82,6 +82,7 @@ class Script:
         self.show_map = False
         self.show_time = False
         self.twitter = False
+        self.instagram = False
         self.default_speed = 1.0 / 3.0
         self.silent = False
         self.distance_offset = None
@@ -287,6 +288,10 @@ def parse_script(infile):
 
         if line == "twitter":
             script.twitter = True
+            continue
+
+        if line == "instagram":
+            script.instagram = True
             continue
 
         if line == "silent":
@@ -789,6 +794,14 @@ def get_ffmpeg_command(script, video_filename, video_speeds):
     if script.twitter:
         args.extend(["-profile:v", "main",
                      "-crf", "24"])
+    elif script.instagram:
+        args.extend(["-profile:v", "main",
+                     "-level:v", "3.0",
+                     "-x264-params", "scenecut=0:open_gop=0:min-keyint=72:keyint=72:ref=4",
+                     "-crf", "23",
+                     "-maxrate", "3500k",
+                     "-bufsize", "3500k",
+                     "-r", "30"])
     else:
         args.extend(["-profile:v", "high",
                      "-bf", "2",

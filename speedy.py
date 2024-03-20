@@ -902,7 +902,10 @@ def get_video_gpx_offsets(script):
     all_mp4 = [(fn, get_sound_length(fn))
                for fn in os.listdir()
                if mp4_re.search(fn)]
-    all_mp4.sort()
+
+    def tuple_sort_key(pair):
+        return (filename_sort_key(pair[0]), pair[1])
+    all_mp4.sort(key=tuple_sort_key)
 
     last_offset = None
     offsets = {}

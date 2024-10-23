@@ -82,6 +82,16 @@ executable('gpx-to-svg',
            ['gpx-to-svg.c'],
            dependencies: [m_dep, expat_dep])
 
+executable('pos-to-time',
+           ['pos-to-time.c',
+            'flt-buffer.c',
+            'flt-error.c',
+            'flt-file-error.c',
+            'flt-gpx.c',
+            'flt-parse-time.c',
+            'flt-util.c'],
+           dependencies: [m_dep, expat_dep])
+
 executable('test-map-renderer',
            ['test-map-renderer.c',
             'flt-util.c',

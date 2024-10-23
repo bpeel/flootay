@@ -67,4 +67,8 @@ flt_gpx_find_data(const struct flt_gpx_point *points,
                   double timestamp,
                   struct flt_gpx_data *data);
 
+double
+flt_gpx_point_distance_between(const struct flt_gpx_point *a,
+                               const struct flt_gpx_point *b);
+
 #endif /* FLT_GPX */

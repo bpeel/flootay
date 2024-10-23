@@ -232,9 +232,9 @@ parse_course(struct flt_gpx_parser *parser)
         return true;
 }
 
-static double
-distance_between_points(const struct flt_gpx_point *a,
-                        const struct flt_gpx_point *b)
+double
+flt_gpx_point_distance_between(const struct flt_gpx_point *a,
+                               const struct flt_gpx_point *b)
 {
         double lat1 = a->lat / 180.0 * M_PI;
         double lon1 = a->lon / 180.0 * M_PI;
@@ -269,7 +269,7 @@ add_point(struct flt_gpx_parser *parser)
         double distance, time_diff;
 
         if (parser->points.length >= 2 * sizeof *point) {
-                distance = distance_between_points(point - 1, point);
+                distance = flt_gpx_point_distance_between(point - 1, point);
                 time_diff = point->time - point[-1].time;
         } else {
                 distance = 0.0;

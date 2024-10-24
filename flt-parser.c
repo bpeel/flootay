@@ -724,6 +724,7 @@ parse_rectangle(struct flt_parser *parser,
         struct flt_scene_rectangle *rectangle = flt_alloc(sizeof *rectangle);
 
         rectangle->base.type = FLT_SCENE_OBJECT_TYPE_RECTANGLE;
+        rectangle->color = 0;
 
         flt_list_init(&rectangle->base.key_frames);
         flt_list_insert(parser->scene->objects.prev, &rectangle->base.link);

@@ -78,6 +78,7 @@ enum flt_lexer_keyword {
         FLT_LEXER_KEYWORD_WIDTH,
         FLT_LEXER_KEYWORD_HEIGHT,
         FLT_LEXER_KEYWORD_FULL_SPEED,
+        FLT_LEXER_KEYWORD_TRACE,
 
         FLT_LEXER_N_KEYWORDS,
 };

@@ -132,6 +132,7 @@ keywords[] = {
         [FLT_LEXER_KEYWORD_WIDTH] = "width",
         [FLT_LEXER_KEYWORD_HEIGHT] = "height",
         [FLT_LEXER_KEYWORD_FULL_SPEED] = "full_speed",
+        [FLT_LEXER_KEYWORD_TRACE] = "trace",
 };
 
 _Static_assert(FLT_N_ELEMENTS(keywords) == FLT_LEXER_N_KEYWORDS,

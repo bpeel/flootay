@@ -538,7 +538,7 @@ add_distance(struct flt_renderer *renderer,
 static bool
 add_map(struct flt_renderer *renderer,
         cairo_t *cr,
-        enum flt_scene_position position,
+        const struct flt_scene_gpx_map *map,
         double lat, double lon,
         struct flt_error **error)
 {
@@ -578,7 +578,7 @@ add_map(struct flt_renderer *renderer,
         double map_x, map_y;
 
         get_position(renderer,
-                     position,
+                     map->base.position,
                      map_size, map_size,
                      &map_x, &map_y);
 
@@ -588,6 +588,17 @@ add_map(struct flt_renderer *renderer,
                         map_y + map_size / 2.0);
         cairo_scale(cr, map_scale, map_scale);
 
+        const struct flt_gpx_point *points;
+        size_t n_points;
+
+        if (map->trace) {
+                points = map->trace->points;
+                n_points = map->trace->n_points;
+        } else {
+                points = NULL;
+                n_points = 0;
+        }
+
         if (!flt_map_renderer_render(renderer->map_renderer,
                                      cr,
                                      17, /* zoom */
@@ -595,8 +606,8 @@ add_map(struct flt_renderer *renderer,
                                      0.0, 0.0, /* draw_center_x/y */
                                      round(map_size_tile_units),
                                      round(map_size_tile_units),
-                                     NULL, /* points */
-                                     0, /* n_points */
+                                     points,
+                                     n_points,
                                      error))
                 ret = false;
 
@@ -661,7 +672,8 @@ interpolate_and_add_gpx(struct flt_renderer *renderer,
                 case FLT_SCENE_GPX_OBJECT_TYPE_MAP:
                         if (!add_map(renderer,
                                      cr,
-                                     object->position,
+                                     (const struct flt_scene_gpx_map *)
+                                     object,
                                      gpx_data.lat, gpx_data.lon,
                                      error))
                                 return false;

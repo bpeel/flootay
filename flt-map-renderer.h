@@ -22,6 +22,7 @@
 #include <cairo.h>
 
 #include "flt-error.h"
+#include "flt-gpx.h"
 
 extern struct flt_error_domain
 flt_map_renderer_error;
@@ -51,6 +52,8 @@ flt_map_renderer_render(struct flt_map_renderer *renderer,
                         double lat, double lon,
                         double draw_center_x, double draw_center_y,
                         int map_width, int map_height,
+                        const struct flt_gpx_point *points,
+                        size_t n_points,
                         struct flt_error **error);
 
 void

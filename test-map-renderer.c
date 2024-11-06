@@ -204,6 +204,8 @@ main(int argc, char **argv)
                                      config.height / 2.0,
                                      config.width,
                                      config.height,
+                                     NULL, /* points */
+                                     0, /* n_points */
                                      &error)) {
                 fprintf(stderr, "%s\n", error->message);
                 ret = EXIT_FAILURE;

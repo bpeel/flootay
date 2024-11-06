@@ -595,6 +595,8 @@ add_map(struct flt_renderer *renderer,
                                      0.0, 0.0, /* draw_center_x/y */
                                      round(map_size_tile_units),
                                      round(map_size_tile_units),
+                                     NULL, /* points */
+                                     0, /* n_points */
                                      error))
                 ret = false;
 

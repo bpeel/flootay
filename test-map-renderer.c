@@ -34,6 +34,7 @@ struct config {
         const char *url_base;
         const char *api_key;
         const char *output_filename;
+        const char *trace;
 };
 
 static bool
@@ -106,9 +107,10 @@ process_options(int argc, char **argv, struct config *config)
         config->output_filename = "map.png";
         config->url_base = NULL;
         config->api_key = NULL;
+        config->trace = NULL;
 
         while (true) {
-                switch (getopt(argc, argv, "-w:h:z:cu:a:o:")) {
+                switch (getopt(argc, argv, "-w:h:z:cu:a:o:t:")) {
                 case 'w':
                         if (!parse_positive_int(optarg, &config->width)) {
                                 fprintf(stderr,
@@ -145,6 +147,9 @@ process_options(int argc, char **argv, struct config *config)
                 case 'o':
                         config->output_filename = optarg;
                         break;
+                case 't':
+                        config->trace = optarg;
+                        break;
                 case 1:
                         if (!parse_coordinate(optarg, config))
                                 return false;
@@ -179,6 +184,22 @@ main(int argc, char **argv)
         if (!process_options(argc, argv, &config))
                 return EXIT_FAILURE;
 
+        struct flt_gpx_point *points = NULL;
+        size_t n_points = 0;
+
+        if (config.trace) {
+                struct flt_error *error = NULL;
+
+                if (!flt_gpx_parse(config.trace,
+                                   &points,
+                                   &n_points,
+                                   &error)) {
+                        fprintf(stderr, "%s\n", error->message);
+                        flt_error_free(error);
+                        return EXIT_FAILURE;
+                }
+        }
+
         int ret = EXIT_SUCCESS;
 
         cairo_surface_t *surface =
@@ -204,8 +225,8 @@ main(int argc, char **argv)
                                      config.height / 2.0,
                                      config.width,
                                      config.height,
-                                     NULL, /* points */
-                                     0, /* n_points */
+                                     points,
+                                     n_points,
                                      &error)) {
                 fprintf(stderr, "%s\n", error->message);
                 ret = EXIT_FAILURE;
@@ -221,6 +242,8 @@ main(int argc, char **argv)
 
         cairo_destroy(cr);
         cairo_surface_destroy(surface);
+
+        flt_free(points);
 
         return ret;
 }

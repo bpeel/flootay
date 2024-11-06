@@ -99,8 +99,11 @@ executable('test-map-renderer',
             'flt-buffer.c',
             'flt-file-error.c',
             'flt-error.c',
-            'flt-map-renderer.c'],
-            dependencies: [cairo_dep, m_dep, curl_dep])
+            'flt-map-renderer.c',
+            'flt-gpx.c',
+            'flt-error.c',
+            'flt-parse-time.c'],
+            dependencies: [cairo_dep, m_dep, curl_dep, expat_dep])
 
 test_lexer_src = [
         'flt-util.c',

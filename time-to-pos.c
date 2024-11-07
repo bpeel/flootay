@@ -191,7 +191,6 @@ done:
             config->video_part < 0) {
                 fprintf(stderr,
                         "usage: time-to-pos "
-                        "[-g <gpx_file>] "
                         "<video_file> "
                         "<timestamp>\n");
                 return false;

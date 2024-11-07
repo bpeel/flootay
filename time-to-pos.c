@@ -164,7 +164,8 @@ process_options(int argc, char **argv, struct config *config)
         config->timestamp = DBL_MAX;
 
         while (true) {
-                switch (getopt(argc, argv, "-:")) {
+                char ch;
+                switch ((ch = getopt(argc, argv, "-"))) {
                 case 1:
                         if (config->video_num < 0) {
                                 if (!parse_video_filename(config, optarg))

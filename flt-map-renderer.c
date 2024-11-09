@@ -41,6 +41,8 @@
 
 #define DEFAULT_MAP_URL_BASE "https://tile.thunderforest.com/cycle/"
 
+#define TRACE_LINE_WIDTH (TILE_SIZE / 16.0)
+
 struct flt_map_renderer {
         struct flt_list tile_cache;
         int n_cached_tiles;
@@ -461,7 +463,7 @@ draw_trace(cairo_t *cr,
 {
         cairo_save(cr);
 
-        cairo_set_line_width(cr, map_width / 32.0);
+        cairo_set_line_width(cr, TRACE_LINE_WIDTH);
         cairo_set_source_rgba(cr, 1.0, 0.0, 0.0, 0.5);
         cairo_set_line_cap(cr, CAIRO_LINE_CAP_ROUND);
 

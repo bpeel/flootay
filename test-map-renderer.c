@@ -224,6 +224,7 @@ main(int argc, char **argv)
                                      config.width,
                                      config.height,
                                      trace,
+                                     0.0, /* video_timestamp */
                                      &error)) {
                 fprintf(stderr, "%s\n", error->message);
                 ret = EXIT_FAILURE;

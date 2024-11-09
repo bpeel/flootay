@@ -53,6 +53,7 @@ flt_map_renderer_render(struct flt_map_renderer *renderer,
                         double draw_center_x, double draw_center_y,
                         int map_width, int map_height,
                         const struct flt_trace *trace,
+                        double video_timestamp,
                         struct flt_error **error);
 
 void

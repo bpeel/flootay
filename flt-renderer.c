@@ -540,6 +540,7 @@ add_map(struct flt_renderer *renderer,
         cairo_t *cr,
         const struct flt_scene_gpx_map *map,
         double lat, double lon,
+        double video_timestamp,
         struct flt_error **error)
 {
         if (renderer->map_renderer == NULL) {
@@ -596,6 +597,7 @@ add_map(struct flt_renderer *renderer,
                                      round(map_size_tile_units),
                                      round(map_size_tile_units),
                                      map->trace ? map->trace->trace : NULL,
+                                     video_timestamp,
                                      error))
                 ret = false;
 
@@ -615,6 +617,7 @@ static bool
 interpolate_and_add_gpx(struct flt_renderer *renderer,
                         cairo_t *cr,
                         const struct flt_scene_gpx *gpx,
+                        double video_timestamp,
                         double i,
                         const struct flt_scene_gpx_key_frame *s,
                         const struct flt_scene_gpx_key_frame *e,
@@ -663,6 +666,7 @@ interpolate_and_add_gpx(struct flt_renderer *renderer,
                                      (const struct flt_scene_gpx_map *)
                                      object,
                                      gpx_data.lat, gpx_data.lon,
+                                     video_timestamp,
                                      error))
                                 return false;
                         break;
@@ -880,6 +884,7 @@ found_frame:
                                              cr,
                                              (const struct flt_scene_gpx *)
                                              object,
+                                             timestamp,
                                              i,
                                              (const struct
                                               flt_scene_gpx_key_frame *) s,

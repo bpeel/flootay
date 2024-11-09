@@ -489,18 +489,30 @@ add_segment_path(cairo_t *cr,
 }
 
 static void
+stroke_dash(cairo_t *cr, double offset)
+{
+        const double dash_size = TRACE_DASH_SIZE;
+
+        cairo_set_source_rgba(cr, TRACE_PRIMARY_COLOR);
+        cairo_set_dash(cr, &dash_size, 1, offset);
+        cairo_stroke_preserve(cr);
+        cairo_set_source_rgba(cr, TRACE_SECONDARY_COLOR);
+        cairo_set_dash(cr, &dash_size, 1, dash_size + offset);
+        cairo_stroke(cr);
+}
+
+static void
 draw_trace(cairo_t *cr,
            int zoom,
            int map_width,
            int center_pixel_x, int center_pixel_y,
            double draw_center_x, double draw_center_y,
-           const struct flt_trace *trace)
+           const struct flt_trace *trace,
+           double video_timestamp)
 {
         cairo_save(cr);
 
         cairo_set_line_width(cr, TRACE_LINE_WIDTH);
-
-        const double dash_size = TRACE_DASH_SIZE;
 
         for (size_t segment_num = 0;
              segment_num < trace->n_segments;
@@ -522,19 +534,21 @@ draw_trace(cairo_t *cr,
                         cairo_stroke(cr);
                         break;
 
-                case FLT_TRACE_SEGMENT_STATUS_WIP:
+                case FLT_TRACE_SEGMENT_STATUS_WIP: {
+                        double ipart;
+                        stroke_dash(cr,
+                                    modf(video_timestamp, &ipart) *
+                                    TRACE_DASH_SIZE * 4.0);
+                        break;
+                }
+
                 case FLT_TRACE_SEGMENT_STATUS_PLANNED:
                 case FLT_TRACE_SEGMENT_STATUS_TESTED:
                 case FLT_TRACE_SEGMENT_STATUS_POSTPONED:
                 case FLT_TRACE_SEGMENT_STATUS_UNKNOWN:
                 case FLT_TRACE_SEGMENT_STATUS_VARIANT:
                 case FLT_TRACE_SEGMENT_STATUS_VARIANT_POSTPONED:
-                        cairo_set_source_rgba(cr, TRACE_PRIMARY_COLOR);
-                        cairo_set_dash(cr, &dash_size, 1, 0.0);
-                        cairo_stroke_preserve(cr);
-                        cairo_set_source_rgba(cr, TRACE_SECONDARY_COLOR);
-                        cairo_set_dash(cr, &dash_size, 1, dash_size);
-                        cairo_stroke(cr);
+                        stroke_dash(cr, 0.0);
                         break;
                 }
         }
@@ -552,6 +566,7 @@ flt_map_renderer_render(struct flt_map_renderer *renderer,
                         double draw_center_x, double draw_center_y,
                         int map_width, int map_height,
                         const struct flt_trace *trace,
+                        double video_timestamp,
                         struct flt_error **error)
 {
         bool ret = true;
@@ -611,7 +626,8 @@ flt_map_renderer_render(struct flt_map_renderer *renderer,
                            tile_x * TILE_SIZE + pixel_x,
                            tile_y * TILE_SIZE + pixel_y,
                            draw_center_x, draw_center_y,
-                           trace);
+                           trace,
+                           video_timestamp);
         }
 
 out:

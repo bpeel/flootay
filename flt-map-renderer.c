@@ -42,6 +42,9 @@
 #define DEFAULT_MAP_URL_BASE "https://tile.thunderforest.com/cycle/"
 
 #define TRACE_LINE_WIDTH (TILE_SIZE / 16.0)
+#define TRACE_PRIMARY_COLOR 1.0, 0.0, 0.0, 0.5
+#define TRACE_SECONDARY_COLOR 1.0, 1.0, 1.0, 0.5
+#define TRACE_DASH_SIZE (TRACE_LINE_WIDTH * 2.0)
 
 struct flt_map_renderer {
         struct flt_list tile_cache;
@@ -454,6 +457,38 @@ set_clip(cairo_t *cr,
 }
 
 static void
+add_segment_path(cairo_t *cr,
+                 int zoom,
+                 int map_width,
+                 int center_pixel_x, int center_pixel_y,
+                 double draw_center_x, double draw_center_y,
+                 const struct flt_trace_segment *segment)
+{
+        for (size_t i = 0; i < segment->n_points; i++) {
+                const struct flt_trace_point *point =
+                        segment->points + i;
+                int tile_x, tile_y, pixel_x, pixel_y;
+
+                lon_to_x(point->lon, zoom, &tile_x, &pixel_x);
+                lat_to_y(point->lat, zoom, &tile_y, &pixel_y);
+
+                double x = draw_center_x +
+                        tile_x * TILE_SIZE +
+                        pixel_x -
+                        center_pixel_x;
+                double y = draw_center_y +
+                        tile_y * TILE_SIZE +
+                        pixel_y -
+                        center_pixel_y;
+
+                if (i == 0)
+                        cairo_move_to(cr, x, y);
+                else
+                        cairo_line_to(cr, x, y);
+        }
+}
+
+static void
 draw_trace(cairo_t *cr,
            int zoom,
            int map_width,
@@ -464,8 +499,8 @@ draw_trace(cairo_t *cr,
         cairo_save(cr);
 
         cairo_set_line_width(cr, TRACE_LINE_WIDTH);
-        cairo_set_source_rgba(cr, 1.0, 0.0, 0.0, 0.5);
-        cairo_set_line_cap(cr, CAIRO_LINE_CAP_ROUND);
+
+        const double dash_size = TRACE_DASH_SIZE;
 
         for (size_t segment_num = 0;
              segment_num < trace->n_segments;
@@ -473,27 +508,34 @@ draw_trace(cairo_t *cr,
                 const struct flt_trace_segment *segment =
                         trace->segments + segment_num;
 
-                for (size_t i = 0; i < segment->n_points; i++) {
-                        const struct flt_trace_point *point =
-                                segment->points + i;
-                        int tile_x, tile_y, pixel_x, pixel_y;
+                add_segment_path(cr,
+                                 zoom,
+                                 map_width,
+                                 center_pixel_x, center_pixel_y,
+                                 draw_center_x, draw_center_y,
+                                 segment);
 
-                        lon_to_x(point->lon, zoom, &tile_x, &pixel_x);
-                        lat_to_y(point->lat, zoom, &tile_y, &pixel_y);
+                switch (segment->status) {
+                case FLT_TRACE_SEGMENT_STATUS_DONE:
+                        cairo_set_source_rgba(cr, TRACE_PRIMARY_COLOR);
+                        cairo_set_dash(cr, NULL, 0, 0.0);
+                        cairo_stroke(cr);
+                        break;
 
-                        double x = draw_center_x +
-                                tile_x * TILE_SIZE +
-                                pixel_x -
-                                center_pixel_x;
-                        double y = draw_center_y +
-                                tile_y * TILE_SIZE +
-                                pixel_y -
-                                center_pixel_y;
-
-                        if (i == 0)
-                                cairo_move_to(cr, x, y);
-                        else
-                                cairo_line_to(cr, x, y);
+                case FLT_TRACE_SEGMENT_STATUS_WIP:
+                case FLT_TRACE_SEGMENT_STATUS_PLANNED:
+                case FLT_TRACE_SEGMENT_STATUS_TESTED:
+                case FLT_TRACE_SEGMENT_STATUS_POSTPONED:
+                case FLT_TRACE_SEGMENT_STATUS_UNKNOWN:
+                case FLT_TRACE_SEGMENT_STATUS_VARIANT:
+                case FLT_TRACE_SEGMENT_STATUS_VARIANT_POSTPONED:
+                        cairo_set_source_rgba(cr, TRACE_PRIMARY_COLOR);
+                        cairo_set_dash(cr, &dash_size, 1, 0.0);
+                        cairo_stroke_preserve(cr);
+                        cairo_set_source_rgba(cr, TRACE_SECONDARY_COLOR);
+                        cairo_set_dash(cr, &dash_size, 1, dash_size);
+                        cairo_stroke(cr);
+                        break;
                 }
         }
 

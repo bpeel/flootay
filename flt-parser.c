@@ -55,7 +55,7 @@ enum flt_parser_value_type {
         FLT_PARSER_VALUE_TYPE_COLOR,
         FLT_PARSER_VALUE_TYPE_POSITION,
         FLT_PARSER_VALUE_TYPE_SVG,
-        FLT_PARSER_VALUE_TYPE_GPX_FILE,
+        FLT_PARSER_VALUE_TYPE_TRACE,
 };
 
 #define DEFAULT_TEXT_COLOR 0xffffff
@@ -450,6 +450,36 @@ load_gpx_file(struct flt_parser *parser,
         return gpx_file;
 }
 
+static struct flt_scene_trace *
+load_trace(struct flt_parser *parser,
+           const char *relative_filename,
+           struct flt_error **error)
+{
+        char *filename = get_relative_filename(parser, relative_filename);
+        struct flt_scene_trace *trace;
+
+        flt_list_for_each(trace, &parser->scene->traces, link) {
+                if (!strcmp(trace->filename, filename)) {
+                        flt_free(filename);
+                        return trace;
+                }
+        }
+
+        struct flt_trace *trace_data = flt_trace_parse(filename, error);
+
+        if (trace_data == NULL) {
+                flt_free(filename);
+                return NULL;
+        }
+
+        trace = flt_alloc(sizeof *trace);
+        trace->filename = filename;
+        trace->trace = trace_data;
+        flt_list_insert(parser->scene->traces.prev, &trace->link);
+
+        return trace;
+}
+
 static enum flt_parser_return
 parse_svg_property(struct flt_parser *parser,
                         const struct flt_parser_property *prop,
@@ -496,10 +526,10 @@ parse_svg_property(struct flt_parser *parser,
 }
 
 static enum flt_parser_return
-parse_gpx_file_property(struct flt_parser *parser,
-                        const struct flt_parser_property *prop,
-                        void *object,
-                        struct flt_error **error)
+parse_trace_property(struct flt_parser *parser,
+                     const struct flt_parser_property *prop,
+                     void *object,
+                     struct flt_error **error)
 {
         const struct flt_lexer_token *token;
 
@@ -510,8 +540,8 @@ parse_gpx_file_property(struct flt_parser *parser,
                       "expected filename",
                       error);
 
-        struct flt_scene_gpx_file **field =
-                (struct flt_scene_gpx_file **)
+        struct flt_scene_trace **field =
+                (struct flt_scene_trace **)
                 (((uint8_t *) object) + prop->offset);
 
         if (*field != NULL) {
@@ -519,7 +549,7 @@ parse_gpx_file_property(struct flt_parser *parser,
                 return FLT_PARSER_RETURN_ERROR;
         }
 
-        *field = load_gpx_file(parser, token->string_value, error);
+        *field = load_trace(parser, token->string_value, error);
 
         return *field ? FLT_PARSER_RETURN_OK : FLT_PARSER_RETURN_ERROR;
 }
@@ -577,11 +607,11 @@ parse_properties(struct flt_parser *parser,
                                                  object,
                                                  error);
                         break;
-                case FLT_PARSER_VALUE_TYPE_GPX_FILE:
-                        ret = parse_gpx_file_property(parser,
-                                                      props + i,
-                                                      object,
-                                                      error);
+                case FLT_PARSER_VALUE_TYPE_TRACE:
+                        ret = parse_trace_property(parser,
+                                                   props + i,
+                                                   object,
+                                                   error);
                         break;
                 }
 
@@ -1581,7 +1611,7 @@ parse_gpx_map(struct flt_parser *parser,
         static const struct flt_parser_property props[] = {
                 {
                         offsetof(struct flt_scene_gpx_map, trace),
-                        FLT_PARSER_VALUE_TYPE_GPX_FILE,
+                        FLT_PARSER_VALUE_TYPE_TRACE,
                         FLT_LEXER_KEYWORD_TRACE,
                 },
         };

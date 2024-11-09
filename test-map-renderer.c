@@ -184,16 +184,14 @@ main(int argc, char **argv)
         if (!process_options(argc, argv, &config))
                 return EXIT_FAILURE;
 
-        struct flt_gpx_point *points = NULL;
-        size_t n_points = 0;
+        struct flt_trace *trace = NULL;
 
         if (config.trace) {
                 struct flt_error *error = NULL;
 
-                if (!flt_gpx_parse(config.trace,
-                                   &points,
-                                   &n_points,
-                                   &error)) {
+                trace = flt_trace_parse(config.trace, &error);
+
+                if (trace == NULL) {
                         fprintf(stderr, "%s\n", error->message);
                         flt_error_free(error);
                         return EXIT_FAILURE;
@@ -225,8 +223,7 @@ main(int argc, char **argv)
                                      config.height / 2.0,
                                      config.width,
                                      config.height,
-                                     points,
-                                     n_points,
+                                     trace,
                                      &error)) {
                 fprintf(stderr, "%s\n", error->message);
                 ret = EXIT_FAILURE;
@@ -243,7 +240,8 @@ main(int argc, char **argv)
         cairo_destroy(cr);
         cairo_surface_destroy(surface);
 
-        flt_free(points);
+        if (trace)
+                flt_trace_free(trace);
 
         return ret;
 }

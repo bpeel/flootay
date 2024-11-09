@@ -21,7 +21,7 @@ expat_dep = dependency('expat')
 curl_dep = dependency('libcurl')
 json_dep = dependency('json-c')
 
-flootay_deps = [m_dep, cairo_dep, rsvg_dep, expat_dep, curl_dep]
+flootay_deps = [m_dep, cairo_dep, rsvg_dep, expat_dep, curl_dep, json_dep]
 
 flootay_lib = library('flootay',
                       ['flootay-lib.c',
@@ -30,6 +30,7 @@ flootay_lib = library('flootay',
                        'flt-error.c',
                        'flt-file-error.c',
                        'flt-gpx.c',
+                       'flt-trace.c',
                        'flt-lexer.c',
                        'flt-list.c',
                        'flt-map-renderer.c',
@@ -101,10 +102,9 @@ executable('test-map-renderer',
             'flt-file-error.c',
             'flt-error.c',
             'flt-map-renderer.c',
-            'flt-gpx.c',
-            'flt-error.c',
-            'flt-parse-time.c'],
-            dependencies: [cairo_dep, m_dep, curl_dep, expat_dep])
+            'flt-trace.c',
+            'flt-error.c'],
+            dependencies: [cairo_dep, m_dep, curl_dep, json_dep])
 
 test_lexer_src = [
         'flt-util.c',

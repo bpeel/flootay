@@ -23,6 +23,7 @@
 
 #include "flt-list.h"
 #include "flt-gpx.h"
+#include "flt-trace.h"
 
 enum flt_scene_vertical_position {
         FLT_SCENE_VERTICAL_POSITION_TOP = 0,
@@ -78,6 +79,12 @@ struct flt_scene_gpx_file {
         char *filename;
         size_t n_points;
         struct flt_gpx_point *points;
+};
+
+struct flt_scene_trace {
+        struct flt_list link;
+        char *filename;
+        struct flt_trace *trace;
 };
 
 struct flt_scene_object {
@@ -175,7 +182,7 @@ struct flt_scene_gpx_distance {
 
 struct flt_scene_gpx_map {
         struct flt_scene_gpx_object base;
-        const struct flt_scene_gpx_file *trace;
+        const struct flt_scene_trace *trace;
 };
 
 struct flt_scene_gpx {
@@ -221,6 +228,7 @@ struct flt_scene {
 
         struct flt_list objects;
         struct flt_list gpx_files;
+        struct flt_list traces;
 
         char *map_url_base;
         char *map_api_key;

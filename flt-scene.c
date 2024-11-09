@@ -119,6 +119,18 @@ destroy_gpx_files(struct flt_scene *scene)
 }
 
 static void
+destroy_traces(struct flt_scene *scene)
+{
+        struct flt_scene_trace *trace, *tmp;
+
+        flt_list_for_each_safe(trace, tmp, &scene->traces, link) {
+                flt_free(trace->filename);
+                flt_trace_free(trace->trace);
+                flt_free(trace);
+        }
+}
+
+static void
 destroy_objects(struct flt_scene *scene)
 {
         struct flt_scene_object *object, *tmp;
@@ -138,6 +150,7 @@ flt_scene_new(void)
 
         flt_list_init(&scene->objects);
         flt_list_init(&scene->gpx_files);
+        flt_list_init(&scene->traces);
 
         return scene;
 }
@@ -166,6 +179,7 @@ void
 flt_scene_free(struct flt_scene *scene)
 {
         destroy_gpx_files(scene);
+        destroy_traces(scene);
         destroy_objects(scene);
 
         flt_free(scene->map_url_base);

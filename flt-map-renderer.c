@@ -452,13 +452,12 @@ set_clip(cairo_t *cr,
 }
 
 static void
-draw_points(cairo_t *cr,
-            int zoom,
-            int map_width,
-            int center_pixel_x, int center_pixel_y,
-            double draw_center_x, double draw_center_y,
-            const struct flt_gpx_point *points,
-            size_t n_points)
+draw_trace(cairo_t *cr,
+           int zoom,
+           int map_width,
+           int center_pixel_x, int center_pixel_y,
+           double draw_center_x, double draw_center_y,
+           const struct flt_trace *trace)
 {
         cairo_save(cr);
 
@@ -466,25 +465,34 @@ draw_points(cairo_t *cr,
         cairo_set_source_rgba(cr, 1.0, 0.0, 0.0, 0.5);
         cairo_set_line_cap(cr, CAIRO_LINE_CAP_ROUND);
 
-        for (size_t i = 0; i < n_points; i++) {
-                int tile_x, tile_y, pixel_x, pixel_y;
+        for (size_t segment_num = 0;
+             segment_num < trace->n_segments;
+             segment_num++) {
+                const struct flt_trace_segment *segment =
+                        trace->segments + segment_num;
 
-                lon_to_x(points[i].lon, zoom, &tile_x, &pixel_x);
-                lat_to_y(points[i].lat, zoom, &tile_y, &pixel_y);
+                for (size_t i = 0; i < segment->n_points; i++) {
+                        const struct flt_trace_point *point =
+                                segment->points + i;
+                        int tile_x, tile_y, pixel_x, pixel_y;
 
-                double x = draw_center_x +
-                        tile_x * TILE_SIZE +
-                        pixel_x -
-                        center_pixel_x;
-                double y = draw_center_y +
-                        tile_y * TILE_SIZE +
-                        pixel_y -
-                        center_pixel_y;
+                        lon_to_x(point->lon, zoom, &tile_x, &pixel_x);
+                        lat_to_y(point->lat, zoom, &tile_y, &pixel_y);
 
-                if (i == 0)
-                        cairo_move_to(cr, x, y);
-                else
-                        cairo_line_to(cr, x, y);
+                        double x = draw_center_x +
+                                tile_x * TILE_SIZE +
+                                pixel_x -
+                                center_pixel_x;
+                        double y = draw_center_y +
+                                tile_y * TILE_SIZE +
+                                pixel_y -
+                                center_pixel_y;
+
+                        if (i == 0)
+                                cairo_move_to(cr, x, y);
+                        else
+                                cairo_line_to(cr, x, y);
+                }
         }
 
         cairo_stroke(cr);
@@ -499,8 +507,7 @@ flt_map_renderer_render(struct flt_map_renderer *renderer,
                         double lat, double lon,
                         double draw_center_x, double draw_center_y,
                         int map_width, int map_height,
-                        const struct flt_gpx_point *points,
-                        size_t n_points,
+                        const struct flt_trace *trace,
                         struct flt_error **error)
 {
         bool ret = true;
@@ -553,15 +560,14 @@ flt_map_renderer_render(struct flt_map_renderer *renderer,
                 }
         }
 
-        if (n_points > 0) {
-                draw_points(cr,
-                            zoom,
-                            map_width,
-                            tile_x * TILE_SIZE + pixel_x,
-                            tile_y * TILE_SIZE + pixel_y,
-                            draw_center_x, draw_center_y,
-                            points,
-                            n_points);
+        if (trace) {
+                draw_trace(cr,
+                           zoom,
+                           map_width,
+                           tile_x * TILE_SIZE + pixel_x,
+                           tile_y * TILE_SIZE + pixel_y,
+                           draw_center_x, draw_center_y,
+                           trace);
         }
 
 out:

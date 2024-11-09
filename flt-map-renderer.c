@@ -370,14 +370,14 @@ lat_to_y(double lat, int zoom,
          int *tile_y_out,
          int *pixel_y_out)
 {
-    double lat_rad = lat * M_PI / 180.0;
-    double y = (1.0 - asinh(tan(lat_rad)) / M_PI) / 2.0 * (1 << zoom);
+        double lat_rad = lat * M_PI / 180.0;
+        double y = (1.0 - asinh(tan(lat_rad)) / M_PI) / 2.0 * (1 << zoom);
 
-    double tile_y;
-    double frac_y = modf(y, &tile_y);
+        double tile_y;
+        double frac_y = modf(y, &tile_y);
 
-    *tile_y_out = tile_y;
-    *pixel_y_out = round(frac_y * TILE_SIZE);
+        *tile_y_out = tile_y;
+        *pixel_y_out = round(frac_y * TILE_SIZE);
 }
 
 static void

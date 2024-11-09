@@ -19,6 +19,7 @@ cairo_dep = dependency('cairo')
 rsvg_dep = dependency('librsvg-2.0')
 expat_dep = dependency('expat')
 curl_dep = dependency('libcurl')
+json_dep = dependency('json-c')
 
 flootay_deps = [m_dep, cairo_dep, rsvg_dep, expat_dep, curl_dep]
 
@@ -142,3 +143,12 @@ executable('photos',
             'flt-child-proc.c',
             'photos.c'],
            dependencies: [m_dep, expat_dep])
+
+executable('trace-to-gpx',
+           ['flt-trace.c',
+            'flt-buffer.c',
+            'flt-error.c',
+            'flt-file-error.c',
+            'flt-util.c',
+            'trace-to-gpx.c'],
+           dependencies: [json_dep])

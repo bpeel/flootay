@@ -45,6 +45,7 @@
 #define TRACE_PRIMARY_COLOR 1.0, 0.0, 0.0, 0.5
 #define TRACE_SECONDARY_COLOR 1.0, 1.0, 1.0, 0.5
 #define TRACE_DASH_SIZE (TRACE_LINE_WIDTH * 2.0)
+#define CROSS_DISTANCE (TRACE_LINE_WIDTH * 4)
 
 struct flt_map_renderer {
         struct flt_list tile_cache;
@@ -502,6 +503,79 @@ stroke_dash(cairo_t *cr, double offset)
 }
 
 static void
+add_crosses(cairo_t *cr,
+            double x1, double y1,
+            double x2, double y2,
+            double line_distance,
+            double start_distance)
+{
+        for (double pos = fmodf(start_distance, CROSS_DISTANCE);
+             pos < line_distance;
+             pos += CROSS_DISTANCE) {
+                double d = pos / line_distance;
+                double cx = (x2 - x1) * d + x1;
+                double cy = (y2 - y1) * d + y1;
+                cairo_move_to(cr,
+                              cx - TRACE_LINE_WIDTH / 2.0,
+                              cy - TRACE_LINE_WIDTH / 2.0);
+                cairo_rel_line_to(cr,
+                                  TRACE_LINE_WIDTH,
+                                  TRACE_LINE_WIDTH);
+                cairo_rel_move_to(cr, 0.0, -TRACE_LINE_WIDTH);
+                cairo_rel_line_to(cr, -TRACE_LINE_WIDTH, TRACE_LINE_WIDTH);
+        }
+}
+
+static void
+draw_crossed_segment(cairo_t *cr)
+{
+        cairo_path_t *path = cairo_copy_path(cr);
+
+        cairo_new_path(cr);
+
+        double distance = 0.0;
+        double last_x = 0.0, last_y = 0.0, next_x, next_y, dx, dy, d;
+
+        for (int i = 0; i < path->num_data; i += path->data[i].header.length) {
+                const cairo_path_data_t *data = path->data + i;
+
+                switch (data->header.type) {
+                case CAIRO_PATH_MOVE_TO:
+                        distance = 0.0;
+                        last_x = data[1].point.x;
+                        last_y = data[1].point.y;
+                        break;
+
+                case CAIRO_PATH_LINE_TO:
+                        next_x = data[1].point.x;
+                        next_y = data[1].point.y;
+                        dx = next_x - last_x;
+                        dy = next_y - last_y;
+                        d = sqrtf((dx * dx) + (dy * dy));
+                        add_crosses(cr,
+                                    last_x, last_y,
+                                    next_x, next_y,
+                                    d,
+                                    distance);
+                        distance += d;
+                        last_x = next_x;
+                        last_y = next_y;
+                        break;
+
+                default:
+                        break;
+                }
+        }
+
+        cairo_path_destroy(path);
+
+        cairo_set_line_width(cr, TRACE_LINE_WIDTH / 8.0);
+        cairo_set_source_rgba(cr, TRACE_PRIMARY_COLOR);
+        cairo_stroke(cr);
+        cairo_set_line_width(cr, TRACE_LINE_WIDTH);
+}
+
+static void
 draw_trace(cairo_t *cr,
            int zoom,
            int map_width,
@@ -542,12 +616,18 @@ draw_trace(cairo_t *cr,
                         break;
                 }
 
+                case FLT_TRACE_SEGMENT_STATUS_POSTPONED:
+                case FLT_TRACE_SEGMENT_STATUS_VARIANT_POSTPONED:
+                        cairo_set_source_rgba(cr, TRACE_SECONDARY_COLOR);
+                        cairo_set_dash(cr, NULL, 0, 0.0);
+                        cairo_stroke_preserve(cr);
+                        draw_crossed_segment(cr);
+                        break;
+
                 case FLT_TRACE_SEGMENT_STATUS_PLANNED:
                 case FLT_TRACE_SEGMENT_STATUS_TESTED:
-                case FLT_TRACE_SEGMENT_STATUS_POSTPONED:
                 case FLT_TRACE_SEGMENT_STATUS_UNKNOWN:
                 case FLT_TRACE_SEGMENT_STATUS_VARIANT:
-                case FLT_TRACE_SEGMENT_STATUS_VARIANT_POSTPONED:
                         stroke_dash(cr, 0.0);
                         break;
                 }

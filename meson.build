@@ -104,6 +104,7 @@ executable('test-map-renderer',
             'flt-error.c',
             'flt-map-renderer.c',
             'flt-trace.c',
+            'flt-source-color.c',
             'flt-error.c'],
             dependencies: [cairo_dep, m_dep, curl_dep, json_dep])
 

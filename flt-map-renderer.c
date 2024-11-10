@@ -32,6 +32,7 @@
 #include "flt-buffer.h"
 #include "flt-list.h"
 #include "flt-file-error.h"
+#include "flt-source-color.h"
 
 #define N_CACHED_TILES 8
 
@@ -42,8 +43,8 @@
 #define DEFAULT_MAP_URL_BASE "https://tile.thunderforest.com/cycle/"
 
 #define TRACE_LINE_WIDTH (TILE_SIZE / 16.0)
-#define TRACE_PRIMARY_COLOR 1.0, 0.0, 0.0, 0.5
-#define TRACE_SECONDARY_COLOR 1.0, 1.0, 1.0, 0.5
+#define TRACE_ALPHA 0.5
+#define TRACE_SECONDARY_COLOR 1.0, 1.0, 1.0, TRACE_ALPHA
 #define TRACE_DASH_SIZE (TRACE_LINE_WIDTH * 2.0)
 #define CROSS_DISTANCE (TRACE_LINE_WIDTH * 4)
 
@@ -488,11 +489,13 @@ add_segment_path(cairo_t *cr,
 }
 
 static void
-stroke_dash(cairo_t *cr, double offset)
+stroke_dash(cairo_t *cr,
+            const struct flt_map_renderer_params *params,
+            double offset)
 {
         const double dash_size = TRACE_DASH_SIZE;
 
-        cairo_set_source_rgba(cr, TRACE_PRIMARY_COLOR);
+        flt_source_color_set(cr, params->trace_color, TRACE_ALPHA);
         cairo_set_dash(cr, &dash_size, 1, offset);
         cairo_stroke_preserve(cr);
         cairo_set_source_rgba(cr, TRACE_SECONDARY_COLOR);
@@ -525,7 +528,8 @@ add_crosses(cairo_t *cr,
 }
 
 static void
-draw_crossed_segment(cairo_t *cr)
+draw_crossed_segment(cairo_t *cr,
+                     const struct flt_map_renderer_params *params)
 {
         cairo_path_t *path = cairo_copy_path(cr);
 
@@ -568,7 +572,7 @@ draw_crossed_segment(cairo_t *cr)
         cairo_path_destroy(path);
 
         cairo_set_line_width(cr, TRACE_LINE_WIDTH / 8.0);
-        cairo_set_source_rgba(cr, TRACE_PRIMARY_COLOR);
+        flt_source_color_set(cr, params->trace_color, TRACE_ALPHA);
         cairo_stroke(cr);
         cairo_set_line_width(cr, TRACE_LINE_WIDTH);
 }
@@ -595,7 +599,9 @@ draw_trace(cairo_t *cr,
 
                 switch (segment->status) {
                 case FLT_TRACE_SEGMENT_STATUS_DONE:
-                        cairo_set_source_rgba(cr, TRACE_PRIMARY_COLOR);
+                        flt_source_color_set(cr,
+                                             params->trace_color,
+                                             TRACE_ALPHA);
                         cairo_set_dash(cr, NULL, 0, 0.0);
                         cairo_stroke(cr);
                         break;
@@ -603,6 +609,7 @@ draw_trace(cairo_t *cr,
                 case FLT_TRACE_SEGMENT_STATUS_WIP: {
                         double ipart;
                         stroke_dash(cr,
+                                    params,
                                     modf(params->video_timestamp, &ipart) *
                                     TRACE_DASH_SIZE * 4.0);
                         break;
@@ -613,14 +620,14 @@ draw_trace(cairo_t *cr,
                         cairo_set_source_rgba(cr, TRACE_SECONDARY_COLOR);
                         cairo_set_dash(cr, NULL, 0, 0.0);
                         cairo_stroke_preserve(cr);
-                        draw_crossed_segment(cr);
+                        draw_crossed_segment(cr, params);
                         break;
 
                 case FLT_TRACE_SEGMENT_STATUS_PLANNED:
                 case FLT_TRACE_SEGMENT_STATUS_TESTED:
                 case FLT_TRACE_SEGMENT_STATUS_UNKNOWN:
                 case FLT_TRACE_SEGMENT_STATUS_VARIANT:
-                        stroke_dash(cr, 0.0);
+                        stroke_dash(cr, params, 0.0);
                         break;
                 }
         }

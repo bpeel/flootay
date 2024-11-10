@@ -20,6 +20,7 @@
 #define FLT_MAP_RENDERER
 
 #include <cairo.h>
+#include <stdint.h>
 
 #include "flt-error.h"
 #include "flt-trace.h"
@@ -40,6 +41,7 @@ struct flt_map_renderer_params {
         double draw_center_y;
         int map_width; int map_height;
         const struct flt_trace *trace;
+        uint32_t trace_color;
         double video_timestamp;
 };
 
@@ -52,6 +54,7 @@ struct flt_map_renderer_params {
                 .map_width = 256.0,             \
                 .map_height = 256.0,            \
                 .trace = NULL,                  \
+                .trace_color = 0xff0000,        \
                 .video_timestamp = 0.0,         \
         }
 

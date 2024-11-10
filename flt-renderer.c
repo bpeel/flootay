@@ -589,15 +589,18 @@ add_map(struct flt_renderer *renderer,
                         map_y + map_size / 2.0);
         cairo_scale(cr, map_scale, map_scale);
 
+        struct flt_map_renderer_params params = FLT_MAP_RENDERER_DEFAULT_PARAMS;
+
+        params.lat = lat;
+        params.lon = lon;
+        params.map_width = round(map_size_tile_units);
+        params.map_height = params.map_width;
+        params.trace = map->trace ? map->trace->trace : NULL;
+        params.video_timestamp = video_timestamp;
+
         if (!flt_map_renderer_render(renderer->map_renderer,
                                      cr,
-                                     17, /* zoom */
-                                     lat, lon,
-                                     0.0, 0.0, /* draw_center_x/y */
-                                     round(map_size_tile_units),
-                                     round(map_size_tile_units),
-                                     map->trace ? map->trace->trace : NULL,
-                                     video_timestamp,
+                                     &params,
                                      error))
                 ret = false;
 

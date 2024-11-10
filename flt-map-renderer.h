@@ -32,6 +32,29 @@ enum flt_map_renderer_error {
         FLT_MAP_RENDERER_ERROR_FETCH_FAILED,
 };
 
+struct flt_map_renderer_params {
+        int zoom;
+        double lat;
+        double lon;
+        double draw_center_x;
+        double draw_center_y;
+        int map_width; int map_height;
+        const struct flt_trace *trace;
+        double video_timestamp;
+};
+
+#define FLT_MAP_RENDERER_DEFAULT_PARAMS {       \
+                .zoom = 17,                     \
+                .lat = 45.767615,               \
+                .lon = 4.834434,                \
+                .draw_center_x = 0.0,           \
+                .draw_center_y = 0.0,           \
+                .map_width = 256.0,             \
+                .map_height = 256.0,            \
+                .trace = NULL,                  \
+                .video_timestamp = 0.0,         \
+        }
+
 struct flt_map_renderer;
 
 /* url_base can be NULL to use the default. If api_key is NULL then no
@@ -48,12 +71,7 @@ flt_map_renderer_set_clip(struct flt_map_renderer *renderer,
 bool
 flt_map_renderer_render(struct flt_map_renderer *renderer,
                         cairo_t *cr,
-                        int zoom,
-                        double lat, double lon,
-                        double draw_center_x, double draw_center_y,
-                        int map_width, int map_height,
-                        const struct flt_trace *trace,
-                        double video_timestamp,
+                        const struct flt_map_renderer_params *params,
                         struct flt_error **error);
 
 void

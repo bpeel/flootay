@@ -214,17 +214,20 @@ main(int argc, char **argv)
 
         flt_map_renderer_set_clip(renderer, config.clip);
 
+        struct flt_map_renderer_params params = FLT_MAP_RENDERER_DEFAULT_PARAMS;
+
+        params.zoom = config.zoom;
+        params.lat = config.lat;
+        params.lon = config.lon;
+        params.draw_center_x = config.width / 2.0;
+        params.draw_center_y = config.height / 2.0;
+        params.map_width = config.width;
+        params.map_height = config.height;
+        params.trace = trace;
+
         if (!flt_map_renderer_render(renderer,
                                      cr,
-                                     config.zoom,
-                                     config.lat,
-                                     config.lon,
-                                     config.width / 2.0,
-                                     config.height / 2.0,
-                                     config.width,
-                                     config.height,
-                                     trace,
-                                     0.0, /* video_timestamp */
+                                     &params,
                                      &error)) {
                 fprintf(stderr, "%s\n", error->message);
                 ret = EXIT_FAILURE;

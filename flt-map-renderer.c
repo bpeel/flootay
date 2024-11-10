@@ -459,10 +459,8 @@ set_clip(cairo_t *cr,
 
 static void
 add_segment_path(cairo_t *cr,
-                 int zoom,
-                 int map_width,
+                 const struct flt_map_renderer_params *params,
                  int center_pixel_x, int center_pixel_y,
-                 double draw_center_x, double draw_center_y,
                  const struct flt_trace_segment *segment)
 {
         for (size_t i = 0; i < segment->n_points; i++) {
@@ -470,14 +468,14 @@ add_segment_path(cairo_t *cr,
                         segment->points + i;
                 int tile_x, tile_y, pixel_x, pixel_y;
 
-                lon_to_x(point->lon, zoom, &tile_x, &pixel_x);
-                lat_to_y(point->lat, zoom, &tile_y, &pixel_y);
+                lon_to_x(point->lon, params->zoom, &tile_x, &pixel_x);
+                lat_to_y(point->lat, params->zoom, &tile_y, &pixel_y);
 
-                double x = draw_center_x +
+                double x = params->draw_center_x +
                         tile_x * TILE_SIZE +
                         pixel_x -
                         center_pixel_x;
-                double y = draw_center_y +
+                double y = params->draw_center_y +
                         tile_y * TILE_SIZE +
                         pixel_y -
                         center_pixel_y;
@@ -577,28 +575,22 @@ draw_crossed_segment(cairo_t *cr)
 
 static void
 draw_trace(cairo_t *cr,
-           int zoom,
-           int map_width,
-           int center_pixel_x, int center_pixel_y,
-           double draw_center_x, double draw_center_y,
-           const struct flt_trace *trace,
-           double video_timestamp)
+           const struct flt_map_renderer_params *params,
+           int center_pixel_x, int center_pixel_y)
 {
         cairo_save(cr);
 
         cairo_set_line_width(cr, TRACE_LINE_WIDTH);
 
         for (size_t segment_num = 0;
-             segment_num < trace->n_segments;
+             segment_num < params->trace->n_segments;
              segment_num++) {
                 const struct flt_trace_segment *segment =
-                        trace->segments + segment_num;
+                        params->trace->segments + segment_num;
 
                 add_segment_path(cr,
-                                 zoom,
-                                 map_width,
+                                 params,
                                  center_pixel_x, center_pixel_y,
-                                 draw_center_x, draw_center_y,
                                  segment);
 
                 switch (segment->status) {
@@ -611,7 +603,7 @@ draw_trace(cairo_t *cr,
                 case FLT_TRACE_SEGMENT_STATUS_WIP: {
                         double ipart;
                         stroke_dash(cr,
-                                    modf(video_timestamp, &ipart) *
+                                    modf(params->video_timestamp, &ipart) *
                                     TRACE_DASH_SIZE * 4.0);
                         break;
                 }
@@ -641,12 +633,7 @@ draw_trace(cairo_t *cr,
 bool
 flt_map_renderer_render(struct flt_map_renderer *renderer,
                         cairo_t *cr,
-                        int zoom,
-                        double lat, double lon,
-                        double draw_center_x, double draw_center_y,
-                        int map_width, int map_height,
-                        const struct flt_trace *trace,
-                        double video_timestamp,
+                        const struct flt_map_renderer_params *params,
                         struct flt_error **error)
 {
         bool ret = true;
@@ -655,30 +642,33 @@ flt_map_renderer_render(struct flt_map_renderer *renderer,
 
         if (renderer->clip) {
                 set_clip(cr,
-                         draw_center_x,
-                         draw_center_y,
-                         map_width,
-                         map_height);
+                         params->draw_center_x,
+                         params->draw_center_y,
+                         params->map_width,
+                         params->map_height);
         }
 
         int tile_x, tile_y, pixel_x, pixel_y;
 
-        lon_to_x(lon, zoom, &tile_x, &pixel_x);
-        lat_to_y(lat, zoom, &tile_y, &pixel_y);
+        lon_to_x(params->lon, params->zoom, &tile_x, &pixel_x);
+        lat_to_y(params->lat, params->zoom, &tile_y, &pixel_y);
 
-        int x_tile_start = -((map_width / 2 - pixel_x + TILE_SIZE - 1) /
+        int x_tile_start = -((params->map_width / 2 - pixel_x + TILE_SIZE - 1) /
                              TILE_SIZE);
-        int y_tile_start = -((map_height / 2 - pixel_y + TILE_SIZE - 1) /
+        int y_tile_start = -((params->map_height / 2 -
+                              pixel_y +
+                              TILE_SIZE -
+                              1) /
                              TILE_SIZE);
 
         for (int y = y_tile_start;
-             y * TILE_SIZE - pixel_y < map_height;
+             y * TILE_SIZE - pixel_y < params->map_height;
              y++) {
                 for (int x = x_tile_start;
-                     x * TILE_SIZE - pixel_x < map_width;
+                     x * TILE_SIZE - pixel_x < params->map_width;
                      x++) {
                         struct cached_tile *tile = get_tile(renderer,
-                                                            zoom,
+                                                            params->zoom,
                                                             x + tile_x,
                                                             y + tile_y,
                                                             error);
@@ -690,24 +680,20 @@ flt_map_renderer_render(struct flt_map_renderer *renderer,
 
                         render_tile(cr,
                                     tile,
-                                    draw_center_x -
+                                    params->draw_center_x -
                                     pixel_x +
                                     x * TILE_SIZE,
-                                    draw_center_y -
+                                    params->draw_center_y -
                                     pixel_y +
                                     y * TILE_SIZE);
                 }
         }
 
-        if (trace) {
+        if (params->trace) {
                 draw_trace(cr,
-                           zoom,
-                           map_width,
+                           params,
                            tile_x * TILE_SIZE + pixel_x,
-                           tile_y * TILE_SIZE + pixel_y,
-                           draw_center_x, draw_center_y,
-                           trace,
-                           video_timestamp);
+                           tile_y * TILE_SIZE + pixel_y);
         }
 
 out:

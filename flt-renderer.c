@@ -25,6 +25,7 @@
 #include "flt-util.h"
 #include "flt-buffer.h"
 #include "flt-map-renderer.h"
+#include "flt-source-color.h"
 
 #define ELEVATION_LABEL "ELEVATION"
 #define SCORE_SLIDE_TIME 0.5
@@ -71,15 +72,6 @@ clamp(int value, int min, int max)
         if (value >= max)
                 return max;
         return value;
-}
-
-static void
-set_source_from_color(cairo_t *cr, uint32_t color)
-{
-        cairo_set_source_rgb(cr,
-                             ((color >> 16) & 0xff) / 255.0,
-                             ((color >> 8) & 0xff) / 255.0,
-                             (color & 0xff) / 255.0);
 }
 
 static void
@@ -152,7 +144,7 @@ interpolate_and_add_rectangle(struct flt_renderer *renderer,
                        y1,
                        renderer->scene->video_height);
 
-        set_source_from_color(cr, rectangle->color);
+        flt_source_color_set(cr, rectangle->color, 1.0);
         cairo_rectangle(cr, x1, y1, x2 - x1, y2 - y1);
         cairo_fill(cr);
 }
@@ -223,7 +215,7 @@ render_text(struct flt_renderer *renderer,
         cairo_set_source_rgb(cr, 0.0, 0.0, 0.0);
         cairo_set_line_join(cr, CAIRO_LINE_JOIN_ROUND);
         cairo_stroke_preserve(cr);
-        set_source_from_color(cr, color);
+        flt_source_color_set(cr, color, 1.0);
         cairo_fill(cr);
         cairo_restore(cr);
 
@@ -785,7 +777,7 @@ interpolate_and_add_curve(struct flt_renderer *renderer,
         cairo_save(cr);
 
         cairo_set_antialias(cr, CAIRO_ANTIALIAS_BEST);
-        set_source_from_color(cr, curve->color);
+        flt_source_color_set(cr, curve->color, 1.0);
         cairo_set_line_width(cr,
                              interpolate_double(i,
                                                 s->stroke_width,

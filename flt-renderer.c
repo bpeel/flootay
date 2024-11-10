@@ -588,6 +588,7 @@ add_map(struct flt_renderer *renderer,
         params.map_width = round(map_size_tile_units);
         params.map_height = params.map_width;
         params.trace = map->trace ? map->trace->trace : NULL;
+        params.trace_color = map->trace_color;
         params.video_timestamp = video_timestamp;
 
         if (!flt_map_renderer_render(renderer->map_renderer,

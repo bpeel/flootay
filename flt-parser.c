@@ -1606,6 +1606,7 @@ parse_gpx_map(struct flt_parser *parser,
                 .base = {
                         .position = FLT_SCENE_POSITION_BOTTOM_RIGHT,
                 },
+                .trace_color = 0xff0000,
         };
 
         static const struct flt_parser_property props[] = {
@@ -1613,6 +1614,11 @@ parse_gpx_map(struct flt_parser *parser,
                         offsetof(struct flt_scene_gpx_map, trace),
                         FLT_PARSER_VALUE_TYPE_TRACE,
                         FLT_LEXER_KEYWORD_TRACE,
+                },
+                {
+                        offsetof(struct flt_scene_gpx_map, trace_color),
+                        FLT_PARSER_VALUE_TYPE_COLOR,
+                        FLT_LEXER_KEYWORD_TRACE_COLOR,
                 },
         };
 

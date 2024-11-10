@@ -183,6 +183,7 @@ struct flt_scene_gpx_distance {
 struct flt_scene_gpx_map {
         struct flt_scene_gpx_object base;
         const struct flt_scene_trace *trace;
+        uint32_t trace_color;
 };
 
 struct flt_scene_gpx {

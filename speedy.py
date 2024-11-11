@@ -454,7 +454,7 @@ def script_has_sound(script):
     return False
 
 def is_normal_speed(video_speeds):
-    return len(video_speeds) == 1 and video_speeds[0].speed == 1
+    return all(video_speed.speed == 1 for video_speed in video_speeds)
 
 def get_sound_mode(script, video_speeds):
     if script.silent:

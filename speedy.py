@@ -89,6 +89,7 @@ class Script:
         self.dial = False
         self.text_color = None
         self.map_trace = None
+        self.map_trace_color = None
 
 Svg = collections.namedtuple('Svg', ['video',
                                      'filename',
@@ -176,6 +177,7 @@ def parse_script(infile):
                                     r'(?P<offset>-?[0-9]+(?:\.[0-9]+)?)$')
     text_color_re = re.compile(r'text_color\s+(?P<color>.*)')
     map_trace_re = re.compile(r'map_trace\s+(?P<filename>\S+)\s*$')
+    map_trace_color_re = re.compile(r'map_trace_color\s+(?P<color>\S+)\s*$')
 
     raw_videos = {}
     script = Script()
@@ -406,6 +408,11 @@ def parse_script(infile):
         md = map_trace_re.match(line)
         if md:
             script.map_trace = md.group('filename')
+            continue
+
+        md = map_trace_color_re.match(line)
+        if md:
+            script.map_trace_color = md.group('color')
             continue
 
         md = video_re.match(line)
@@ -981,6 +988,9 @@ def get_speed_script_for_video(script,
         parts.append("        map {\n")
         if script.map_trace:
             parts.append(f"                trace \"{script.map_trace}\"\n")
+            if script.map_trace_color:
+                parts.append("                trace_color "
+                             f"{script.map_trace_color}\n")
         parts.append("        }\n")
 
     timestamp = gpx_offset[0] + video.start_time

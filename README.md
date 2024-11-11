@@ -8,14 +8,15 @@ First install the necessary dependencies. On Fedora this can be done like this:
 
 ```bash
 sudo dnf install meson ninja-build SDL2{,_image}-devel cairo-devel \
-                 librsvg2-devel expat-devel libcurl-devel
+                 librsvg2-devel expat-devel libcurl-devel json-c-devel
 ```
 
 Or on Ubuntu:
 
 ```bash
 sudo apt install gcc ninja-build meson git libsdl2{-image,}-dev \
-                 libcairo2-dev librsvg2-dev libexpat1-dev libcurl-dev
+                 libcairo2-dev librsvg2-dev libexpat1-dev libcurl-dev \
+                 libjson-c-dev
 ```
 
 In order to run the tools you will also need to [install ffmpeg](https://computingforgeeks.com/how-to-install-ffmpeg-on-fedora/). On Fedora this will involve enabling the RPM fusion repository in order to get the various codecs.
@@ -166,6 +167,20 @@ map_api_key "cafecafecafecafecafecafecafecafe"
 ```
 
 The map tiles will be downloaded once and cached on disk for later runs. If you want to redownload them, delete the `map-tiles` directory.
+
+### Trace from Cyclopolis
+
+You can add a trace to the map using a file in the JSON format used by [Cyclopolis](https://cyclopolis.fr), which is a site used to track the progress of the express cycle network in Lyon. Other cities might use the same technology too. The style of the trace will try to match that of the Cyclopolis site where planned sections are a dotted line and WIP sections are animated etc. To add this to your videos add a line like the following somewhere in the script:
+
+```
+map_trace ../voieslyonnaises/content/voies-cyclables/ligne-1.json
+```
+
+You can change the color of the line like this:
+
+```
+map_trace_color 0x60A75B
+```
 
 ### Distance
 

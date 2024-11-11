@@ -85,6 +85,7 @@ class Script:
         self.instagram = False
         self.default_speed = 1.0 / 3.0
         self.silent = False
+        self.background_sound = False
         self.distance_offset = None
         self.dial = False
         self.text_color = None
@@ -300,6 +301,10 @@ def parse_script(infile):
 
         if line == "silent":
             script.silent = True
+            continue
+
+        if line == "background_sound":
+            script.background_sound = True
             continue
 
         if line == "no_gpx":
@@ -718,6 +723,13 @@ def check_ffmpeg_has_flootay():
                                       encoding="utf-8")
     return re.search(r'^\s*...\s+flootay\s+', filters, re.MULTILINE) is not None
 
+def get_silent_source(duration):
+    return ["-f", "lavfi",
+            "-i",
+            "anullsrc=channel_layout=stereo:"
+            "sample_rate=48000:"
+            f"d={duration}"]
+
 def get_ffmpeg_command(script, video_filename, video_speeds):
     input_args = (["ffmpeg"] +
                   sum((get_ffmpeg_input_args(script, video)
@@ -762,11 +774,7 @@ def get_ffmpeg_command(script, video_filename, video_speeds):
             if not video.raw_video.is_image:
                 continue
 
-            input_args.extend(["-f", "lavfi",
-                               "-i",
-                               "anullsrc=channel_layout=stereo:"
-                               "sample_rate=48000:"
-                               "d=0"])
+            input_args.extend(get_silent_source(0))
             next_input += 1
 
     if has_flootay:
@@ -839,6 +847,9 @@ def write_sound_script(f, total_video_time, sound_clips):
            "exec {} -E {} {}").format(exe, total_video_time, sound_args),
           end='',
           file=f)
+
+    if script.background_sound:
+        print(" -m background-sound.flac", end='', file=f)
 
     pos = 0
 
@@ -1064,6 +1075,36 @@ def write_video_script(f, video):
     print(script_time_re.sub(replace_video_time, "\n".join(video.script)),
           file=f)
 
+def generate_background_sound(script):
+    print("set -eu")
+
+    args = ["ffmpeg"]
+
+    for video_num, video in enumerate(script.videos):
+        if video.raw_video.is_image or video.raw_video.is_proc:
+            args.extend(get_silent_source(video.length()))
+        else:
+            if video.start_time > 0:
+                args.extend(["-ss", str(video.start_time)])
+
+            if video.end_time is not None:
+                args.extend(["-to", str(video.end_time)])
+
+            args.extend(["-i", video.raw_video.filename])
+
+    filter_parts = []
+
+    for i in range(len(script.videos)):
+        filter_parts.append(f"[{i}:a]")
+
+    filter_parts.append(f"concat=n={len(script.videos)}:v=0:a=1[outa]")
+
+    args.extend(["-filter_complex", ''.join(filter_parts),
+                 "-map", "[outa]",
+                 "background-sound.flac"])
+
+    print(" ".join(shlex.quote(arg) for arg in args))
+
 if len(sys.argv) >= 2:
     video_filename = os.path.splitext(sys.argv[1])[0] + ".mp4"
     with open(sys.argv[1], "rt", encoding="utf-8") as f:
@@ -1115,6 +1156,9 @@ for video_num, video in enumerate(script.videos):
         print(flootay_header, file=f)
         write_video_script(f, video)
     os.chmod(filename, 0o775)
+
+if script.background_sound:
+    generate_background_sound(script)
 
 print(os.path.join(os.path.dirname(sys.argv[0]),
                    "build",

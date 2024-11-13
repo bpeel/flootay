@@ -43,7 +43,7 @@
 #define DEFAULT_MAP_URL_BASE "https://tile.thunderforest.com/cycle/"
 
 #define TRACE_LINE_WIDTH (TILE_SIZE / 16.0)
-#define TRACE_ALPHA 0.5
+#define TRACE_ALPHA 0.75
 #define TRACE_SECONDARY_COLOR 1.0, 1.0, 1.0, TRACE_ALPHA
 #define TRACE_DASH_SIZE (TRACE_LINE_WIDTH * 2.0)
 #define CROSS_DISTANCE (TRACE_LINE_WIDTH * 4)

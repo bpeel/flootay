@@ -606,6 +606,7 @@ draw_trace(cairo_t *cr,
                         cairo_stroke(cr);
                         break;
 
+                case FLT_TRACE_SEGMENT_STATUS_TESTED:
                 case FLT_TRACE_SEGMENT_STATUS_WIP: {
                         double ipart;
                         stroke_dash(cr,
@@ -624,7 +625,6 @@ draw_trace(cairo_t *cr,
                         break;
 
                 case FLT_TRACE_SEGMENT_STATUS_PLANNED:
-                case FLT_TRACE_SEGMENT_STATUS_TESTED:
                 case FLT_TRACE_SEGMENT_STATUS_UNKNOWN:
                 case FLT_TRACE_SEGMENT_STATUS_VARIANT:
                         stroke_dash(cr, params, 0.0);
